@@ -38,7 +38,14 @@ endif()
 
 include_directories("${d3dgl_SOURCE_DIR}/include" "${d3dgl_BINARY_DIR}")
 
-add_library(${LIBNAME} SHARED main.cpp)
+
+set(HDRS  include/trace.hpp
+)
+
+set(SRCS  main.cpp
+)
+
+add_library(${LIBNAME} SHARED ${SRCS} ${HDRS})
 
 if(WIN32)
     set_target_properties(${LIBNAME} PROPERTIES PREFIX "")

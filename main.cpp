@@ -3,47 +3,17 @@
 #include <windows.h>
 #include <d3d9.h>
 
-#include <cstdio>
 #include <vector>
+
+#include "trace.hpp"
 
 
 #define DECLSPEC_HOTPATCH __attribute__((__ms_hook_prologue__))
 #define DECLSPEC_EXPORT __declspec (dllexport)
 
-enum eLogLevel {
-    ERR_=0,
-    FIXME_=1,
-    WARN_=2,
-    TRACE_=3
-};
+
 eLogLevel LogLevel = FIXME_;
 FILE *LogFile = stderr;
-
-
-#define D3DGL_PRINT(MSG, ...) do {                                            \
-    fprintf(LogFile, "D3DGL: %s: " MSG, __FUNCTION__ , ## __VA_ARGS__);       \
-    fflush(LogFile);                                                          \
-} while(0)
-
-#define TRACE(...) do {                                                       \
-    if(LogLevel >= TRACE_)                                                    \
-        D3DGL_PRINT(__VA_ARGS__);                                             \
-} while(0)
-
-#define WARN(...) do {                                                        \
-    if(LogLevel >= WARN_)                                                     \
-        D3DGL_PRINT(__VA_ARGS__);                                             \
-} while(0)
-
-#define FIXME(...) do {                                                       \
-    if(LogLevel >= FIXME_)                                                    \
-        D3DGL_PRINT(__VA_ARGS__);                                             \
-} while(0)
-
-#define ERR(...) do {                                                         \
-    if(LogLevel >= ERR_)                                                      \
-        D3DGL_PRINT(__VA_ARGS__);                                             \
-} while(0)
 
 
 extern "C" {
