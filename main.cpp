@@ -7,8 +7,7 @@
 #include <vector>
 #include <sstream>
 
-#include <GL/glew.h>
-
+#include "glew.h"
 #include "trace.hpp"
 #include "d3dgl.hpp"
 
@@ -19,51 +18,6 @@
 
 eLogLevel LogLevel = FIXME_;
 FILE *LogFile = stderr;
-
-
-extern "C" {
-
-
-BOOL WINAPI DllMain(HINSTANCE /*hModule*/, DWORD reason, void */*lpReserved*/)
-{
-    const char *str;
-
-    switch(reason)
-    {
-        case DLL_PROCESS_ATTACH:
-            str = getenv("D3DGL_LOGFILE");
-            if(str && str[0] != '\0')
-            {
-                std::stringstream sstr;
-                sstr<< str<<"-"<<getpid()<<".log";
-                FILE *logfile = fopen(sstr.str().c_str(), "wb");
-                if(logfile) LogFile = logfile;
-                else ERR("Failed to open %s for writing\n", sstr.str().c_str());
-            }
-
-            str = getenv("D3DGL_LOGLEVEL");
-            if(str && str[0] != '\0')
-            {
-                char *end = nullptr;
-                unsigned long val = strtoul(str, &end, 10);
-                if(end && *end == '\0')
-                    LogLevel = eLogLevel(std::min<unsigned long>(val, TRACE_));
-                else
-                    ERR("Invalid log level: %s\n", str);
-            }
-            TRACE("DLL_PROCESS_ATTACH\n");
-            break;
-
-        case DLL_PROCESS_DETACH:
-            TRACE("DLL_PROCESS_DETACH\n");
-            break;
-    }
-    return TRUE;
-}
-
-
-static int D3DPERF_event_level = 0;
-
 
 static const wchar_t WndClassName[] = L"D3DGLWndClass";
 
@@ -112,6 +66,49 @@ bool CreateFakeContext(HINSTANCE hInstance, HWND &hWnd, HDC &dc, HGLRC &glrc)
     }
 
     return true;
+}
+
+
+extern "C" {
+
+static int D3DPERF_event_level = 0;
+
+
+BOOL WINAPI DllMain(HINSTANCE /*hModule*/, DWORD reason, void */*lpReserved*/)
+{
+    const char *str;
+
+    switch(reason)
+    {
+        case DLL_PROCESS_ATTACH:
+            str = getenv("D3DGL_LOGFILE");
+            if(str && str[0] != '\0')
+            {
+                std::stringstream sstr;
+                sstr<< str<<"-"<<getpid()<<".log";
+                FILE *logfile = fopen(sstr.str().c_str(), "wb");
+                if(logfile) LogFile = logfile;
+                else ERR("Failed to open %s for writing\n", sstr.str().c_str());
+            }
+
+            str = getenv("D3DGL_LOGLEVEL");
+            if(str && str[0] != '\0')
+            {
+                char *end = nullptr;
+                unsigned long val = strtoul(str, &end, 10);
+                if(end && *end == '\0')
+                    LogLevel = eLogLevel(std::min<unsigned long>(val, TRACE_));
+                else
+                    ERR("Invalid log level: %s\n", str);
+            }
+            TRACE("DLL_PROCESS_ATTACH\n");
+            break;
+
+        case DLL_PROCESS_DETACH:
+            TRACE("DLL_PROCESS_DETACH\n");
+            break;
+    }
+    return TRUE;
 }
 
 

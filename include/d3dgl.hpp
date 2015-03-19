@@ -6,6 +6,9 @@
 
 #include <d3d9.h>
 
+bool CreateFakeContext(HINSTANCE hInstance, HWND &hWnd, HDC &dc, HGLRC &glrc);
+
+
 class D3DAdapter;
 
 class Direct3DGL : public IDirect3D9 {

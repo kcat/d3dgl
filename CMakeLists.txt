@@ -21,7 +21,6 @@ endif()
 include(CheckCXXCompilerFlag)
 
 find_package(OpenGL REQUIRED)
-find_package(GLEW REQUIRED)
 
 check_cxx_compiler_flag("-std=c++11" HAVE_STD_CXX11)
 if(HAVE_STD_CXX11)
@@ -37,9 +36,10 @@ if(HAVE_WEXTRA_SWITCH)
 endif()
 
 
-include_directories("${d3dgl_SOURCE_DIR}/include" "${d3dgl_BINARY_DIR}" ${GLEW_INCLUDE_DIRS} ${OPENGL_INCLUDE_DIR})
+include_directories("${d3dgl_SOURCE_DIR}/include" "${d3dgl_BINARY_DIR}" ${OPENGL_INCLUDE_DIR})
+add_definitions("-DGLEW_STATIC")
 
-set(EXTRA_LIBS  ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES} dxguid)
+set(EXTRA_LIBS  ${OPENGL_LIBRARIES} dxguid)
 if(WIN32 AND CMAKE_COMPILER_IS_GNUCC)
     set(EXTRA_LIBS  ${EXTRA_LIBS} -static-libgcc -static-libstdc++ -Wl,--enable-stdcall-fixup)
 endif()
@@ -51,6 +51,7 @@ set(HDRS  include/d3dgl.hpp
 
 set(SRCS  src/d3dgl.cpp
           main.cpp
+          glew.c
 )
 
 
