@@ -21,6 +21,7 @@ endif()
 include(CheckCXXCompilerFlag)
 
 find_package(OpenGL REQUIRED)
+find_package(GLEW REQUIRED)
 
 check_cxx_compiler_flag("-std=c++11" HAVE_STD_CXX11)
 if(HAVE_STD_CXX11)
@@ -36,16 +37,20 @@ if(HAVE_WEXTRA_SWITCH)
 endif()
 
 
-include_directories("${d3dgl_SOURCE_DIR}/include" "${d3dgl_BINARY_DIR}")
+include_directories("${d3dgl_SOURCE_DIR}/include" "${d3dgl_BINARY_DIR}" ${GLEW_INCLUDE_DIRS} ${OPENGL_INCLUDE_DIR})
 
 
-set(HDRS  include/trace.hpp
+set(HDRS  include/d3dgl.hpp
+          include/trace.hpp
 )
 
-set(SRCS  main.cpp
+set(SRCS  src/d3dgl.cpp
+          main.cpp
 )
 
 add_library(${LIBNAME} SHARED ${SRCS} ${HDRS})
+target_link_libraries(${LIBNAME} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES} dxguid)
+
 
 if(WIN32)
     set_target_properties(${LIBNAME} PROPERTIES PREFIX "")

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "trace.hpp"
+#include "d3dgl.hpp"
 
 
 #define DECLSPEC_HOTPATCH __attribute__((__ms_hook_prologue__))
@@ -64,7 +65,11 @@ void WINAPI DebugSetMute(void)
 DECLSPEC_EXPORT IDirect3D9* WINAPI DECLSPEC_HOTPATCH Direct3DCreate9(UINT sdk_version)
 {
     FIXME("(%u)\n", sdk_version);
-    return nullptr;
+
+    Direct3DGL *d3d = new Direct3DGL();
+
+    d3d->AddRef();
+    return d3d;
 }
 
 DECLSPEC_EXPORT HRESULT WINAPI DECLSPEC_HOTPATCH Direct3DCreate9Ex(UINT sdk_version, IDirect3D9Ex **d3d9ex)
