@@ -15,7 +15,7 @@ extern FILE *LogFile;
 
 
 #define D3DGL_PRINT(MSG, ...) do {                                            \
-    fprintf(LogFile, "D3DGL: %s: " MSG, __FUNCTION__ , ## __VA_ARGS__);       \
+    fprintf(LogFile, "D3DGL: %s " MSG, __FUNCTION__ , ## __VA_ARGS__);       \
     fflush(LogFile);                                                          \
 } while(0)
 

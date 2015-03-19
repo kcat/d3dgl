@@ -2,11 +2,16 @@
 #define D3DGL_HPP
 
 #include <atomic>
+#include <vector>
 
 #include <d3d9.h>
 
+class D3DAdapter;
+
 class Direct3DGL : public IDirect3D9 {
     std::atomic<ULONG> mRefCount;
+
+    std::vector<D3DAdapter> mAdapters;
 
 private:
     virtual ~Direct3DGL();

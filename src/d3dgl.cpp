@@ -4,7 +4,14 @@
 #include "trace.hpp"
 
 
+class D3DAdapter {
+public:
+    D3DAdapter();
+};
+
+
 Direct3DGL::Direct3DGL()
+  : mRefCount(0)
 {
 }
 

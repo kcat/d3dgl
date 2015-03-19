@@ -1,9 +1,13 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <process.h>
 #include <d3d9.h>
 
 #include <vector>
+#include <sstream>
+
+#include <GL/glew.h>
 
 #include "trace.hpp"
 #include "d3dgl.hpp"
@@ -30,9 +34,11 @@ BOOL WINAPI DllMain(HINSTANCE /*hModule*/, DWORD reason, void */*lpReserved*/)
             str = getenv("D3DGL_LOGFILE");
             if(str && str[0] != '\0')
             {
-                FILE *logfile = fopen(str, "wb");
+                std::stringstream sstr;
+                sstr<< str<<"-"<<getpid()<<".log";
+                FILE *logfile = fopen(sstr.str().c_str(), "wb");
                 if(logfile) LogFile = logfile;
-                else ERR("Failed to open %s for writing\n", str);
+                else ERR("Failed to open %s for writing\n", sstr.str().c_str());
             }
 
             str = getenv("D3DGL_LOGLEVEL");
@@ -45,9 +51,11 @@ BOOL WINAPI DllMain(HINSTANCE /*hModule*/, DWORD reason, void */*lpReserved*/)
                 else
                     ERR("Invalid log level: %s\n", str);
             }
+            TRACE("DLL_PROCESS_ATTACH\n");
             break;
 
         case DLL_PROCESS_DETACH:
+            TRACE("DLL_PROCESS_DETACH\n");
             break;
     }
     return TRUE;
@@ -57,7 +65,105 @@ BOOL WINAPI DllMain(HINSTANCE /*hModule*/, DWORD reason, void */*lpReserved*/)
 static int D3DPERF_event_level = 0;
 
 
-void WINAPI DebugSetMute(void)
+static const wchar_t WndClassName[] = L"D3DGLWndClass";
+
+bool CreateFakeContext(HINSTANCE hInstance, HWND &hWnd, HDC &dc, HGLRC &glrc)
+{
+    hWnd = nullptr;
+    dc   = nullptr;
+    glrc = nullptr;
+
+    hWnd = CreateWindowExW(0, WndClassName, L"D3DGL Fake Window", WS_OVERLAPPEDWINDOW,
+                           0, 0, 640, 480, nullptr, nullptr, hInstance, nullptr);
+    dc = GetDC(hWnd);
+    if(!hWnd || !dc)
+    {
+        ERR("Failed to create a window, or get a DC\n");
+        return false;
+    }
+
+    PIXELFORMATDESCRIPTOR pfd = PIXELFORMATDESCRIPTOR{
+        sizeof(PIXELFORMATDESCRIPTOR),
+        1,
+        PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER, //Flags
+        PFD_TYPE_RGBA,            //The kind of framebuffer. RGBA or palette.
+        32,                       //Colordepth of the framebuffer.
+        0, 0, 0, 0, 0, 0,
+        0,
+        0,
+        0,
+        0, 0, 0, 0,
+        24,                       //Number of bits for the depthbuffer
+        8,                        //Number of bits for the stencilbuffer
+        0,                        //Number of Aux buffers in the framebuffer.
+        PFD_MAIN_PLANE,
+        0,
+        0, 0, 0
+    };
+    int pfid = ChoosePixelFormat(dc, &pfd);
+    SetPixelFormat(dc, pfid, &pfd);
+
+    glrc = wglCreateContext(dc);
+    if(!glrc)
+    {
+        ERR("Failed to create WGL context");
+        DestroyWindow(hWnd);
+        return false;
+    }
+
+    return true;
+}
+
+
+static bool init_d3dgl(void)
+{
+    static bool inited = false;
+    if(inited) return true;
+
+    HINSTANCE hInstance = GetModuleHandleW(nullptr);
+
+    WNDCLASSW wc;
+    memset(&wc, 0, sizeof(wc));
+    wc.lpfnWndProc   = DefWindowProc;
+    wc.hInstance     = hInstance;
+    wc.hbrBackground = (HBRUSH)(COLOR_BACKGROUND);
+    wc.lpszClassName = WndClassName;
+    wc.style         = CS_OWNDC;
+    if(!RegisterClassW(&wc))
+    {
+        ERR("Failed to register fake GL window class");
+        return false;
+    }
+
+    HWND hWnd;
+    HDC dc;
+    HGLRC glrc;
+    if(!CreateFakeContext(hInstance, hWnd, dc, glrc))
+        return false;
+
+    wglMakeCurrent(dc, glrc);
+
+    GLenum err = glewInit();
+
+    wglMakeCurrent(dc, nullptr);
+    wglDeleteContext(glrc);
+
+    DestroyWindow(hWnd);
+
+    if(err != GLEW_OK)
+    {
+        /* Problem: glewInit failed, something is seriously wrong. */
+        ERR("GLEW error: %s\n", glewGetErrorString(err));
+        return false;
+    }
+
+    TRACE("Initialized GLEW %s\n", glewGetString(GLEW_VERSION));
+    inited = true;
+    return true;
+}
+
+
+DECLSPEC_EXPORT void WINAPI DebugSetMute(void)
 {
     FIXME("stub\n");
 }
@@ -65,6 +171,8 @@ void WINAPI DebugSetMute(void)
 DECLSPEC_EXPORT IDirect3D9* WINAPI DECLSPEC_HOTPATCH Direct3DCreate9(UINT sdk_version)
 {
     FIXME("(%u)\n", sdk_version);
+
+    init_d3dgl();
 
     Direct3DGL *d3d = new Direct3DGL();
 
@@ -75,6 +183,9 @@ DECLSPEC_EXPORT IDirect3D9* WINAPI DECLSPEC_HOTPATCH Direct3DCreate9(UINT sdk_ve
 DECLSPEC_EXPORT HRESULT WINAPI DECLSPEC_HOTPATCH Direct3DCreate9Ex(UINT sdk_version, IDirect3D9Ex **d3d9ex)
 {
     FIXME("(%u, %p)\n", sdk_version, d3d9ex);
+
+    init_d3dgl();
+
     *d3d9ex = nullptr;
     return D3DERR_NOTAVAILABLE;
 }

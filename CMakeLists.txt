@@ -25,19 +25,24 @@ find_package(GLEW REQUIRED)
 
 check_cxx_compiler_flag("-std=c++11" HAVE_STD_CXX11)
 if(HAVE_STD_CXX11)
-    add_definitions("-std=c++11")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 endif()
 check_cxx_compiler_flag("-Wall" HAVE_WALL_SWITCH)
 if(HAVE_WALL_SWITCH)
-    add_definitions("-Wall")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 endif()
 check_cxx_compiler_flag("-Wextra" HAVE_WEXTRA_SWITCH)
 if(HAVE_WEXTRA_SWITCH)
-    add_definitions("-Wextra")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
 endif()
 
 
 include_directories("${d3dgl_SOURCE_DIR}/include" "${d3dgl_BINARY_DIR}" ${GLEW_INCLUDE_DIRS} ${OPENGL_INCLUDE_DIR})
+
+set(EXTRA_LIBS  ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES} dxguid)
+if(WIN32 AND CMAKE_COMPILER_IS_GNUCC)
+    set(EXTRA_LIBS  ${EXTRA_LIBS} -static-libgcc -static-libstdc++ -Wl,--enable-stdcall-fixup)
+endif()
 
 
 set(HDRS  include/d3dgl.hpp
@@ -48,32 +53,9 @@ set(SRCS  src/d3dgl.cpp
           main.cpp
 )
 
-add_library(${LIBNAME} SHARED ${SRCS} ${HDRS})
-target_link_libraries(${LIBNAME} ${GLEW_LIBRARIES} ${OPENGL_LIBRARIES} dxguid)
 
-
+add_library(${LIBNAME} SHARED ${SRCS} ${HDRS} d3d9.def)
+target_link_libraries(${LIBNAME}  ${EXTRA_LIBS})
 if(WIN32)
     set_target_properties(${LIBNAME} PROPERTIES PREFIX "")
-
-    if(MINGW)
-        find_program(SED_EXECUTABLE NAMES sed DOC "sed executable")
-        find_program(DLLTOOL_EXECUTABLE NAMES "${DLLTOOL}" DOC "dlltool executable")
-        if(NOT SED_EXECUTABLE OR NOT DLLTOOL_EXECUTABLE)
-            message(STATUS "")
-            if(NOT SED_EXECUTABLE)
-                message(STATUS "WARNING: Cannot find sed, disabling .def/.lib generation")
-            endif()
-            if(NOT DLLTOOL_EXECUTABLE)
-                message(STATUS "WARNING: Cannot find dlltool, disabling .def/.lib generation")
-            endif()
-        else()
-            set_target_properties(${LIBNAME} PROPERTIES LINK_FLAGS "-Wl,--output-def,${LIBNAME}.def")
-            add_custom_command(TARGET ${LIBNAME} POST_BUILD
-                COMMAND "${SED_EXECUTABLE}" -i -e "s/ @[^ ]*//" ${LIBNAME}.def
-                COMMAND "${DLLTOOL_EXECUTABLE}" -d ${LIBNAME}.def -l ${LIBNAME}.lib -D ${LIBNAME}.dll
-                COMMENT "Stripping ordinals from ${LIBNAME}.def and generating ${LIBNAME}.lib..."
-                VERBATIM
-            )
-        endif()
-    endif()
 endif()
