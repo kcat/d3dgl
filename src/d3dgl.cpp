@@ -12,13 +12,6 @@
     return val;                        \
 } while(0)
 
-namespace
-{
-template<typename T, size_t N>
-size_t countof(const T(&)[N])
-{ return N; }
-}
-
 #define MAX_TEXTURES                8
 #define MAX_STREAMS                 16
 #define MAX_VERTEX_SAMPLERS         4
@@ -26,6 +19,14 @@ size_t countof(const T(&)[N])
 #define MAX_COMBINED_SAMPLERS       (MAX_FRAGMENT_SAMPLERS + MAX_VERTEX_SAMPLERS)
 
 #define D3DGL_MAX_CBS 15
+
+namespace
+{
+
+template<typename T, size_t N>
+size_t countof(const T(&)[N])
+{ return N; }
+
 
 /* The d3d device ID */
 static const GUID IID_D3DDEVICE_D3DUID = GUID{ 0xaeb2cdd4, 0x6e41, 0x43ea, { 0x94,0x1c,0x83,0x61,0xcc,0x76,0x07,0x81 } };
@@ -484,6 +485,23 @@ static const gpu_description gpu_description_table[] =
     {HW_VENDOR_INTEL,      CARD_INTEL_IVBS,                "Intel(R) Ivybridge Server",                                 DRIVER_INTEL_GMA3000, 1024},
     {HW_VENDOR_INTEL,      CARD_INTEL_HWM,                 "Intel(R) Haswell Mobile",                                   DRIVER_INTEL_GMA3000, 1024},
 };
+
+
+D3DFORMAT pixelformat_for_depth(DWORD depth)
+{
+    switch(depth)
+    {
+        case 8:  return D3DFMT_P8;
+        case 15: return D3DFMT_X1R5G5B5;
+        case 16: return D3DFMT_R5G6B5;
+        case 24: return D3DFMT_X8R8G8B8; /* Robots needs 24bit to be D3DFMT_X8R8G8B8 */
+        case 32: return D3DFMT_X8R8G8B8; /* EVE online and the Fur demo need 32bit AdapterDisplayMode to return D3DFMT_X8R8G8B8 */
+    }
+    return D3DFMT_UNKNOWN;
+}
+
+} // namespace
+
 
 class D3DAdapter {
     UINT mOrdinal;
@@ -1372,8 +1390,19 @@ HRESULT Direct3DGL::GetAdapterDisplayMode(UINT adapter, D3DDISPLAYMODE *displayM
     if(!mAdapters[adapter].init())
         return D3DERR_INVALIDCALL;
 
-    // Me next!
-    return E_NOTIMPL;
+    DEVMODEW m;
+    memset(&m, 0, sizeof(m));
+    m.dmSize = sizeof(m);
+
+    EnumDisplaySettingsExW(mAdapters[adapter].getDeviceName().c_str(), ENUM_CURRENT_SETTINGS, &m, 0);
+    displayMode->Width = m.dmPelsWidth;
+    displayMode->Height = m.dmPelsHeight;
+    displayMode->RefreshRate = 0;
+    if((m.dmFields&DM_DISPLAYFREQUENCY))
+        displayMode->RefreshRate = m.dmDisplayFrequency;
+    displayMode->Format = pixelformat_for_depth(m.dmBitsPerPel);
+
+    return D3D_OK;
 }
 
 
