@@ -74,13 +74,15 @@ extern "C" {
 static int D3DPERF_event_level = 0;
 
 
-BOOL WINAPI DllMain(HINSTANCE /*hModule*/, DWORD reason, void */*lpReserved*/)
+BOOL WINAPI DllMain(HINSTANCE hModule, DWORD reason, void */*lpReserved*/)
 {
     const char *str;
 
     switch(reason)
     {
         case DLL_PROCESS_ATTACH:
+            DisableThreadLibraryCalls(hModule);
+
             str = getenv("D3DGL_LOGFILE");
             if(str && str[0] != '\0')
             {

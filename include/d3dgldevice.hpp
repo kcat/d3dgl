@@ -5,18 +5,24 @@
 
 #include <atomic>
 
-class Direct3DGL;
+#include "d3dgl.hpp"
+
 
 class Direct3DGLDevice : public IDirect3DDevice9 {
     std::atomic<ULONG> mRefCount;
 
     Direct3DGL *mParent;
 
+    D3DAdapter mAdapter;
+
+    const HWND mWindow;
+    const DWORD mFlags;
+
 public:
-    Direct3DGLDevice(Direct3DGL *parent);
+    Direct3DGLDevice(Direct3DGL *parent, HWND window, DWORD flags);
     virtual ~Direct3DGLDevice();
 
-    bool init();
+    bool init(const D3DAdapter &adapter, D3DPRESENT_PARAMETERS *presentParams);
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void** ppvObject);

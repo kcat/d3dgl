@@ -1,13 +1,36 @@
 
 #include "d3dgldevice.hpp"
 
+#include <d3d9.h>
+
 #include "trace.hpp"
 #include "d3dgl.hpp"
 
 
-Direct3DGLDevice::Direct3DGLDevice(Direct3DGL *parent)
+namespace
+{
+
+D3DFORMAT pixelformat_for_depth(DWORD depth)
+{
+    switch(depth)
+    {
+        case 8:  return D3DFMT_P8;
+        case 15: return D3DFMT_X1R5G5B5;
+        case 16: return D3DFMT_R5G6B5;
+        case 24: return D3DFMT_X8R8G8B8; /* Robots needs 24bit to be D3DFMT_X8R8G8B8 */
+        case 32: return D3DFMT_X8R8G8B8; /* EVE online and the Fur demo need 32bit AdapterDisplayMode to return D3DFMT_X8R8G8B8 */
+    }
+    return D3DFMT_UNKNOWN;
+}
+
+} // namespace
+
+
+Direct3DGLDevice::Direct3DGLDevice(Direct3DGL *parent, HWND window, DWORD flags)
   : mRefCount(0)
   , mParent(parent)
+  , mWindow(window)
+  , mFlags(flags)
 {
     mParent->AddRef();
 }
@@ -18,8 +41,10 @@ Direct3DGLDevice::~Direct3DGLDevice()
     mParent = nullptr;
 }
 
-bool Direct3DGLDevice::init()
+bool Direct3DGLDevice::init(const D3DAdapter &adapter, D3DPRESENT_PARAMETERS *params)
 {
+    mAdapter = adapter;
+
     return false;
 }
 
@@ -89,22 +114,43 @@ HRESULT Direct3DGLDevice::GetDirect3D(IDirect3D9 **d3d9)
     return D3D_OK;
 }
 
-HRESULT Direct3DGLDevice::GetDeviceCaps(D3DCAPS9* pCaps)
+HRESULT Direct3DGLDevice::GetDeviceCaps(D3DCAPS9 *caps)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, caps %p\n", this, caps);
+    *caps = mAdapter.getCaps();
+    return D3D_OK;
 }
 
-HRESULT Direct3DGLDevice::GetDisplayMode(UINT iSwapChain, D3DDISPLAYMODE* pMode)
+HRESULT Direct3DGLDevice::GetDisplayMode(UINT swapchain, D3DDISPLAYMODE *mode)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    FIXME("iface %p, swapchain %u, mode %p : stub!\n", this, swapchain, mode);
+
+    // FIXME: swapchain is ignored
+    DEVMODEW m;
+    memset(&m, 0, sizeof(m));
+    m.dmSize = sizeof(m);
+
+    EnumDisplaySettingsExW(mAdapter.getDeviceName().c_str(), ENUM_CURRENT_SETTINGS, &m, 0);
+    mode->Width = m.dmPelsWidth;
+    mode->Height = m.dmPelsHeight;
+    mode->RefreshRate = 0;
+    if((m.dmFields&DM_DISPLAYFREQUENCY))
+        mode->RefreshRate = m.dmDisplayFrequency;
+    mode->Format = pixelformat_for_depth(m.dmBitsPerPel);
+
+    return D3D_OK;
 }
 
-HRESULT Direct3DGLDevice::GetCreationParameters(D3DDEVICE_CREATION_PARAMETERS *pParameters)
+HRESULT Direct3DGLDevice::GetCreationParameters(D3DDEVICE_CREATION_PARAMETERS *params)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, params %p\n", this, params);
+
+    params->AdapterOrdinal = mAdapter.getOrdinal();
+    params->DeviceType = D3DDEVTYPE_HAL;
+    params->hFocusWindow = mWindow;
+    params->BehaviorFlags = mFlags;
+
+    return D3D_OK;
 }
 
 HRESULT Direct3DGLDevice::SetCursorProperties(UINT XHotSpot, UINT YHotSpot, IDirect3DSurface9* pCursorBitmap)

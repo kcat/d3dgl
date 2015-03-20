@@ -501,76 +501,88 @@ D3DFORMAT pixelformat_for_depth(DWORD depth)
     return D3DFMT_UNKNOWN;
 }
 
+#define TESTFMT(id) \
+if(mFormat == id) return #id
+class d3dfmt_conv {
+    char mText[12];
+    D3DFORMAT mFormat;
+
+public:
+    d3dfmt_conv(D3DFORMAT format) : mFormat(format) { }
+
+    operator const char*()
+    {
+        TESTFMT(D3DFMT_UNKNOWN);
+        TESTFMT(D3DFMT_R8G8B8);
+        TESTFMT(D3DFMT_A8R8G8B8);
+        TESTFMT(D3DFMT_X8R8G8B8);
+        TESTFMT(D3DFMT_R5G6B5);
+        TESTFMT(D3DFMT_X1R5G5B5);
+        TESTFMT(D3DFMT_A1R5G5B5);
+        TESTFMT(D3DFMT_A4R4G4B4);
+        TESTFMT(D3DFMT_R3G3B2);
+        TESTFMT(D3DFMT_A8);
+        TESTFMT(D3DFMT_A8R3G3B2);
+        TESTFMT(D3DFMT_X4R4G4B4);
+        TESTFMT(D3DFMT_A2B10G10R10);
+        TESTFMT(D3DFMT_A8B8G8R8);
+        TESTFMT(D3DFMT_X8B8G8R8);
+        TESTFMT(D3DFMT_G16R16);
+        TESTFMT(D3DFMT_A2R10G10B10);
+        TESTFMT(D3DFMT_A16B16G16R16);
+        TESTFMT(D3DFMT_A8P8);
+        TESTFMT(D3DFMT_P8);
+        TESTFMT(D3DFMT_L8);
+        TESTFMT(D3DFMT_A8L8);
+        TESTFMT(D3DFMT_A4L4);
+        TESTFMT(D3DFMT_V8U8);
+        TESTFMT(D3DFMT_L6V5U5);
+        TESTFMT(D3DFMT_X8L8V8U8);
+        TESTFMT(D3DFMT_Q8W8V8U8);
+        TESTFMT(D3DFMT_V16U16);
+        TESTFMT(D3DFMT_A2W10V10U10);
+        TESTFMT(D3DFMT_UYVY);
+        TESTFMT(D3DFMT_YUY2);
+        TESTFMT(D3DFMT_DXT1);
+        TESTFMT(D3DFMT_DXT2);
+        TESTFMT(D3DFMT_DXT3);
+        TESTFMT(D3DFMT_DXT4);
+        TESTFMT(D3DFMT_DXT5);
+        TESTFMT(D3DFMT_MULTI2_ARGB8);
+        TESTFMT(D3DFMT_G8R8_G8B8);
+        TESTFMT(D3DFMT_R8G8_B8G8);
+        TESTFMT(D3DFMT_D16_LOCKABLE);
+        TESTFMT(D3DFMT_D32);
+        TESTFMT(D3DFMT_D15S1);
+        TESTFMT(D3DFMT_D24S8);
+        TESTFMT(D3DFMT_D24X8);
+        TESTFMT(D3DFMT_D24X4S4);
+        TESTFMT(D3DFMT_D16);
+        TESTFMT(D3DFMT_L16);
+        TESTFMT(D3DFMT_D32F_LOCKABLE);
+        TESTFMT(D3DFMT_D24FS8);
+        TESTFMT(D3DFMT_VERTEXDATA);
+        TESTFMT(D3DFMT_INDEX16);
+        TESTFMT(D3DFMT_INDEX32);
+        TESTFMT(D3DFMT_Q16W16V16U16);
+        TESTFMT(D3DFMT_R16F);
+        TESTFMT(D3DFMT_G16R16F);
+        TESTFMT(D3DFMT_A16B16G16R16F);
+        TESTFMT(D3DFMT_R32F);
+        TESTFMT(D3DFMT_G32R32F);
+        TESTFMT(D3DFMT_A32B32G32R32F);
+        TESTFMT(D3DFMT_CxV8U8);
+
+        snprintf(mText, sizeof(mText), "0x%x", mFormat);
+        return mText;
+    }
+};
+
 } // namespace
 
 
-class D3DAdapter {
-    UINT mOrdinal;
-    bool mInited;
-
-    std::wstring mDeviceName;
-
-    d3dgl_pci_vendor mVendorId;
-    d3dgl_pci_device mDeviceId;
-    const char *mDescription;
-
-    D3DCAPS9 mCaps;
-
-    struct {
-        UINT buffers;
-        UINT lights;
-        UINT textures;
-        UINT texture_coords;
-        UINT vertex_uniform_blocks;
-        UINT geometry_uniform_blocks;
-        UINT fragment_uniform_blocks;
-        UINT fragment_samplers;
-        UINT vertex_samplers;
-        UINT combined_samplers;
-        UINT general_combiners;
-        UINT clipplanes;
-        UINT texture_size;
-        UINT texture3d_size;
-        float pointsize_max;
-        float pointsize_min;
-        UINT blends;
-        UINT anisotropy;
-        float shininess;
-        UINT samples;
-        UINT vertex_attribs;
-
-        UINT glsl_varyings;
-        UINT glsl_vs_float_constants;
-        UINT glsl_ps_float_constants;
-
-        UINT arb_vs_float_constants;
-        UINT arb_vs_native_constants;
-        UINT arb_vs_instructions;
-        UINT arb_vs_temps;
-        UINT arb_ps_float_constants;
-        UINT arb_ps_local_constants;
-        UINT arb_ps_native_constants;
-        UINT arb_ps_instructions;
-        UINT arb_ps_temps;
-    } mLimits;
-    void init_limits();
-
-    void init_caps();
-    void init_ids();
-
-public:
-    D3DAdapter(UINT num);
-
-    bool init();
-    const std::wstring &getDeviceName() const { return mDeviceName; }
-    D3DCAPS9 getCaps() const { return mCaps; }
-    UINT getVendorId() const { return mVendorId; }
-    UINT getDeviceId() const { return mDeviceId; }
-    const char *getDescription() const { return mDescription; }
-};
-
-D3DAdapter::D3DAdapter(UINT num)
-  : mOrdinal(num)
+D3DAdapter::D3DAdapter(UINT adapter_num)
+  : mOrdinal(adapter_num)
   , mInited(false)
   , mVendorId(HW_VENDOR_SOFTWARE)
   , mDeviceId(CARD_WINE)
@@ -1459,9 +1471,9 @@ HMONITOR Direct3DGL::GetAdapterMonitor(UINT adapter)
 }
 
 
-HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND focusWindow, DWORD behaviorFlags, D3DPRESENT_PARAMETERS *presentParams, IDirect3DDevice9 **iface)
+HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND window, DWORD flags, D3DPRESENT_PARAMETERS *params, IDirect3DDevice9 **iface)
 {
-    FIXME("iface %p, adapter %u, devType 0x%x, focusWindow %p, behaviorFlags 0x%lx, presentParams %p, iface %p stub!\n", this, adapter, devType, focusWindow, behaviorFlags, presentParams, iface);
+    FIXME("iface %p, adapter %u, devType 0x%x, window %p, flags 0x%lx, params %p, iface %p stub!\n", this, adapter, devType, window, flags, params, iface);
 
     if(adapter >= mAdapters.size())
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
@@ -1470,8 +1482,69 @@ HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND focusWin
     if(!mAdapters[adapter].init())
         return D3DERR_INVALIDCALL;
 
-    Direct3DGLDevice *device = new Direct3DGLDevice(this);
-    if(!device->init())
+    TRACE("Creating device with parameters:\n"
+          "\tBackBufferWidth            = %u\n"
+          "\tBackBufferHeight           = %u\n"
+          "\tBackBufferFormat           = %s\n"
+          "\tBackBufferCount            = %u\n"
+          "\tMultiSampleType            = 0x%x\n"
+          "\tMultiSampleQuality         = %lu\n"
+          "\tSwapEffect                 = 0x%x\n"
+          "\thDeviceWindow              = %p\n"
+          "\tWindowed                   = %d\n"
+          "\tEnableAutoDepthStencil     = %d\n"
+          "\tAutoDepthStencilFormat     = %s\n"
+          "\tFlags                      = 0x%lx\n"
+          "\tFullScreen_RefreshRateInHz = %u\n"
+          "\tPresentationInterval       = 0x%x\n",
+          params->BackBufferWidth, params->BackBufferHeight, (const char*)d3dfmt_conv(params->BackBufferFormat),
+          params->BackBufferCount, params->MultiSampleType, params->MultiSampleQuality,
+          params->SwapEffect, params->hDeviceWindow, params->Windowed,
+          params->EnableAutoDepthStencil, (const char*)d3dfmt_conv(params->AutoDepthStencilFormat),
+          params->Flags, params->FullScreen_RefreshRateInHz, params->PresentationInterval);
+
+    if(!window && params->Windowed)
+        window = params->hDeviceWindow;
+    if(!window)
+    {
+        WARN("No focus window specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(params->BackBufferFormat == D3DFMT_UNKNOWN && params->Windowed)
+        params->BackBufferFormat = D3DFMT_A8R8G8B8; // FIXME
+    if(params->BackBufferFormat == D3DFMT_UNKNOWN)
+    {
+        WARN("No format specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    DWORD UnknownFlags = (flags&~(D3DCREATE_FPU_PRESERVE | D3DCREATE_MULTITHREADED |
+                                  D3DCREATE_PUREDEVICE | D3DCREATE_SOFTWARE_VERTEXPROCESSING |
+                                  D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_MIXED_VERTEXPROCESSING |
+                                  D3DCREATE_DISABLE_DRIVER_MANAGEMENT | D3DCREATE_ADAPTERGROUP_DEVICE));
+    if(UnknownFlags)
+    {
+        ERR("Unknown flags specified (0x%lx)!\n", UnknownFlags);
+        flags &= ~UnknownFlags;
+    }
+
+    // Unless we want to transform and process vertices manually, just pretend
+    // the app is getting what it wants. OpenGL will automatically do what it
+    // needs to.
+    flags &= ~(D3DCREATE_SOFTWARE_VERTEXPROCESSING | D3DCREATE_HARDWARE_VERTEXPROCESSING |
+               D3DCREATE_MIXED_VERTEXPROCESSING);
+
+    // FIXME: handle known flags
+    UnknownFlags = (flags&(D3DCREATE_FPU_PRESERVE | D3DCREATE_MULTITHREADED |
+                           D3DCREATE_PUREDEVICE | D3DCREATE_DISABLE_DRIVER_MANAGEMENT |
+                           D3DCREATE_ADAPTERGROUP_DEVICE));
+    if(UnknownFlags)
+        ERR("Unhandled flags: 0x%lx\n", UnknownFlags);
+
+
+    Direct3DGLDevice *device = new Direct3DGLDevice(this, window, flags);
+    if(!device->init(mAdapters[adapter], params))
     {
         delete device;
         return D3DERR_INVALIDCALL;
