@@ -45,11 +45,13 @@ if(WIN32 AND CMAKE_COMPILER_IS_GNUCC)
 endif()
 
 
-set(HDRS  include/d3dgl.hpp
+set(HDRS  include/d3dgldevice.hpp
+          include/d3dgl.hpp
           include/trace.hpp
 )
 
-set(SRCS  src/d3dgl.cpp
+set(SRCS  src/d3dgldevice.cpp
+          src/d3dgl.cpp
           main.cpp
           glew.c
 )

@@ -5,6 +5,7 @@
 
 #include "glew.h"
 #include "trace.hpp"
+#include "d3dgldevice.hpp"
 
 
 #define WARN_AND_RETURN(val, ...) do { \
@@ -1461,5 +1462,23 @@ HMONITOR Direct3DGL::GetAdapterMonitor(UINT adapter)
 HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND focusWindow, DWORD behaviorFlags, D3DPRESENT_PARAMETERS *presentParams, IDirect3DDevice9 **iface)
 {
     FIXME("iface %p, adapter %u, devType 0x%x, focusWindow %p, behaviorFlags 0x%lx, presentParams %p, iface %p stub!\n", this, adapter, devType, focusWindow, behaviorFlags, presentParams, iface);
-    return E_NOTIMPL;
+
+    if(adapter >= mAdapters.size())
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
+    if(devType != D3DDEVTYPE_HAL)
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Non-HAL type 0x%x not supported\n", devType);
+    if(!mAdapters[adapter].init())
+        return D3DERR_INVALIDCALL;
+
+    Direct3DGLDevice *device = new Direct3DGLDevice(this);
+    if(!device->init())
+    {
+        delete device;
+        return D3DERR_INVALIDCALL;
+    }
+
+    device->AddRef();
+    *iface = device;
+
+    return D3D_OK;
 }
