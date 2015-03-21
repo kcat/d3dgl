@@ -1280,6 +1280,7 @@ bool D3DAdapter::init()
 done:
     wglMakeCurrent(hDc, nullptr);
     wglDeleteContext(hGlrc);
+    ReleaseDC(hWnd, hDc);
     DestroyWindow(hWnd);
 
     mInited = retval;
@@ -1550,8 +1551,8 @@ HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND window, 
         return D3DERR_INVALIDCALL;
     }
 
-    device->AddRef();
     *iface = device;
+    (*iface)->AddRef();
 
     return D3D_OK;
 }

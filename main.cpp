@@ -29,12 +29,12 @@ bool CreateFakeContext(HINSTANCE hInstance, HWND &hWnd, HDC &dc, HGLRC &glrc)
 
     hWnd = CreateWindowExW(0, WndClassName, L"D3DGL Fake Window", WS_OVERLAPPEDWINDOW,
                            0, 0, 640, 480, nullptr, nullptr, hInstance, nullptr);
-    dc = GetDC(hWnd);
-    if(!hWnd || !dc)
+    if(!hWnd)
     {
-        ERR("Failed to create a window, or get a DC\n");
+        ERR("Failed to create a window\n");
         return false;
     }
+    dc = GetDC(hWnd);
 
     PIXELFORMATDESCRIPTOR pfd = PIXELFORMATDESCRIPTOR{
         sizeof(PIXELFORMATDESCRIPTOR),
@@ -61,6 +61,7 @@ bool CreateFakeContext(HINSTANCE hInstance, HWND &hWnd, HDC &dc, HGLRC &glrc)
     if(!glrc)
     {
         ERR("Failed to create WGL context");
+        ReleaseDC(hWnd, dc);
         DestroyWindow(hWnd);
         return false;
     }
@@ -147,6 +148,7 @@ static bool init_d3dgl(void)
     wglMakeCurrent(dc, nullptr);
     wglDeleteContext(glrc);
 
+    ReleaseDC(hWnd, dc);
     DestroyWindow(hWnd);
 
     if(err != GLEW_OK)

@@ -14,15 +14,24 @@ class Direct3DGLDevice : public IDirect3DDevice9 {
     Direct3DGL *mParent;
 
     D3DAdapter mAdapter;
+    D3DPRESENT_PARAMETERS mPresentParams;
+
+    HGLRC mGLContext;
+
+    CRITICAL_SECTION mLock;
+    HANDLE mThreadHdl;
+    DWORD mThreadId;
 
     const HWND mWindow;
     const DWORD mFlags;
+
+    static DWORD CALLBACK thread_func(void *arg);
 
 public:
     Direct3DGLDevice(Direct3DGL *parent, HWND window, DWORD flags);
     virtual ~Direct3DGLDevice();
 
-    bool init(const D3DAdapter &adapter, D3DPRESENT_PARAMETERS *presentParams);
+    bool init(const D3DAdapter &adapter, D3DPRESENT_PARAMETERS *params);
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void** ppvObject);

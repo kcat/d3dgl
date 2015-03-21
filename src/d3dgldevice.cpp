@@ -1,8 +1,11 @@
 
 #include "d3dgldevice.hpp"
 
+#include <array>
 #include <d3d9.h>
 
+#include "glew.h"
+#include "wglew.h"
 #include "trace.hpp"
 #include "d3dgl.hpp"
 
@@ -23,29 +26,146 @@ D3DFORMAT pixelformat_for_depth(DWORD depth)
     return D3DFMT_UNKNOWN;
 }
 
+template<typename T>
+bool fmt_to_glattrs(D3DFORMAT fmt, T inserter)
+{
+    switch(fmt)
+    {
+        case D3DFMT_X8R8G8B8:
+            *inserter = {WGL_COLOR_BITS_ARB, 32};
+            return true;
+        case D3DFMT_D24S8:
+            *inserter = {WGL_DEPTH_BITS_ARB, 24};
+            *inserter = {WGL_STENCIL_BITS_ARB, 8};
+            return true;
+
+        default:
+            ERR("Unhandled D3DFORMAT: 0x%x\n", fmt);
+            break;
+    }
+    return false;
+}
+
 } // namespace
 
 
 Direct3DGLDevice::Direct3DGLDevice(Direct3DGL *parent, HWND window, DWORD flags)
   : mRefCount(0)
   , mParent(parent)
+  , mGLContext(nullptr)
+  , mThreadHdl(nullptr)
+  , mThreadId(0)
   , mWindow(window)
   , mFlags(flags)
 {
+    InitializeCriticalSection(&mLock);
     mParent->AddRef();
 }
 
 Direct3DGLDevice::~Direct3DGLDevice()
 {
+    if(mThreadHdl)
+    {
+        if(!PostThreadMessageW(mThreadId, WM_QUIT, 0, 0))
+            ERR("Failed to post WM_QUIT to message thread, error %lu\n", GetLastError());
+        else
+            WaitForSingleObject(mThreadHdl, 5000);
+        CloseHandle(mThreadHdl);
+        mThreadHdl = nullptr;
+        mThreadId = 0;
+    }
+
+    DeleteCriticalSection(&mLock);
+    if(mGLContext)
+        wglDeleteContext(mGLContext);
+    mGLContext = nullptr;
+
     mParent->Release();
     mParent = nullptr;
 }
 
+
 bool Direct3DGLDevice::init(const D3DAdapter &adapter, D3DPRESENT_PARAMETERS *params)
 {
     mAdapter = adapter;
+    mPresentParams = *params;
 
-    return false;
+    if(mPresentParams.BackBufferCount > 1)
+    {
+        WARN("Too many backbuffers requested (%u)\n", mPresentParams.BackBufferCount);
+        mPresentParams.BackBufferCount = 1;
+        return false;
+    }
+
+    if((mPresentParams.Flags&D3DPRESENTFLAG_LOCKABLE_BACKBUFFER))
+    {
+        FIXME("Lockable backbuffer not currently supported\n");
+        return false;
+    }
+
+    std::vector<std::array<int,2>> glattrs;
+    glattrs.reserve(16);
+    glattrs.push_back({WGL_DRAW_TO_WINDOW_ARB, GL_TRUE});
+    glattrs.push_back({WGL_SUPPORT_OPENGL_ARB, GL_TRUE});
+    glattrs.push_back({WGL_DOUBLE_BUFFER_ARB, GL_TRUE});
+    glattrs.push_back({WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB});
+    if(!fmt_to_glattrs(params->BackBufferFormat, std::back_inserter(glattrs)))
+        return false;
+    if(params->EnableAutoDepthStencil)
+    {
+        if(!fmt_to_glattrs(params->AutoDepthStencilFormat, std::back_inserter(glattrs)))
+            return false;
+    }
+
+    HWND win = ((params->Windowed && !params->hDeviceWindow) ? mWindow : params->hDeviceWindow);
+    HDC hdc = GetDC(win);
+
+    int pixelFormat;
+    UINT numFormats;
+    if(!wglChoosePixelFormatARB(hdc, &glattrs[0][0], NULL, 1, &pixelFormat, &numFormats))
+    {
+        ERR("Failed to choose a pixel format\n");
+        ReleaseDC(win, hdc);
+        return false;
+    }
+    if(numFormats < 1)
+    {
+        ERR("No suitable pixel formats found\n");
+        ReleaseDC(win, hdc);
+        return false;
+    }
+
+    PIXELFORMATDESCRIPTOR pfd;
+    if(SetPixelFormat(hdc, pixelFormat, &pfd) == 0)
+    {
+        ERR("Failed to set a pixel format, error %lu\n", GetLastError());
+        ReleaseDC(win, hdc);
+        return false;
+    }
+
+    mGLContext = wglCreateContextAttribsARB(hdc, nullptr, nullptr);
+    if(!mGLContext)
+    {
+        ERR("Failed to create OpenGL context, error %lu\n", GetLastError());
+        ReleaseDC(win, hdc);
+        return false;
+    }
+    ReleaseDC(win, hdc);
+
+    mThreadHdl = CreateThread(nullptr, 1024*1024, thread_func, this, 0, &mThreadId);
+    if(!mThreadHdl)
+    {
+        ERR("Failed to create background thread, error %lu\n", GetLastError());
+        return false;
+    }
+
+    return true;
+}
+
+DWORD Direct3DGLDevice::thread_func(void */*arg*/)
+{
+    ERR("Greetings from the thread!\n");
+    return 0;
 }
 
 
