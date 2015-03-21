@@ -32,6 +32,9 @@ bool fmt_to_glattrs(D3DFORMAT fmt, T inserter)
     switch(fmt)
     {
         case D3DFMT_X8R8G8B8:
+            *inserter = {WGL_RED_BITS_ARB, 8};
+            *inserter = {WGL_GREEN_BITS_ARB, 8};
+            *inserter = {WGL_BLUE_BITS_ARB, 8};
             *inserter = {WGL_COLOR_BITS_ARB, 32};
             return true;
         case D3DFMT_D24S8:
@@ -46,6 +49,11 @@ bool fmt_to_glattrs(D3DFORMAT fmt, T inserter)
     return false;
 }
 
+enum {
+    WM_USER_First = WM_USER,
+    WM_USER_Last = WM_USER_First
+};
+
 } // namespace
 
 
@@ -57,6 +65,7 @@ Direct3DGLDevice::Direct3DGLDevice(Direct3DGL *parent, HWND window, DWORD flags)
   , mThreadId(0)
   , mWindow(window)
   , mFlags(flags)
+  , mPendingOps(0)
 {
     InitializeCriticalSection(&mLock);
 }
@@ -150,6 +159,7 @@ bool Direct3DGLDevice::init(const D3DAdapter &adapter, D3DPRESENT_PARAMETERS *pa
     }
     ReleaseDC(win, hdc);
 
+    mPendingOps = 1;
     mThreadHdl = CreateThread(nullptr, 1024*1024, thread_func, this, 0, &mThreadId);
     if(!mThreadHdl)
     {
@@ -157,12 +167,39 @@ bool Direct3DGLDevice::init(const D3DAdapter &adapter, D3DPRESENT_PARAMETERS *pa
         return false;
     }
 
+    while(mPendingOps.load() > 0)
+        Sleep(10);
+
     return true;
 }
 
-DWORD Direct3DGLDevice::thread_func(void */*arg*/)
+DWORD Direct3DGLDevice::messageProc(void)
 {
-    ERR("Greetings from the thread!\n");
+    MSG msg;
+    PeekMessageW(&msg, nullptr, WM_USER, WM_USER, PM_NOREMOVE);
+    TRACE("Thread init complete\n");
+    --mPendingOps;
+
+    HWND window = mPresentParams.hDeviceWindow;
+    if(!window) window = mWindow;
+    HDC hdc = GetDC(window);
+
+    if(!wglMakeCurrent(hdc, mGLContext))
+    {
+        ERR("Failed to make context current! Error: %lu\n", GetLastError());
+        std::terminate();
+    }
+
+    TRACE("Starting message loop\n");
+    while(GetMessageW(&msg, NULL, WM_USER_First, WM_USER_Last))
+    {
+        TRACE("Got message %u (wparam=%p, lparam=%p)\n", msg.message, (void*)msg.wParam, (void*)msg.lParam);
+    }
+    TRACE("Message loop finished\n");
+
+    wglMakeCurrent(nullptr, nullptr);
+    ReleaseDC(window, hdc);
+
     return 0;
 }
 
@@ -556,15 +593,15 @@ HRESULT Direct3DGLDevice::GetClipPlane(DWORD Index, float* pPlane)
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetRenderState(D3DRENDERSTATETYPE State, DWORD Value)
+HRESULT Direct3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, state 0x%x, value 0x%lx : stub!\n", this, state, value);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetRenderState(D3DRENDERSTATETYPE State, DWORD* pValue)
+HRESULT Direct3DGLDevice::GetRenderState(D3DRENDERSTATETYPE state, DWORD *value)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, state 0x%x, value %p : stub!\n", this, state, value);
     return E_NOTIMPL;
 }
 

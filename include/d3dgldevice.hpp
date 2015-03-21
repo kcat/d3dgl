@@ -26,7 +26,11 @@ class Direct3DGLDevice : public IDirect3DDevice9 {
     const HWND mWindow;
     const DWORD mFlags;
 
-    static DWORD CALLBACK thread_func(void *arg);
+    std::atomic<ULONG> mPendingOps;
+
+    DWORD CALLBACK messageProc(void);
+    static DWORD CALLBACK thread_func(void *arg)
+    { return reinterpret_cast<Direct3DGLDevice*>(arg)->messageProc(); }
 
 public:
     Direct3DGLDevice(Direct3DGL *parent, HWND window, DWORD flags);

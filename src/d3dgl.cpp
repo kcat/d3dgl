@@ -1358,7 +1358,7 @@ UINT Direct3DGL::GetAdapterCount(void)
 
 HRESULT Direct3DGL::GetAdapterIdentifier(UINT adapter, DWORD flags, D3DADAPTER_IDENTIFIER9 *identifier)
 {
-    FIXME("iface %p, adapter %u, flags 0x%lx, identifier %p stub!\n", this, adapter, flags, identifier);
+    FIXME("iface %p, adapter %u, flags 0x%lx, identifier %p semi-stub\n", this, adapter, flags, identifier);
 
     if(adapter >= mAdapters.size())
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
@@ -1513,7 +1513,7 @@ HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND window, 
     }
 
     if(params->BackBufferFormat == D3DFMT_UNKNOWN && params->Windowed)
-        params->BackBufferFormat = D3DFMT_A8R8G8B8; // FIXME
+        params->BackBufferFormat = D3DFMT_X8R8G8B8; // FIXME
     if(params->BackBufferFormat == D3DFMT_UNKNOWN)
     {
         WARN("No format specified\n");
