@@ -59,7 +59,6 @@ Direct3DGLDevice::Direct3DGLDevice(Direct3DGL *parent, HWND window, DWORD flags)
   , mFlags(flags)
 {
     InitializeCriticalSection(&mLock);
-    mParent->AddRef();
 }
 
 Direct3DGLDevice::~Direct3DGLDevice()
@@ -80,7 +79,6 @@ Direct3DGLDevice::~Direct3DGLDevice()
         wglDeleteContext(mGLContext);
     mGLContext = nullptr;
 
-    mParent->Release();
     mParent = nullptr;
 }
 

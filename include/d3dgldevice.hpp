@@ -6,12 +6,13 @@
 #include <atomic>
 
 #include "d3dgl.hpp"
+#include "misc.hpp"
 
 
 class Direct3DGLDevice : public IDirect3DDevice9 {
     std::atomic<ULONG> mRefCount;
 
-    Direct3DGL *mParent;
+    ref_ptr<Direct3DGL> mParent;
 
     D3DAdapter mAdapter;
     D3DPRESENT_PARAMETERS mPresentParams;

@@ -48,6 +48,7 @@ endif()
 set(HDRS  include/d3dgldevice.hpp
           include/d3dgl.hpp
           include/trace.hpp
+          include/misc.hpp
 )
 
 set(SRCS  src/d3dgldevice.cpp
