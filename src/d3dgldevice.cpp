@@ -241,7 +241,13 @@ HRESULT Direct3DGLDevice::GetDeviceCaps(D3DCAPS9 *caps)
 
 HRESULT Direct3DGLDevice::GetDisplayMode(UINT swapchain, D3DDISPLAYMODE *mode)
 {
-    FIXME("iface %p, swapchain %u, mode %p : stub!\n", this, swapchain, mode);
+    TRACE("iface %p, swapchain %u, mode %p : semi-stub\n", this, swapchain, mode);
+
+    if(swapchain > 0)
+    {
+        FIXME("Out of range swapchain (%u > 0)\n", swapchain);
+        return D3DERR_INVALIDCALL;
+    }
 
     // FIXME: swapchain is ignored
     DEVMODEW m;
