@@ -4,7 +4,7 @@ project(d3dgl)
 set(LIBNAME d3d9)
 
 if(WIN32)
-    add_definitions("-D_WIN32 -D_WIN32_WINNT=0x0502")
+    add_definitions("-D_WIN32 -D_WIN32_WINNT=0x0600")
 
     if(MINGW)
         if(NOT DLLTOOL)
@@ -48,11 +48,13 @@ endif()
 set(HDRS  include/d3dgldevice.hpp
           include/d3dgl.hpp
           include/trace.hpp
+          include/commandqueue.hpp
           include/misc.hpp
 )
 
 set(SRCS  src/d3dgldevice.cpp
           src/d3dgl.cpp
+          src/commandqueue.cpp
           main.cpp
           glew.c
 )

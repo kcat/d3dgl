@@ -8,6 +8,7 @@
 
 #include "d3dgl.hpp"
 #include "misc.hpp"
+#include "commandqueue.hpp"
 
 
 class Direct3DGLDevice : public IDirect3DDevice9 {
@@ -20,20 +21,12 @@ class Direct3DGLDevice : public IDirect3DDevice9 {
 
     HGLRC mGLContext;
 
-    CRITICAL_SECTION mLock;
-    HANDLE mThreadHdl;
-    DWORD mThreadId;
+    CommandQueue mQueue;
 
     const HWND mWindow;
     const DWORD mFlags;
 
-    std::atomic<ULONG> mPendingOps;
-
     std::array<std::atomic<DWORD>,210> mRenderState;
-
-    DWORD CALLBACK messageProc(void);
-    static DWORD CALLBACK thread_func(void *arg)
-    { return reinterpret_cast<Direct3DGLDevice*>(arg)->messageProc(); }
 
 public:
     Direct3DGLDevice(Direct3DGL *parent, HWND window, DWORD flags);

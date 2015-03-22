@@ -180,31 +180,17 @@ Direct3DGLDevice::Direct3DGLDevice(Direct3DGL *parent, HWND window, DWORD flags)
   : mRefCount(0)
   , mParent(parent)
   , mGLContext(nullptr)
-  , mThreadHdl(nullptr)
-  , mThreadId(0)
   , mWindow(window)
   , mFlags(flags)
-  , mPendingOps(0)
 {
-    InitializeCriticalSection(&mLock);
     std::copy(DefaultRSValues.begin(), DefaultRSValues.end(), mRenderState.begin());
     mRenderState[D3DRS_POINTSIZE_MAX] = float_to_dword(mAdapter.getLimits().pointsize_max);
 }
 
 Direct3DGLDevice::~Direct3DGLDevice()
 {
-    if(mThreadHdl)
-    {
-        if(!PostThreadMessageW(mThreadId, WM_QUIT, 0, 0))
-            ERR("Failed to post WM_QUIT to message thread, error %lu\n", GetLastError());
-        else
-            WaitForSingleObject(mThreadHdl, 5000);
-        CloseHandle(mThreadHdl);
-        mThreadHdl = nullptr;
-        mThreadId = 0;
-    }
+    mQueue.deinit();
 
-    DeleteCriticalSection(&mLock);
     if(mGLContext)
         wglDeleteContext(mGLContext);
     mGLContext = nullptr;
@@ -244,6 +230,8 @@ bool Direct3DGLDevice::init(const D3DAdapter &adapter, D3DPRESENT_PARAMETERS *pa
         if(!fmt_to_glattrs(params->AutoDepthStencilFormat, std::back_inserter(glattrs)))
             return false;
     }
+    // Got all attrs
+    glattrs.push_back({0, 0});
 
     HWND win = ((params->Windowed && !params->hDeviceWindow) ? mWindow : params->hDeviceWindow);
     HDC hdc = GetDC(win);
@@ -280,48 +268,10 @@ bool Direct3DGLDevice::init(const D3DAdapter &adapter, D3DPRESENT_PARAMETERS *pa
     }
     ReleaseDC(win, hdc);
 
-    mPendingOps = 1;
-    mThreadHdl = CreateThread(nullptr, 1024*1024, thread_func, this, 0, &mThreadId);
-    if(!mThreadHdl)
-    {
-        ERR("Failed to create background thread, error %lu\n", GetLastError());
+    if(!mQueue.init(win, mGLContext))
         return false;
-    }
-
-    while(mPendingOps.load() > 0)
-        Sleep(10);
 
     return true;
-}
-
-DWORD Direct3DGLDevice::messageProc(void)
-{
-    MSG msg;
-    PeekMessageW(&msg, nullptr, WM_USER, WM_USER, PM_NOREMOVE);
-    TRACE("Thread init complete\n");
-    --mPendingOps;
-
-    HWND window = mPresentParams.hDeviceWindow;
-    if(!window) window = mWindow;
-    HDC hdc = GetDC(window);
-
-    if(!wglMakeCurrent(hdc, mGLContext))
-    {
-        ERR("Failed to make context current! Error: %lu\n", GetLastError());
-        std::terminate();
-    }
-
-    TRACE("Starting message loop\n");
-    while(GetMessageW(&msg, NULL, WM_USER_First, WM_USER_Last))
-    {
-        TRACE("Got message %u (wparam=%p, lparam=%p)\n", msg.message, (void*)msg.wParam, (void*)msg.lParam);
-    }
-    TRACE("Message loop finished\n");
-
-    wglMakeCurrent(nullptr, nullptr);
-    ReleaseDC(window, hdc);
-
-    return 0;
 }
 
 
