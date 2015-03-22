@@ -8,23 +8,11 @@
 #include "wglew.h"
 #include "trace.hpp"
 #include "d3dgl.hpp"
+#include "d3dglswapchain.hpp"
 
 
 namespace
 {
-
-D3DFORMAT pixelformat_for_depth(DWORD depth)
-{
-    switch(depth)
-    {
-        case 8:  return D3DFMT_P8;
-        case 15: return D3DFMT_X1R5G5B5;
-        case 16: return D3DFMT_R5G6B5;
-        case 24: return D3DFMT_X8R8G8B8; /* Robots needs 24bit to be D3DFMT_X8R8G8B8 */
-        case 32: return D3DFMT_X8R8G8B8; /* EVE online and the Fur demo need 32bit AdapterDisplayMode to return D3DFMT_X8R8G8B8 */
-    }
-    return D3DFMT_UNKNOWN;
-}
 
 template<typename T>
 bool fmt_to_glattrs(D3DFORMAT fmt, T inserter)
@@ -190,6 +178,9 @@ Direct3DGLDevice::Direct3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter
 
 Direct3DGLDevice::~Direct3DGLDevice()
 {
+    for(auto schain : mSwapchains)
+        delete schain;
+    mSwapchains.clear();
     mQueue.deinit();
 
     if(mGLContext)
@@ -268,6 +259,14 @@ bool Direct3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
 
     if(!mQueue.init(win, mGLContext))
         return false;
+
+    Direct3DGLSwapChain *schain = new Direct3DGLSwapChain(this);
+    if(!schain->init(params, win))
+    {
+        delete schain;
+        return false;
+    }
+    mSwapchains.push_back(schain);
 
     mPresentParams = *params;
     return true;
@@ -348,28 +347,15 @@ HRESULT Direct3DGLDevice::GetDeviceCaps(D3DCAPS9 *caps)
 
 HRESULT Direct3DGLDevice::GetDisplayMode(UINT swapchain, D3DDISPLAYMODE *mode)
 {
-    TRACE("iface %p, swapchain %u, mode %p : semi-stub\n", this, swapchain, mode);
+    TRACE("iface %p, swapchain %u, mode %p\n", this, swapchain, mode);
 
-    if(swapchain > 0)
+    if(swapchain >= mSwapchains.size())
     {
-        FIXME("Out of range swapchain (%u > 0)\n", swapchain);
+        FIXME("Out of range swapchain (%u >= %u)\n", swapchain, mSwapchains.size());
         return D3DERR_INVALIDCALL;
     }
 
-    // FIXME: swapchain is ignored
-    DEVMODEW m;
-    memset(&m, 0, sizeof(m));
-    m.dmSize = sizeof(m);
-
-    EnumDisplaySettingsExW(mAdapter.getDeviceName().c_str(), ENUM_CURRENT_SETTINGS, &m, 0);
-    mode->Width = m.dmPelsWidth;
-    mode->Height = m.dmPelsHeight;
-    mode->RefreshRate = 0;
-    if((m.dmFields&DM_DISPLAYFREQUENCY))
-        mode->RefreshRate = m.dmDisplayFrequency;
-    mode->Format = pixelformat_for_depth(m.dmBitsPerPel);
-
-    return D3D_OK;
+    return mSwapchains[swapchain]->GetDisplayMode(mode);
 }
 
 HRESULT Direct3DGLDevice::GetCreationParameters(D3DDEVICE_CREATION_PARAMETERS *params)

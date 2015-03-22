@@ -11,6 +11,8 @@
 #include "commandqueue.hpp"
 
 
+class Direct3DGLSwapChain;
+
 class Direct3DGLDevice : public IDirect3DDevice9 {
     std::atomic<ULONG> mRefCount;
 
@@ -26,6 +28,7 @@ class Direct3DGLDevice : public IDirect3DDevice9 {
     const HWND mWindow;
     const DWORD mFlags;
 
+    std::vector<Direct3DGLSwapChain*> mSwapchains;
     std::array<std::atomic<DWORD>,210> mRenderState;
 
 public:
@@ -33,6 +36,9 @@ public:
     virtual ~Direct3DGLDevice();
 
     bool init(D3DPRESENT_PARAMETERS *params);
+
+    bool isMasterSwapchain(Direct3DGLSwapChain *schain) const
+    { return mSwapchains[0] == schain; }
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void** ppvObject);
