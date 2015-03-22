@@ -176,9 +176,10 @@ enum {
 } // namespace
 
 
-Direct3DGLDevice::Direct3DGLDevice(Direct3DGL *parent, HWND window, DWORD flags)
+Direct3DGLDevice::Direct3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags)
   : mRefCount(0)
   , mParent(parent)
+  , mAdapter(adapter)
   , mGLContext(nullptr)
   , mWindow(window)
   , mFlags(flags)
@@ -199,19 +200,16 @@ Direct3DGLDevice::~Direct3DGLDevice()
 }
 
 
-bool Direct3DGLDevice::init(const D3DAdapter &adapter, D3DPRESENT_PARAMETERS *params)
+bool Direct3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
 {
-    mAdapter = adapter;
-    mPresentParams = *params;
-
-    if(mPresentParams.BackBufferCount > 1)
+    if(params->BackBufferCount > 1)
     {
-        WARN("Too many backbuffers requested (%u)\n", mPresentParams.BackBufferCount);
-        mPresentParams.BackBufferCount = 1;
+        WARN("Too many backbuffers requested (%u)\n", params->BackBufferCount);
+        params->BackBufferCount = 1;
         return false;
     }
 
-    if((mPresentParams.Flags&D3DPRESENTFLAG_LOCKABLE_BACKBUFFER))
+    if((params->Flags&D3DPRESENTFLAG_LOCKABLE_BACKBUFFER))
     {
         FIXME("Lockable backbuffer not currently supported\n");
         return false;
@@ -271,6 +269,7 @@ bool Direct3DGLDevice::init(const D3DAdapter &adapter, D3DPRESENT_PARAMETERS *pa
     if(!mQueue.init(win, mGLContext))
         return false;
 
+    mPresentParams = *params;
     return true;
 }
 

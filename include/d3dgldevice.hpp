@@ -29,10 +29,10 @@ class Direct3DGLDevice : public IDirect3DDevice9 {
     std::array<std::atomic<DWORD>,210> mRenderState;
 
 public:
-    Direct3DGLDevice(Direct3DGL *parent, HWND window, DWORD flags);
+    Direct3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags);
     virtual ~Direct3DGLDevice();
 
-    bool init(const D3DAdapter &adapter, D3DPRESENT_PARAMETERS *params);
+    bool init(D3DPRESENT_PARAMETERS *params);
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void** ppvObject);
