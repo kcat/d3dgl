@@ -156,9 +156,164 @@ std::array<DWORD,210> GenerateDefaultRSValues()
 static const std::array<DWORD,210> DefaultRSValues = GenerateDefaultRSValues();
 
 
-enum {
-    WM_USER_First = WM_USER,
-    WM_USER_Last = WM_USER_First
+#define TEST(x) case x: return #x
+class d3drs_to_str {
+    char mBuffer[12];
+    D3DRENDERSTATETYPE mType;
+
+public:
+    d3drs_to_str(D3DRENDERSTATETYPE type) : mType(type) { }
+
+    operator const char*()
+    {
+        switch(mType)
+        {
+        TEST(D3DRS_ZENABLE);
+        TEST(D3DRS_FILLMODE);
+        TEST(D3DRS_SHADEMODE);
+        TEST(D3DRS_ZWRITEENABLE);
+        TEST(D3DRS_ALPHATESTENABLE);
+        TEST(D3DRS_LASTPIXEL);
+        TEST(D3DRS_SRCBLEND);
+        TEST(D3DRS_DESTBLEND);
+        TEST(D3DRS_CULLMODE);
+        TEST(D3DRS_ZFUNC);
+        TEST(D3DRS_ALPHAREF);
+        TEST(D3DRS_ALPHAFUNC);
+        TEST(D3DRS_DITHERENABLE);
+        TEST(D3DRS_ALPHABLENDENABLE);
+        TEST(D3DRS_FOGENABLE);
+        TEST(D3DRS_SPECULARENABLE);
+        TEST(D3DRS_FOGCOLOR);
+        TEST(D3DRS_FOGTABLEMODE);
+        TEST(D3DRS_FOGSTART);
+        TEST(D3DRS_FOGEND);
+        TEST(D3DRS_FOGDENSITY);
+        TEST(D3DRS_RANGEFOGENABLE);
+        TEST(D3DRS_STENCILENABLE);
+        TEST(D3DRS_STENCILFAIL);
+        TEST(D3DRS_STENCILZFAIL);
+        TEST(D3DRS_STENCILPASS);
+        TEST(D3DRS_STENCILFUNC);
+        TEST(D3DRS_STENCILREF);
+        TEST(D3DRS_STENCILMASK);
+        TEST(D3DRS_STENCILWRITEMASK);
+        TEST(D3DRS_TEXTUREFACTOR);
+        TEST(D3DRS_WRAP0);
+        TEST(D3DRS_WRAP1);
+        TEST(D3DRS_WRAP2);
+        TEST(D3DRS_WRAP3);
+        TEST(D3DRS_WRAP4);
+        TEST(D3DRS_WRAP5);
+        TEST(D3DRS_WRAP6);
+        TEST(D3DRS_WRAP7);
+        TEST(D3DRS_CLIPPING);
+        TEST(D3DRS_LIGHTING);
+        TEST(D3DRS_AMBIENT);
+        TEST(D3DRS_FOGVERTEXMODE);
+        TEST(D3DRS_COLORVERTEX);
+        TEST(D3DRS_LOCALVIEWER);
+        TEST(D3DRS_NORMALIZENORMALS);
+        TEST(D3DRS_DIFFUSEMATERIALSOURCE);
+        TEST(D3DRS_SPECULARMATERIALSOURCE);
+        TEST(D3DRS_AMBIENTMATERIALSOURCE);
+        TEST(D3DRS_EMISSIVEMATERIALSOURCE);
+        TEST(D3DRS_VERTEXBLEND);
+        TEST(D3DRS_CLIPPLANEENABLE);
+        TEST(D3DRS_POINTSIZE);
+        TEST(D3DRS_POINTSIZE_MIN);
+        TEST(D3DRS_POINTSPRITEENABLE);
+        TEST(D3DRS_POINTSCALEENABLE);
+        TEST(D3DRS_POINTSCALE_A);
+        TEST(D3DRS_POINTSCALE_B);
+        TEST(D3DRS_POINTSCALE_C);
+        TEST(D3DRS_MULTISAMPLEANTIALIAS);
+        TEST(D3DRS_MULTISAMPLEMASK);
+        TEST(D3DRS_PATCHEDGESTYLE);
+        TEST(D3DRS_DEBUGMONITORTOKEN);
+        TEST(D3DRS_POINTSIZE_MAX);
+        TEST(D3DRS_INDEXEDVERTEXBLENDENABLE);
+        TEST(D3DRS_COLORWRITEENABLE);
+        TEST(D3DRS_TWEENFACTOR);
+        TEST(D3DRS_BLENDOP);
+        TEST(D3DRS_POSITIONDEGREE);
+        TEST(D3DRS_NORMALDEGREE);
+        TEST(D3DRS_SCISSORTESTENABLE);
+        TEST(D3DRS_SLOPESCALEDEPTHBIAS);
+        TEST(D3DRS_ANTIALIASEDLINEENABLE);
+        TEST(D3DRS_MINTESSELLATIONLEVEL);
+        TEST(D3DRS_MAXTESSELLATIONLEVEL);
+        TEST(D3DRS_ADAPTIVETESS_X);
+        TEST(D3DRS_ADAPTIVETESS_Y);
+        TEST(D3DRS_ADAPTIVETESS_Z);
+        TEST(D3DRS_ADAPTIVETESS_W);
+        TEST(D3DRS_ENABLEADAPTIVETESSELLATION);
+        TEST(D3DRS_TWOSIDEDSTENCILMODE);
+        TEST(D3DRS_CCW_STENCILFAIL);
+        TEST(D3DRS_CCW_STENCILZFAIL);
+        TEST(D3DRS_CCW_STENCILPASS);
+        TEST(D3DRS_CCW_STENCILFUNC);
+        TEST(D3DRS_COLORWRITEENABLE1);
+        TEST(D3DRS_COLORWRITEENABLE2);
+        TEST(D3DRS_COLORWRITEENABLE3);
+        TEST(D3DRS_BLENDFACTOR);
+        TEST(D3DRS_SRGBWRITEENABLE);
+        TEST(D3DRS_DEPTHBIAS);
+        TEST(D3DRS_WRAP8);
+        TEST(D3DRS_WRAP9);
+        TEST(D3DRS_WRAP10);
+        TEST(D3DRS_WRAP11);
+        TEST(D3DRS_WRAP12);
+        TEST(D3DRS_WRAP13);
+        TEST(D3DRS_WRAP14);
+        TEST(D3DRS_WRAP15);
+        TEST(D3DRS_SEPARATEALPHABLENDENABLE);
+        TEST(D3DRS_SRCBLENDALPHA);
+        TEST(D3DRS_DESTBLENDALPHA);
+        TEST(D3DRS_BLENDOPALPHA);
+        case D3DRS_FORCE_DWORD:
+            break;
+        }
+        snprintf(mBuffer, sizeof(mBuffer), "0x%x", mType);
+        return mBuffer;
+    }
+};
+#undef TEST
+#define D3DRS_TO_STR(x) ((const char*)d3drs_to_str(x))
+
+
+class StateEnable : public Command {
+    GLenum mState;
+    bool mEnable;
+
+public:
+    StateEnable(GLenum state, bool enable) : mState(state), mEnable(enable) { }
+
+    virtual ULONG execute()
+    {
+        if(mEnable)
+            glEnable(mState);
+        else
+            glDisable(mState);
+        return sizeof(*this);
+    }
+};
+
+class MaterialSet : public Command {
+    D3DMATERIAL9 mMaterial;
+
+public:
+    MaterialSet(const D3DMATERIAL9 &material) : mMaterial(material) { }
+
+    virtual ULONG execute()
+    {
+        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, mMaterial.Power);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, &mMaterial.Diffuse.r);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, &mMaterial.Ambient.r);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, &mMaterial.Specular.r);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, &mMaterial.Emissive.r);
+        return sizeof(*this);
+    }
 };
 
 } // namespace
@@ -601,15 +756,21 @@ HRESULT Direct3DGLDevice::GetViewport(D3DVIEWPORT9* pViewport)
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetMaterial(CONST D3DMATERIAL9* pMaterial)
+HRESULT Direct3DGLDevice::SetMaterial(const D3DMATERIAL9 *material)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    FIXME("iface %p, material %p : stub!\n", this, material);
+    mQueue.lock();
+    mMaterial = *material;
+    mQueue.sendAndUnlock<MaterialSet>(mMaterial);
+    return D3D_OK;
 }
 
-HRESULT Direct3DGLDevice::GetMaterial(D3DMATERIAL9* pMaterial)
+HRESULT Direct3DGLDevice::GetMaterial(D3DMATERIAL9 *material)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, material %p : stub!\n", this, material);
+    mQueue.lock();
+    *material = mMaterial;
+    mQueue.unlock();
     return E_NOTIMPL;
 }
 
@@ -651,13 +812,22 @@ HRESULT Direct3DGLDevice::GetClipPlane(DWORD Index, float* pPlane)
 
 HRESULT Direct3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
 {
-    FIXME("iface %p, state 0x%x, value 0x%lx : stub!\n", this, state, value);
+    FIXME("iface %p, state %s, value 0x%lx : stub!\n", this, D3DRS_TO_STR(state), value);
+
+    if(state == D3DRS_DITHERENABLE)
+    {
+        mQueue.lock();
+        mRenderState[state] = value;
+        mQueue.sendAndUnlock<StateEnable>(GL_DITHER, value!=0);
+        return D3D_OK;
+    }
+
     return E_NOTIMPL;
 }
 
 HRESULT Direct3DGLDevice::GetRenderState(D3DRENDERSTATETYPE state, DWORD *value)
 {
-    FIXME("iface %p, state 0x%x, value %p : stub!\n", this, state, value);
+    FIXME("iface %p, state %s, value %p : stub!\n", this, D3DRS_TO_STR(state), value);
 
     if(state >= mRenderState.size())
     {

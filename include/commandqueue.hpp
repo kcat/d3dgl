@@ -59,6 +59,7 @@ public:
     void deinit();
 
     void lock() { EnterCriticalSection(&mLock); }
+    void unlock() { LeaveCriticalSection(&mLock); }
     template<typename T, typename ...Args>
     void sendAndUnlock(Args...args)
     {

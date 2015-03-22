@@ -29,7 +29,9 @@ class Direct3DGLDevice : public IDirect3DDevice9 {
     const DWORD mFlags;
 
     std::vector<Direct3DGLSwapChain*> mSwapchains;
+
     std::array<std::atomic<DWORD>,210> mRenderState;
+    D3DMATERIAL9 mMaterial;
 
 public:
     Direct3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags);
@@ -93,8 +95,8 @@ public:
     virtual HRESULT WINAPI MultiplyTransform(D3DTRANSFORMSTATETYPE, CONST D3DMATRIX*);
     virtual HRESULT WINAPI SetViewport(CONST D3DVIEWPORT9* pViewport);
     virtual HRESULT WINAPI GetViewport(D3DVIEWPORT9* pViewport);
-    virtual HRESULT WINAPI SetMaterial(CONST D3DMATERIAL9* pMaterial);
-    virtual HRESULT WINAPI GetMaterial(D3DMATERIAL9* pMaterial);
+    virtual HRESULT WINAPI SetMaterial(const D3DMATERIAL9* material);
+    virtual HRESULT WINAPI GetMaterial(D3DMATERIAL9* material);
     virtual HRESULT WINAPI SetLight(DWORD Index, CONST D3DLIGHT9*);
     virtual HRESULT WINAPI GetLight(DWORD Index, D3DLIGHT9*);
     virtual HRESULT WINAPI LightEnable(DWORD Index, WINBOOL Enable);
