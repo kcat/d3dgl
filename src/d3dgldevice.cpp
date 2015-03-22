@@ -49,6 +49,125 @@ bool fmt_to_glattrs(D3DFORMAT fmt, T inserter)
     return false;
 }
 
+DWORD float_to_dword(float f)
+{
+    union {
+        float f;
+        DWORD d;
+    } tmpfloat = { f };
+    return tmpfloat.d;
+}
+std::array<DWORD,210> GenerateDefaultRSValues()
+{
+    std::array<DWORD,210> ret;
+    ret[D3DRS_ZENABLE] = D3DZB_TRUE;
+    ret[D3DRS_FILLMODE] = D3DFILL_SOLID;
+    ret[D3DRS_SHADEMODE] = D3DSHADE_GOURAUD;
+    ret[D3DRS_ZWRITEENABLE] = TRUE;
+    ret[D3DRS_ALPHATESTENABLE] = FALSE;
+    ret[D3DRS_LASTPIXEL] = TRUE;
+    ret[D3DRS_SRCBLEND] = D3DBLEND_ONE;
+    ret[D3DRS_DESTBLEND] = D3DBLEND_ZERO;
+    ret[D3DRS_CULLMODE] = D3DCULL_CCW;
+    ret[D3DRS_ZFUNC] = D3DCMP_LESSEQUAL;
+    ret[D3DRS_ALPHAFUNC] = D3DCMP_ALWAYS;
+    ret[D3DRS_ALPHAREF] = 0;
+    ret[D3DRS_DITHERENABLE] = FALSE;
+    ret[D3DRS_ALPHABLENDENABLE] = FALSE;
+    ret[D3DRS_FOGENABLE] = FALSE;
+    ret[D3DRS_SPECULARENABLE] = FALSE;
+    ret[D3DRS_FOGCOLOR] = 0;
+    ret[D3DRS_FOGTABLEMODE] = D3DFOG_NONE;
+    ret[D3DRS_FOGSTART] = float_to_dword(0.0f);
+    ret[D3DRS_FOGEND] = float_to_dword(1.0f);
+    ret[D3DRS_FOGDENSITY] = float_to_dword(1.0f);
+    ret[D3DRS_RANGEFOGENABLE] = FALSE;
+    ret[D3DRS_STENCILENABLE] = FALSE;
+    ret[D3DRS_STENCILFAIL] = D3DSTENCILOP_KEEP;
+    ret[D3DRS_STENCILZFAIL] = D3DSTENCILOP_KEEP;
+    ret[D3DRS_STENCILPASS] = D3DSTENCILOP_KEEP;
+    ret[D3DRS_STENCILREF] = 0;
+    ret[D3DRS_STENCILMASK] = 0xffffffff;
+    ret[D3DRS_STENCILFUNC] = D3DCMP_ALWAYS;
+    ret[D3DRS_STENCILWRITEMASK] = 0xffffffff;
+    ret[D3DRS_TEXTUREFACTOR] = 0xffffffff;
+    ret[D3DRS_WRAP0] = 0;
+    ret[D3DRS_WRAP1] = 0;
+    ret[D3DRS_WRAP2] = 0;
+    ret[D3DRS_WRAP3] = 0;
+    ret[D3DRS_WRAP4] = 0;
+    ret[D3DRS_WRAP5] = 0;
+    ret[D3DRS_WRAP6] = 0;
+    ret[D3DRS_WRAP7] = 0;
+    ret[D3DRS_CLIPPING] = TRUE;
+    ret[D3DRS_LIGHTING] = TRUE;
+    ret[D3DRS_AMBIENT] = 0;
+    ret[D3DRS_FOGVERTEXMODE] = D3DFOG_NONE;
+    ret[D3DRS_COLORVERTEX] = TRUE;
+    ret[D3DRS_LOCALVIEWER] = TRUE;
+    ret[D3DRS_NORMALIZENORMALS] = FALSE;
+    ret[D3DRS_DIFFUSEMATERIALSOURCE] = D3DMCS_COLOR1;
+    ret[D3DRS_SPECULARMATERIALSOURCE] = D3DMCS_COLOR2;
+    ret[D3DRS_AMBIENTMATERIALSOURCE] = D3DMCS_MATERIAL;
+    ret[D3DRS_EMISSIVEMATERIALSOURCE] = D3DMCS_MATERIAL;
+    ret[D3DRS_VERTEXBLEND] = D3DVBF_DISABLE;
+    ret[D3DRS_CLIPPLANEENABLE] = 0;
+    ret[D3DRS_POINTSIZE] = float_to_dword(1.0f);
+    ret[D3DRS_POINTSIZE_MIN] = float_to_dword(1.0f);
+    ret[D3DRS_POINTSPRITEENABLE] = FALSE;
+    ret[D3DRS_POINTSCALEENABLE] = FALSE;
+    ret[D3DRS_POINTSCALE_A] = float_to_dword(1.0f);
+    ret[D3DRS_POINTSCALE_B] = float_to_dword(0.0f);
+    ret[D3DRS_POINTSCALE_C] = float_to_dword(0.0f);
+    ret[D3DRS_MULTISAMPLEANTIALIAS] = TRUE;
+    ret[D3DRS_MULTISAMPLEMASK] = 0xffffffff;
+    ret[D3DRS_PATCHEDGESTYLE] = D3DPATCHEDGE_DISCRETE;
+    ret[D3DRS_DEBUGMONITORTOKEN] = 0xbaadcafe;
+    ret[D3DRS_POINTSIZE_MAX] = float_to_dword(1.0f);
+    ret[D3DRS_INDEXEDVERTEXBLENDENABLE] = FALSE;
+    ret[D3DRS_COLORWRITEENABLE] = 0x0000000f;
+    ret[D3DRS_TWEENFACTOR] = float_to_dword(0.0f);
+    ret[D3DRS_BLENDOP] = D3DBLENDOP_ADD;
+    ret[D3DRS_POSITIONDEGREE] = D3DDEGREE_CUBIC;
+    ret[D3DRS_NORMALDEGREE] = D3DDEGREE_LINEAR;
+    ret[D3DRS_SCISSORTESTENABLE] = FALSE;
+    ret[D3DRS_SLOPESCALEDEPTHBIAS] = 0;
+    ret[D3DRS_MINTESSELLATIONLEVEL] = float_to_dword(1.0f);
+    ret[D3DRS_MAXTESSELLATIONLEVEL] = float_to_dword(1.0f);
+    ret[D3DRS_ANTIALIASEDLINEENABLE] = FALSE;
+    ret[D3DRS_ADAPTIVETESS_X] = float_to_dword(0.0f);
+    ret[D3DRS_ADAPTIVETESS_Y] = float_to_dword(0.0f);
+    ret[D3DRS_ADAPTIVETESS_Z] = float_to_dword(1.0f);
+    ret[D3DRS_ADAPTIVETESS_W] = float_to_dword(0.0f);
+    ret[D3DRS_ENABLEADAPTIVETESSELLATION] = FALSE;
+    ret[D3DRS_TWOSIDEDSTENCILMODE] = FALSE;
+    ret[D3DRS_CCW_STENCILFAIL] = D3DSTENCILOP_KEEP;
+    ret[D3DRS_CCW_STENCILZFAIL] = D3DSTENCILOP_KEEP;
+    ret[D3DRS_CCW_STENCILPASS] = D3DSTENCILOP_KEEP;
+    ret[D3DRS_CCW_STENCILFUNC] = D3DCMP_ALWAYS;
+    ret[D3DRS_COLORWRITEENABLE1] = 0x0000000f;
+    ret[D3DRS_COLORWRITEENABLE2] = 0x0000000f;
+    ret[D3DRS_COLORWRITEENABLE3] = 0x0000000f;
+    ret[D3DRS_BLENDFACTOR] = 0xffffffff;
+    ret[D3DRS_SRGBWRITEENABLE] = 0;
+    ret[D3DRS_DEPTHBIAS] = 0;
+    ret[D3DRS_WRAP8] = 0;
+    ret[D3DRS_WRAP9] = 0;
+    ret[D3DRS_WRAP10] = 0;
+    ret[D3DRS_WRAP11] = 0;
+    ret[D3DRS_WRAP12] = 0;
+    ret[D3DRS_WRAP13] = 0;
+    ret[D3DRS_WRAP14] = 0;
+    ret[D3DRS_WRAP15] = 0;
+    ret[D3DRS_SEPARATEALPHABLENDENABLE] = FALSE;
+    ret[D3DRS_SRCBLENDALPHA] = D3DBLEND_ONE;
+    ret[D3DRS_DESTBLENDALPHA] = D3DBLEND_ZERO;
+    ret[D3DRS_BLENDOPALPHA] = D3DBLENDOP_ADD;
+    return ret;
+}
+static const std::array<DWORD,210> DefaultRSValues = GenerateDefaultRSValues();
+
+
 enum {
     WM_USER_First = WM_USER,
     WM_USER_Last = WM_USER_First
@@ -68,6 +187,8 @@ Direct3DGLDevice::Direct3DGLDevice(Direct3DGL *parent, HWND window, DWORD flags)
   , mPendingOps(0)
 {
     InitializeCriticalSection(&mLock);
+    std::copy(DefaultRSValues.begin(), DefaultRSValues.end(), mRenderState.begin());
+    mRenderState[D3DRS_POINTSIZE_MAX] = float_to_dword(mAdapter.getLimits().pointsize_max);
 }
 
 Direct3DGLDevice::~Direct3DGLDevice()
@@ -602,7 +723,15 @@ HRESULT Direct3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
 HRESULT Direct3DGLDevice::GetRenderState(D3DRENDERSTATETYPE state, DWORD *value)
 {
     FIXME("iface %p, state 0x%x, value %p : stub!\n", this, state, value);
-    return E_NOTIMPL;
+
+    if(state >= mRenderState.size())
+    {
+        WARN("State out of range (%u >= %u)\n", state, mRenderState.size());
+        return D3DERR_INVALIDCALL;
+    }
+
+    *value = mRenderState[state];
+    return D3D_OK;
 }
 
 HRESULT Direct3DGLDevice::CreateStateBlock(D3DSTATEBLOCKTYPE Type, IDirect3DStateBlock9** ppSB)

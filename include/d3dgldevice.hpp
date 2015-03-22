@@ -4,6 +4,7 @@
 #include <d3d9.h>
 
 #include <atomic>
+#include <array>
 
 #include "d3dgl.hpp"
 #include "misc.hpp"
@@ -27,6 +28,8 @@ class Direct3DGLDevice : public IDirect3DDevice9 {
     const DWORD mFlags;
 
     std::atomic<ULONG> mPendingOps;
+
+    std::array<std::atomic<DWORD>,210> mRenderState;
 
     DWORD CALLBACK messageProc(void);
     static DWORD CALLBACK thread_func(void *arg)

@@ -11,18 +11,8 @@ bool CreateFakeContext(HINSTANCE hInstance, HWND &hWnd, HDC &dc, HGLRC &glrc);
 
 
 class D3DAdapter {
-    UINT mOrdinal;
-    bool mInited;
-
-    std::wstring mDeviceName;
-
-    WORD mVendorId;
-    WORD mDeviceId;
-    const char *mDescription;
-
-    D3DCAPS9 mCaps;
-
-    struct {
+public:
+    struct Limits {
         UINT buffers;
         UINT lights;
         UINT textures;
@@ -58,7 +48,22 @@ class D3DAdapter {
         UINT arb_ps_native_constants;
         UINT arb_ps_instructions;
         UINT arb_ps_temps;
-    } mLimits;
+    };
+
+private:
+    UINT mOrdinal;
+    bool mInited;
+
+    std::wstring mDeviceName;
+
+    WORD mVendorId;
+    WORD mDeviceId;
+    const char *mDescription;
+
+    D3DCAPS9 mCaps;
+
+    Limits mLimits;
+
     void init_limits();
 
     void init_caps();
@@ -70,6 +75,7 @@ public:
 
     bool init();
     UINT getOrdinal() const { return mOrdinal; }
+    const Limits& getLimits() const { return mLimits; }
     const std::wstring &getDeviceName() const { return mDeviceName; }
     D3DCAPS9 getCaps() const { return mCaps; }
     WORD getVendorId() const { return mVendorId; }
