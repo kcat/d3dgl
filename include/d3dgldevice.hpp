@@ -40,6 +40,8 @@ public:
     bool isMasterSwapchain(Direct3DGLSwapChain *schain) const
     { return mSwapchains[0] == schain; }
 
+    CommandQueue &getQueue() { return mQueue; }
+
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void** ppvObject);
     virtual ULONG WINAPI AddRef();

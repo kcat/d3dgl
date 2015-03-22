@@ -7,6 +7,8 @@
 #include <atomic>
 #include <new>
 
+#include "trace.hpp"
+
 
 class Command {
 protected:
@@ -56,14 +58,14 @@ public:
     bool init(HWND window, HGLRC glctx);
     void deinit();
 
+    void lock() { EnterCriticalSection(&mLock); }
     template<typename T, typename ...Args>
-    void prepareMsg(Args...args)
+    void sendAndUnlock(Args...args)
     {
         static_assert(sizeof(T) >= sizeof(Command), "Type is too small!");
         static_assert((sizeof(T)%sizeof(Command)) == 0, "Type is not a multiple of Command!");
         static_assert(sizeof(T) < sQueueSize, "Type size is way too large!");
 
-        EnterCriticalSection(&mLock);
         ULONG head = mHead.load();
         while(1)
         {
@@ -72,20 +74,20 @@ public:
             {
                 if(rem_size >= sizeof(CommandSkip))
                 {
-                    prepareMsg<CommandSkip>(rem_size);
+                    send<CommandSkip>(rem_size);
                     head = mHead.load();
                     rem_size = sQueueSize - head;
                 }
                 else do {
-                    prepareMsg<CommandNoOp>();
+                    send<CommandNoOp>();
                     head = mHead.load();
                     rem_size = sQueueSize - head;
                 } while(rem_size < sizeof(T));
             }
-            ULONG tail = mTail;
-            if(((tail-head-1)&sQueueMask) >= sizeof(T))
+            if(((mTail-head-1)&sQueueMask) >= sizeof(T))
                 break;
 
+            ERR("CommandQueue is full!\n");
             SleepConditionVariableCS(&mCondVar, &mLock, INFINITE);
             head = mHead.load();
         }
@@ -97,6 +99,13 @@ public:
         mHead.store(head&sQueueMask);
         LeaveCriticalSection(&mLock);
         WakeAllConditionVariable(&mCondVar);
+    }
+
+    template<typename T, typename ...Args>
+    void send(Args...args)
+    {
+        lock();
+        sendAndUnlock<T,Args...>(args...);
     }
 };
 

@@ -70,7 +70,7 @@ bool CommandQueue::init(HWND window, HGLRC glctx)
     HANDLE thrdInitEvt = CreateEvent(NULL, FALSE, FALSE, NULL);
     mHead = sQueueSize - sizeof(CommandInitThrd);
     mTail = sQueueSize - sizeof(CommandInitThrd);
-    prepareMsg<CommandInitThrd>(window, glctx, thrdInitEvt);
+    send<CommandInitThrd>(window, glctx, thrdInitEvt);
 
     mThreadHdl = CreateThread(nullptr, 1024*1024, thread_func, this, 0, &mThreadId);
     if(!mThreadHdl)
@@ -93,7 +93,7 @@ void CommandQueue::deinit()
 {
     if(mThreadHdl)
     {
-        prepareMsg<CommandQuitThrd>();
+        send<CommandQuitThrd>();
         WaitForSingleObject(mThreadHdl, 5000);
         CloseHandle(mThreadHdl);
         mThreadHdl = nullptr;
