@@ -59,9 +59,14 @@ ULONG Direct3DGLRenderTarget::Release()
     TRACE("%p New refcount: %lu\n", this, ret);
     if(ret == 0)
     {
-        mParent->Release();
-        if(!mIsAuto)
+        if(mIsAuto)
+            mParent->Release();
+        else
+        {
+            IDirect3DDevice9 *device = mParent;
             delete this;
+            device->Release();
+        }
     }
     return ret;
 }

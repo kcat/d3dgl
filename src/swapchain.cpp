@@ -39,7 +39,7 @@ void Direct3DGLSwapChain::checkDelete()
 
 HRESULT Direct3DGLSwapChain::QueryInterface(REFIID riid, void **obj)
 {
-    TRACE("iface %p, riid %s, obj %p.\n", this, debugstr_guid(riid), obj);
+    TRACE("iface %p, riid %s, obj %p\n", this, debugstr_guid(riid), obj);
 
     *obj = NULL;
     if(riid == IID_IUnknown || riid == IID_IDirect3DSwapChain9)
@@ -66,8 +66,14 @@ ULONG Direct3DGLSwapChain::Release()
     TRACE("%p New refcount: %lu\n", this, ret);
     if(ret == 0)
     {
-        mParent->Release();
-        checkDelete();
+        if(mIsAuto)
+            mParent->Release();
+        else
+        {
+            IDirect3DDevice9 *device = mParent;
+            checkDelete();
+            device->Release();
+        }
     }
     return ret;
 }
