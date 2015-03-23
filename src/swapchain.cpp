@@ -1,6 +1,6 @@
 
-#include "d3dglswapchain.hpp"
-#include "d3dgldevice.hpp"
+#include "swapchain.hpp"
+#include "device.hpp"
 #include "trace.hpp"
 
 

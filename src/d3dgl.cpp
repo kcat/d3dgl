@@ -5,7 +5,7 @@
 
 #include "glew.h"
 #include "trace.hpp"
-#include "d3dgldevice.hpp"
+#include "device.hpp"
 
 
 #define WARN_AND_RETURN(val, ...) do { \

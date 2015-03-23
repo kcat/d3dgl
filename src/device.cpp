@@ -1,5 +1,5 @@
 
-#include "d3dgldevice.hpp"
+#include "device.hpp"
 
 #include <array>
 #include <d3d9.h>
@@ -8,7 +8,7 @@
 #include "wglew.h"
 #include "trace.hpp"
 #include "d3dgl.hpp"
-#include "d3dglswapchain.hpp"
+#include "swapchain.hpp"
 
 
 namespace
