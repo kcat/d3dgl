@@ -81,6 +81,8 @@ public:
     WORD getVendorId() const { return mVendorId; }
     WORD getDeviceId() const { return mDeviceId; }
     const char *getDescription() const { return mDescription; }
+
+    UINT getModeCount(D3DFORMAT format) const;
 };
 
 

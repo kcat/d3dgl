@@ -13,6 +13,10 @@
     return val;                        \
 } while(0)
 
+#ifndef D3DFMT4CC
+#define D3DFMT4CC(a,b,c,d)  (a | ((b<<8)&0xff00) | ((b<<16)&0xff0000) | ((d<<24)&0xff000000))
+#endif
+
 #define MAX_TEXTURES                8
 #define MAX_STREAMS                 16
 #define MAX_VERTEX_SAMPLERS         4
@@ -1211,6 +1215,32 @@ done:
 }
 
 
+UINT D3DAdapter::getModeCount(D3DFORMAT format) const
+{
+    DWORD bpp;
+    if(format == D3DFMT_X8R8G8B8) bpp = 32;
+    else if(format == D3DFMT_R5G6B5) bpp = 16;
+    else if(format == D3DFMT_X1R5G5B5) bpp = 15;
+    else
+    {
+        ERR("Unhandled format: %s\n", d3dfmt_to_str(format));
+        return 0;
+    }
+
+    DEVMODEW m;
+    memset(&m, 0, sizeof(m));
+    m.dmSize = sizeof(m);
+
+    int j = 0, i = 0;
+    while(EnumDisplaySettingsW(mDeviceName.c_str(), j++, &m))
+    {
+        if(m.dmBitsPerPel == bpp)
+            i++;
+    }
+    return i;
+}
+
+
 Direct3DGL::Direct3DGL()
   : mRefCount(0)
 {
@@ -1271,7 +1301,7 @@ HRESULT Direct3DGL::RegisterSoftwareDevice(void *initFunction)
 
 UINT Direct3DGL::GetAdapterCount(void)
 {
-    FIXME("iface %p stub!\n", this);
+    FIXME("iface %p semi-stub!\n", this);
 
     std::vector<D3DAdapter>().swap(mAdapters);
     mAdapters.push_back(0);
@@ -1308,8 +1338,14 @@ HRESULT Direct3DGL::GetAdapterIdentifier(UINT adapter, DWORD flags, D3DADAPTER_I
 
 UINT Direct3DGL::GetAdapterModeCount(UINT adapter, D3DFORMAT format)
 {
-    FIXME("iface %p, adapter %u, format 0x%x, stub!\n", this, adapter, format);
-    return 0;
+    TRACE("iface %p, adapter %u, format %s : semi-stub\n", this, adapter, d3dfmt_to_str(format));
+
+    if(adapter >= mAdapters.size())
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
+    if(!mAdapters[adapter].init())
+        return D3DERR_INVALIDCALL;
+
+    return mAdapters[adapter].getModeCount(format);
 }
 
 HRESULT Direct3DGL::EnumAdapterModes(UINT adapter, D3DFORMAT format, UINT mode, D3DDISPLAYMODE *displayMode)
@@ -1320,7 +1356,7 @@ HRESULT Direct3DGL::EnumAdapterModes(UINT adapter, D3DFORMAT format, UINT mode, 
 
 HRESULT Direct3DGL::GetAdapterDisplayMode(UINT adapter, D3DDISPLAYMODE *displayMode)
 {
-    FIXME("iface %p, adapter %u, displayMode %p stub!\n", this, adapter, displayMode);
+    TRACE("iface %p, adapter %u, displayMode %p\n", this, adapter, displayMode);
 
     if(adapter >= mAdapters.size())
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
@@ -1351,8 +1387,393 @@ HRESULT Direct3DGL::CheckDeviceType(UINT adapter, D3DDEVTYPE devType, D3DFORMAT 
 
 HRESULT Direct3DGL::CheckDeviceFormat(UINT adapter, D3DDEVTYPE devType, D3DFORMAT adapterFormat, DWORD usage, D3DRESOURCETYPE resType, D3DFORMAT checkFormat)
 {
-    FIXME("iface %p, adapter %u, devType 0x%x, adapterFormat 0x%x, usage 0x%lx, resType 0x%x, checkFormat 0x%x stub!\n", this, adapter, devType, adapterFormat, usage, resType, checkFormat);
-    return E_NOTIMPL;
+    FIXME("iface %p, adapter %u, devType 0x%x, adapterFormat %s, usage 0x%lx, resType 0x%x, checkFormat %s : semi-stub\n", this, adapter, devType, d3dfmt_to_str(adapterFormat), usage, resType, d3dfmt_to_str(checkFormat));
+
+    if(adapter >= mAdapters.size())
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
+    if(devType != D3DDEVTYPE_HAL)
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Non-HAL type 0x%x not supported\n", devType);
+    if(!mAdapters[adapter].init())
+        return D3DERR_INVALIDCALL;
+
+    /* Check that there's at least one mode for the given format. */
+    if(mAdapters[adapter].getModeCount(adapterFormat) == 0)
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter format %s not supported\n", d3dfmt_to_str(adapterFormat));
+
+    HRESULT hr = D3D_OK;
+    // Check that the format can be used for the given resource type
+    if(resType == D3DRTYPE_SURFACE)
+    {
+        DWORD InvalidFlags;
+        InvalidFlags = (usage&~(D3DUSAGE_RENDERTARGET|D3DUSAGE_DEPTHSTENCIL|D3DUSAGE_DYNAMIC));
+        if(InvalidFlags)
+        {
+            FIXME("Unhandled usage flags specified for surface: 0x%lx\n", InvalidFlags);
+            return D3DERR_INVALIDCALL;
+        }
+    }
+    else if(resType == D3DRTYPE_TEXTURE || resType == D3DRTYPE_VOLUMETEXTURE ||
+            resType == D3DRTYPE_CUBETEXTURE || resType == D3DRTYPE_VOLUME)
+    {
+        DWORD InvalidFlags;
+        InvalidFlags = (usage&~(D3DUSAGE_RENDERTARGET|D3DUSAGE_DEPTHSTENCIL|
+                                D3DUSAGE_AUTOGENMIPMAP|D3DUSAGE_DYNAMIC|
+                                D3DUSAGE_QUERY_LEGACYBUMPMAP|
+                                D3DUSAGE_QUERY_SRGBREAD|D3DUSAGE_QUERY_SRGBWRITE|
+                                D3DUSAGE_QUERY_FILTER|D3DUSAGE_QUERY_VERTEXTEXTURE|
+                                D3DUSAGE_QUERY_POSTPIXELSHADER_BLENDING|
+                                D3DUSAGE_QUERY_WRAPANDMIP));
+        if(InvalidFlags)
+        {
+            FIXME("Unhandled usage flags specified for texture type: 0x%lx\n", InvalidFlags);
+            return D3DERR_INVALIDCALL;
+        }
+
+        if(resType == D3DRTYPE_VOLUMETEXTURE || resType == D3DRTYPE_VOLUME)
+        {
+            switch(checkFormat)
+            {
+                case D3DFMT_D15S1:
+                case D3DFMT_D16:
+                case D3DFMT_D16_LOCKABLE:
+                case D3DFMT_D24X8:
+                case D3DFMT_D24X4S4:
+                case D3DFMT_D24S8:
+                case D3DFMT_D32:
+                case D3DFMT_D24FS8:
+                case D3DFMT_D32F_LOCKABLE:
+                    WARN("3D textures not supported for texture format: %s\n", d3dfmt_to_str(checkFormat));
+                    return D3DERR_NOTAVAILABLE;
+                default:
+                    break;
+            }
+        }
+
+        switch(checkFormat)
+        {
+            // NOTE: Although 24-bit RGB is perfectly supported at the API
+            // level, hardware is likely hiding the fact that it's using XRGB.
+            // D3D9 does *not* allow R8G8B8 textures.
+            case D3DFMT_R8G8B8:
+            // RGBA3328 and LA4 have no loadable data type in OpenGL
+            case D3DFMT_A8R3G3B2:
+            case D3DFMT_A4L4:
+            // OpenGL has no corresponding types for these depth/stencil formats
+            case D3DFMT_D24X4S4:
+            case D3DFMT_D24FS8:
+            // FIXME: Lockable depth formats are not supported (why?)
+            case D3DFMT_D16_LOCKABLE:
+            case D3DFMT_D32F_LOCKABLE:
+            // Need to check into these...
+            case D3DFMT_UYVY:
+            case D3DFMT_YUY2:
+            case D3DFMT_MULTI2_ARGB8:
+            case D3DFMT_G8R8_G8B8:
+            case D3DFMT_R8G8_B8G8:
+            case D3DFMT_L6V5U5:
+            case D3DFMT_Q16W16V16U16:
+            case D3DFMT_A2W10V10U10:
+            case D3DFMT_CxV8U8:
+                WARN("Texture format not supported: %s\n", d3dfmt_to_str(checkFormat));
+                return D3DERR_NOTAVAILABLE;
+
+            case D3DFMT_A8R8G8B8:
+            case D3DFMT_X8R8G8B8:
+            case D3DFMT_R5G6B5:
+            case D3DFMT_X1R5G5B5:
+            case D3DFMT_A1R5G5B5:
+            case D3DFMT_A4R4G4B4:
+            case D3DFMT_R3G3B2:
+            case D3DFMT_A8:
+            case D3DFMT_X4R4G4B4:
+            case D3DFMT_A8B8G8R8:
+            case D3DFMT_X8B8G8R8:
+            case D3DFMT_A2R10G10B10:
+            case D3DFMT_A2B10G10R10:
+            case D3DFMT_A16B16G16R16:
+            case D3DFMT_L8:
+            case D3DFMT_L16:
+            case D3DFMT_A8L8:
+            case D3DFMT4CC('A','L','1','6'):
+            case D3DFMT_D16:
+            case D3DFMT_D32:
+            case D3DFMT_D24X8:
+            case D3DFMT_D24S8:
+            case D3DFMT4CC(' ','R','1','6'):
+            case D3DFMT_G16R16:
+            case D3DFMT_R16F:
+            case D3DFMT_G16R16F:
+            case D3DFMT_R32F:
+            case D3DFMT_G32R32F:
+            case D3DFMT_A16B16G16R16F:
+            case D3DFMT_A32B32G32R32F:
+                break;
+
+            case D3DFMT_DXT1:
+            case D3DFMT_DXT2:
+            case D3DFMT_DXT3:
+            case D3DFMT_DXT4:
+            case D3DFMT_DXT5:
+                WARN("Assuming S3_s3tc for texture format: %s\n", d3dfmt_to_str(checkFormat));
+                break;
+
+            case D3DFMT_V8U8:
+            case D3DFMT_X8L8V8U8:
+            case D3DFMT_Q8W8V8U8:
+            case D3DFMT_V16U16:
+                WARN("Assuming ATI_envmap_bumpmap or NV_register_combiners/NV_texture_shader2 for texture format: %s\n", d3dfmt_to_str(checkFormat));
+                break;
+
+            case D3DFMT_A8P8:
+            case D3DFMT_P8:
+                WARN("Paletted textures not handled for texture format: %s\n", d3dfmt_to_str(checkFormat));
+                return D3DERR_NOTAVAILABLE;
+
+            default:
+                ERR("Format %s is not a recognized texture format\n", d3dfmt_to_str(checkFormat));
+                return D3DERR_NOTAVAILABLE;
+        }
+    }
+    else if(resType == D3DRTYPE_VERTEXBUFFER)
+    {
+        DWORD InvalidFlags;
+        InvalidFlags = (usage&~(D3DUSAGE_WRITEONLY|D3DUSAGE_SOFTWAREPROCESSING|D3DUSAGE_DYNAMIC));
+        if(InvalidFlags)
+        {
+            ERR("Invalid usage flags specified for vertex buffers: 0x%lx\n", InvalidFlags);
+            return D3DERR_INVALIDCALL;
+        }
+
+        switch(checkFormat)
+        {
+            case D3DFMT_VERTEXDATA:
+                break;
+            default:
+                WARN("Format %s is not a vertex buffer format\n", d3dfmt_to_str(checkFormat));
+                return D3DERR_NOTAVAILABLE;
+        }
+    }
+    else if(resType == D3DRTYPE_INDEXBUFFER)
+    {
+        DWORD InvalidFlags;
+        InvalidFlags = (usage&~(D3DUSAGE_WRITEONLY|D3DUSAGE_SOFTWAREPROCESSING|D3DUSAGE_DYNAMIC));
+        if(InvalidFlags)
+        {
+            ERR("Invalid usage flags specified for index buffers: 0x%lx\n", InvalidFlags);
+            return D3DERR_INVALIDCALL;
+        }
+
+        switch(checkFormat)
+        {
+            case D3DFMT_INDEX16:
+            case D3DFMT_INDEX32:
+                break;
+            default:
+                WARN("Format %s is not an index format\n", d3dfmt_to_str(checkFormat));
+                return D3DERR_NOTAVAILABLE;
+        }
+    }
+    else
+    {
+        ERR("Unexpected resource type: 0x%x\n", resType);
+        return D3DERR_INVALIDCALL;
+    }
+
+    // Format is valid for the resource type. Now make sure it can be used
+    // according to the request.
+    if((usage&D3DUSAGE_RENDERTARGET))
+    {
+        if(!(resType == D3DRTYPE_TEXTURE || resType == D3DRTYPE_VOLUMETEXTURE ||
+             resType == D3DRTYPE_CUBETEXTURE || resType == D3DRTYPE_SURFACE))
+        {
+            ERR("Resource type 0x%x not handled for rendertarget usage\n", resType);
+            return D3DERR_INVALIDCALL;
+        }
+
+        // FIXME
+        switch(checkFormat)
+        {
+            case D3DFMT_A8R8G8B8:
+            case D3DFMT_X8R8G8B8:
+            case D3DFMT_R5G6B5:
+            case D3DFMT_X1R5G5B5:
+            case D3DFMT_A1R5G5B5:
+            case D3DFMT_A4R4G4B4:
+            case D3DFMT_R3G3B2:
+            case D3DFMT_A8:
+            case D3DFMT_X4R4G4B4:
+            case D3DFMT_A8B8G8R8:
+            case D3DFMT_X8B8G8R8:
+            case D3DFMT_A2R10G10B10:
+            case D3DFMT_A2B10G10R10:
+            case D3DFMT_A16B16G16R16:
+            case D3DFMT4CC(' ','R','1','6'):
+            case D3DFMT_G16R16:
+            case D3DFMT_R16F:
+            case D3DFMT_G16R16F:
+            case D3DFMT_R32F:
+            case D3DFMT_G32R32F:
+            case D3DFMT_A16B16G16R16F:
+            case D3DFMT_A32B32G32R32F:
+                FIXME("Assuming format %s is color renderable\n", d3dfmt_to_str(checkFormat));
+                break;
+
+            default:
+                ERR("Format %s is not a recognized rendertarget format\n", d3dfmt_to_str(checkFormat));
+                return D3DERR_NOTAVAILABLE;
+        }
+        /*if(!IsColorFormatRenderable(adapter, chkformat))
+        {
+            WARN("Format not color renderable (%s)\n", d3dfmt_to_str(chkformat));
+            return D3DERR_NOTAVAILABLE;
+        }*/
+    }
+    if((usage&D3DUSAGE_DEPTHSTENCIL))
+    {
+        if(!(resType == D3DRTYPE_TEXTURE || resType == D3DRTYPE_VOLUMETEXTURE ||
+             resType == D3DRTYPE_CUBETEXTURE || resType == D3DRTYPE_SURFACE))
+        {
+            ERR("Resource type 0x%x not handled for depthstencil usage\n", resType);
+            return D3DERR_INVALIDCALL;
+        }
+
+        // FIXME
+        switch(checkFormat)
+        {
+            case D3DFMT_D16:
+            //case D3DFMT_D16_LOCKABLE:
+            case D3DFMT_D24X8:
+            case D3DFMT_D24S8:
+            case D3DFMT_D32:
+            //case D3DFMT_D32F_LOCKABLE:
+                FIXME("Assuming format %s is depth-stencil renderable\n", d3dfmt_to_str(checkFormat));
+                break;
+
+            default:
+                ERR("Format %s is not a recognized depth-stencil format\n", d3dfmt_to_str(checkFormat));
+                return D3DERR_NOTAVAILABLE;
+        }
+        /*if(!IsDepthStencilFormatRenderable(adapter, chkformat))
+        {
+            WARN("Format not depth-stencil renderable (%s)\n", d3dfmt_to_str(chkformat));
+            return D3DERR_NOTAVAILABLE;
+        }*/
+    }
+    if((usage&D3DUSAGE_SOFTWAREPROCESSING))
+    {
+        WARN("Software processing queried; allowing\n");
+    }
+    if((usage&D3DUSAGE_DYNAMIC))
+    {
+        WARN("Dynamic usage queried; allowing\n");
+    }
+    if((usage&D3DUSAGE_WRITEONLY))
+    {
+        WARN("Write-only usage queried; allowing\n");
+    }
+    //if((usage&D3DUSAGE_AUTOGENMIPMAP))
+    //{
+    //}
+    if((usage&D3DUSAGE_DMAP))
+    {
+        // FIXME: displacement map?
+        ERR("Displacement map usage requested for format (%s)!\n", d3dfmt_to_str(checkFormat));
+    }
+    if((usage&D3DUSAGE_QUERY_LEGACYBUMPMAP))
+    {
+        switch(checkFormat)
+        {
+            case D3DFMT_V8U8:
+            case D3DFMT_Q8W8V8U8:
+            case D3DFMT_V16U16:
+            case D3DFMT_Q16W16V16U16:
+                break;
+            default:
+                WARN("Format %s is not a bumpmap format\n", d3dfmt_to_str(checkFormat));
+                return D3DERR_NOTAVAILABLE;
+        }
+    }
+    if((usage&D3DUSAGE_QUERY_SRGBREAD))
+    {
+        switch(checkFormat)
+        {
+            case D3DFMT_DXT1:
+            case D3DFMT_DXT3:
+            case D3DFMT_DXT5:
+            case D3DFMT_R8G8B8:
+            case D3DFMT_X8R8G8B8:
+            case D3DFMT_A8R8G8B8:
+            case D3DFMT_X8B8G8R8:
+            case D3DFMT_A8B8G8R8:
+            case D3DFMT_L8:
+            case D3DFMT_A8L8:
+                break;
+
+            default:
+                WARN("Reading sRGB not supported for format: %s\n", d3dfmt_to_str(checkFormat));
+                return D3DERR_NOTAVAILABLE;
+        }
+    }
+    if((usage&D3DUSAGE_QUERY_FILTER) || (usage&D3DUSAGE_QUERY_WRAPANDMIP))
+    {
+        switch(checkFormat)
+        {
+            case D3DFMT_R16F:
+            case D3DFMT_G16R16F:
+            case D3DFMT_A16B16G16R16F:
+            case D3DFMT_R32F:
+            case D3DFMT_G32R32F:
+            case D3DFMT_A32B32G32R32F:
+                break;
+
+            case D3DFMT_D15S1:
+            case D3DFMT_D16:
+            case D3DFMT_D16_LOCKABLE:
+            case D3DFMT_D24X8:
+            case D3DFMT_D24X4S4:
+            case D3DFMT_D24S8:
+            case D3DFMT_D32:
+            case D3DFMT_D24FS8:
+            case D3DFMT_D32F_LOCKABLE:
+                WARN("No filtering on texture format: %s\n", d3dfmt_to_str(checkFormat));
+                return D3DERR_NOTAVAILABLE;
+
+            default:
+                break;
+        }
+    }
+    if((usage&D3DUSAGE_QUERY_SRGBWRITE))
+    {
+        // FIXME
+        ERR("sRGB writing not current supported\n");
+        return D3DERR_NOTAVAILABLE;
+    }
+    //if((usage&D3DUSAGE_QUERY_POSTPIXELSHADER_BLENDING))
+    //{
+    //}
+    if((usage&D3DUSAGE_QUERY_VERTEXTEXTURE))
+    {
+        if(resType == D3DRTYPE_VOLUME)
+        {
+            WARN("3D surfaces not supported for vertex texture sampling: %s\n", d3dfmt_to_str(checkFormat));
+            return D3DERR_NOTAVAILABLE;
+        }
+        switch(checkFormat)
+        {
+            case D3DFMT_R32F:
+            case D3DFMT_G32R32F:
+            case D3DFMT_A32B32G32R32F:
+            case D3DFMT_R16F:
+            case D3DFMT_G16R16F:
+            case D3DFMT_A16B16G16R16F:
+                break;
+            default:
+                WARN("Unable to sample from texture format: %s\n", d3dfmt_to_str(checkFormat));
+                return D3DERR_NOTAVAILABLE;
+        }
+    }
+
+    return hr;
 }
 
 HRESULT Direct3DGL::CheckDeviceMultiSampleType(UINT adapter, D3DDEVTYPE devType, D3DFORMAT surfaceFormat, WINBOOL windowed, D3DMULTISAMPLE_TYPE multiSampleType, DWORD *qualityLevels)
@@ -1363,7 +1784,7 @@ HRESULT Direct3DGL::CheckDeviceMultiSampleType(UINT adapter, D3DDEVTYPE devType,
 
 HRESULT Direct3DGL::CheckDepthStencilMatch(UINT adapter, D3DDEVTYPE devType, D3DFORMAT adapterFormat, D3DFORMAT renderTargetFormat, D3DFORMAT depthStencilFormat)
 {
-    FIXME("iface %p, adapter %u, devType 0x%x, adapterFormat 0x%x, renderTargetFormat 0x%x, depthStencilFormat 0x%x stub!\n", this, adapter, devType, adapterFormat, renderTargetFormat, depthStencilFormat);
+    FIXME("iface %p, adapter %u, devType 0x%x, adapterFormat %s, renderTargetFormat %s, depthStencilFormat %s : stub!\n", this, adapter, devType, d3dfmt_to_str(adapterFormat), d3dfmt_to_str(renderTargetFormat), d3dfmt_to_str(depthStencilFormat));
     return E_NOTIMPL;
 }
 
