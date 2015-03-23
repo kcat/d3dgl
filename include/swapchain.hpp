@@ -15,12 +15,13 @@ class Direct3DGLSwapChain : public IDirect3DSwapChain9 {
 
     D3DPRESENT_PARAMETERS mParams;
     HWND mWindow;
+    bool mIsAuto;
 
 public:
     Direct3DGLSwapChain(Direct3DGLDevice *parent);
     virtual ~Direct3DGLSwapChain();
 
-    bool init(const D3DPRESENT_PARAMETERS *params, HWND window);
+    bool init(const D3DPRESENT_PARAMETERS *params, HWND window, bool isauto=false);
     void checkDelete();
 
     /*** IUnknown methods ***/

@@ -9,6 +9,7 @@
 #include "trace.hpp"
 #include "d3dgl.hpp"
 #include "swapchain.hpp"
+#include "rendertarget.hpp"
 
 
 namespace
@@ -200,6 +201,8 @@ Direct3DGLDevice::Direct3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter
   , mGLContext(nullptr)
   , mWindow(window)
   , mFlags(flags)
+  , mAutoDepthStencil(nullptr)
+  , mDepthStencil(nullptr)
 {
     std::copy(DefaultRSValues.begin(), DefaultRSValues.end(), mRenderState.begin());
     mRenderState[D3DRS_POINTSIZE_MAX] = float_to_dword(mAdapter.getLimits().pointsize_max);
@@ -210,15 +213,16 @@ Direct3DGLDevice::~Direct3DGLDevice()
     for(auto schain : mSwapchains)
         delete schain;
     mSwapchains.clear();
-    mQueue.deinit();
+    delete mAutoDepthStencil;
+    mAutoDepthStencil = nullptr;
 
+    mQueue.deinit();
     if(mGLContext)
         wglDeleteContext(mGLContext);
     mGLContext = nullptr;
 
     mParent = nullptr;
 }
-
 
 bool Direct3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
 {
@@ -290,12 +294,30 @@ bool Direct3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
         return false;
 
     Direct3DGLSwapChain *schain = new Direct3DGLSwapChain(this);
-    if(!schain->init(params, win))
+    if(!schain->init(params, win, true))
     {
         delete schain;
         return false;
     }
     mSwapchains.push_back(schain);
+
+    if(params->EnableAutoDepthStencil)
+    {
+        D3DSURFACE_DESC desc;
+        desc.Format = params->AutoDepthStencilFormat;
+        desc.Type = D3DRTYPE_SURFACE;
+        desc.Usage = D3DUSAGE_DEPTHSTENCIL;
+        desc.Pool = D3DPOOL_DEFAULT;
+        desc.MultiSampleType = params->MultiSampleType;
+        desc.MultiSampleQuality = params->MultiSampleQuality;
+        desc.Width = params->BackBufferWidth;
+        desc.Height = params->BackBufferHeight;
+
+        mAutoDepthStencil = new Direct3DGLRenderTarget(this);
+        if(!mAutoDepthStencil->init(&desc, true))
+            return false;
+        mDepthStencil = mAutoDepthStencil;
+    }
 
     mPresentParams = *params;
     return true;
@@ -595,16 +617,22 @@ HRESULT Direct3DGLDevice::GetRenderTarget(DWORD RenderTargetIndex, IDirect3DSurf
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9* pNewZStencil)
+HRESULT Direct3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    FIXME("iface %p, depthstencil %p : stub!\n", this, depthstencil);
+    if(depthstencil) depthstencil->AddRef();
+    depthstencil = mDepthStencil.exchange(depthstencil);
+    if(depthstencil) depthstencil->Release();
+    return D3D_OK;
 }
 
-HRESULT Direct3DGLDevice::GetDepthStencilSurface(IDirect3DSurface9** ppZStencilSurface)
+HRESULT Direct3DGLDevice::GetDepthStencilSurface(IDirect3DSurface9 **depthstencil)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, depthstencil %p\n", this, depthstencil);
+    *depthstencil = mDepthStencil.load();
+    if(*depthstencil)
+        (*depthstencil)->AddRef();
+    return D3D_OK;
 }
 
 HRESULT Direct3DGLDevice::BeginScene()

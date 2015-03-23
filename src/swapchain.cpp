@@ -8,6 +8,7 @@ Direct3DGLSwapChain::Direct3DGLSwapChain(Direct3DGLDevice *parent)
   : mRefCount(0)
   , mParent(parent)
   , mWindow(nullptr)
+  , mIsAuto(false)
 {
 }
 
@@ -16,11 +17,12 @@ Direct3DGLSwapChain::~Direct3DGLSwapChain()
     // FIXME: Send a command to destroy GL objects, and wait for it to complete.
 }
 
-bool Direct3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window)
+bool Direct3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window, bool isauto)
 {
     // Params are already sanitized.
     mParams = *params;
     mWindow = window;
+    mIsAuto = isauto;
 
     // FIXME: Send a command to initialize GL objects
     return true;
@@ -28,7 +30,7 @@ bool Direct3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window)
 
 void Direct3DGLSwapChain::checkDelete()
 {
-    if(mRefCount > 0 || mParent->isMasterSwapchain(this))
+    if(mRefCount > 0 || mIsAuto)
         return;
 
     delete this;

@@ -12,6 +12,7 @@
 
 
 class Direct3DGLSwapChain;
+class Direct3DGLRenderTarget;
 
 class Direct3DGLDevice : public IDirect3DDevice9 {
     std::atomic<ULONG> mRefCount;
@@ -28,7 +29,10 @@ class Direct3DGLDevice : public IDirect3DDevice9 {
     const HWND mWindow;
     const DWORD mFlags;
 
+    Direct3DGLRenderTarget *mAutoDepthStencil;
     std::vector<Direct3DGLSwapChain*> mSwapchains;
+
+    std::atomic<IDirect3DSurface9*> mDepthStencil;
 
     std::array<std::atomic<DWORD>,210> mRenderState;
     D3DMATERIAL9 mMaterial;
