@@ -501,82 +501,88 @@ D3DFORMAT pixelformat_for_depth(DWORD depth)
     return D3DFMT_UNKNOWN;
 }
 
-#define TESTFMT(id) \
-if(mFormat == id) return #id
-class d3dfmt_conv {
+#define TEST(id)  case id: return #id
+class d3dfmt_to_str {
     char mText[12];
     D3DFORMAT mFormat;
 
 public:
-    d3dfmt_conv(D3DFORMAT format) : mFormat(format) { }
+    d3dfmt_to_str(D3DFORMAT format) : mFormat(format) { }
 
     operator const char*()
     {
-        TESTFMT(D3DFMT_UNKNOWN);
-        TESTFMT(D3DFMT_R8G8B8);
-        TESTFMT(D3DFMT_A8R8G8B8);
-        TESTFMT(D3DFMT_X8R8G8B8);
-        TESTFMT(D3DFMT_R5G6B5);
-        TESTFMT(D3DFMT_X1R5G5B5);
-        TESTFMT(D3DFMT_A1R5G5B5);
-        TESTFMT(D3DFMT_A4R4G4B4);
-        TESTFMT(D3DFMT_R3G3B2);
-        TESTFMT(D3DFMT_A8);
-        TESTFMT(D3DFMT_A8R3G3B2);
-        TESTFMT(D3DFMT_X4R4G4B4);
-        TESTFMT(D3DFMT_A2B10G10R10);
-        TESTFMT(D3DFMT_A8B8G8R8);
-        TESTFMT(D3DFMT_X8B8G8R8);
-        TESTFMT(D3DFMT_G16R16);
-        TESTFMT(D3DFMT_A2R10G10B10);
-        TESTFMT(D3DFMT_A16B16G16R16);
-        TESTFMT(D3DFMT_A8P8);
-        TESTFMT(D3DFMT_P8);
-        TESTFMT(D3DFMT_L8);
-        TESTFMT(D3DFMT_A8L8);
-        TESTFMT(D3DFMT_A4L4);
-        TESTFMT(D3DFMT_V8U8);
-        TESTFMT(D3DFMT_L6V5U5);
-        TESTFMT(D3DFMT_X8L8V8U8);
-        TESTFMT(D3DFMT_Q8W8V8U8);
-        TESTFMT(D3DFMT_V16U16);
-        TESTFMT(D3DFMT_A2W10V10U10);
-        TESTFMT(D3DFMT_UYVY);
-        TESTFMT(D3DFMT_YUY2);
-        TESTFMT(D3DFMT_DXT1);
-        TESTFMT(D3DFMT_DXT2);
-        TESTFMT(D3DFMT_DXT3);
-        TESTFMT(D3DFMT_DXT4);
-        TESTFMT(D3DFMT_DXT5);
-        TESTFMT(D3DFMT_MULTI2_ARGB8);
-        TESTFMT(D3DFMT_G8R8_G8B8);
-        TESTFMT(D3DFMT_R8G8_B8G8);
-        TESTFMT(D3DFMT_D16_LOCKABLE);
-        TESTFMT(D3DFMT_D32);
-        TESTFMT(D3DFMT_D15S1);
-        TESTFMT(D3DFMT_D24S8);
-        TESTFMT(D3DFMT_D24X8);
-        TESTFMT(D3DFMT_D24X4S4);
-        TESTFMT(D3DFMT_D16);
-        TESTFMT(D3DFMT_L16);
-        TESTFMT(D3DFMT_D32F_LOCKABLE);
-        TESTFMT(D3DFMT_D24FS8);
-        TESTFMT(D3DFMT_VERTEXDATA);
-        TESTFMT(D3DFMT_INDEX16);
-        TESTFMT(D3DFMT_INDEX32);
-        TESTFMT(D3DFMT_Q16W16V16U16);
-        TESTFMT(D3DFMT_R16F);
-        TESTFMT(D3DFMT_G16R16F);
-        TESTFMT(D3DFMT_A16B16G16R16F);
-        TESTFMT(D3DFMT_R32F);
-        TESTFMT(D3DFMT_G32R32F);
-        TESTFMT(D3DFMT_A32B32G32R32F);
-        TESTFMT(D3DFMT_CxV8U8);
+        switch(mFormat)
+        {
+        TEST(D3DFMT_UNKNOWN);
+        TEST(D3DFMT_R8G8B8);
+        TEST(D3DFMT_A8R8G8B8);
+        TEST(D3DFMT_X8R8G8B8);
+        TEST(D3DFMT_R5G6B5);
+        TEST(D3DFMT_X1R5G5B5);
+        TEST(D3DFMT_A1R5G5B5);
+        TEST(D3DFMT_A4R4G4B4);
+        TEST(D3DFMT_R3G3B2);
+        TEST(D3DFMT_A8);
+        TEST(D3DFMT_A8R3G3B2);
+        TEST(D3DFMT_X4R4G4B4);
+        TEST(D3DFMT_A2B10G10R10);
+        TEST(D3DFMT_A8B8G8R8);
+        TEST(D3DFMT_X8B8G8R8);
+        TEST(D3DFMT_G16R16);
+        TEST(D3DFMT_A2R10G10B10);
+        TEST(D3DFMT_A16B16G16R16);
+        TEST(D3DFMT_A8P8);
+        TEST(D3DFMT_P8);
+        TEST(D3DFMT_L8);
+        TEST(D3DFMT_A8L8);
+        TEST(D3DFMT_A4L4);
+        TEST(D3DFMT_V8U8);
+        TEST(D3DFMT_L6V5U5);
+        TEST(D3DFMT_X8L8V8U8);
+        TEST(D3DFMT_Q8W8V8U8);
+        TEST(D3DFMT_V16U16);
+        TEST(D3DFMT_A2W10V10U10);
+        TEST(D3DFMT_UYVY);
+        TEST(D3DFMT_YUY2);
+        TEST(D3DFMT_DXT1);
+        TEST(D3DFMT_DXT2);
+        TEST(D3DFMT_DXT3);
+        TEST(D3DFMT_DXT4);
+        TEST(D3DFMT_DXT5);
+        TEST(D3DFMT_MULTI2_ARGB8);
+        TEST(D3DFMT_G8R8_G8B8);
+        TEST(D3DFMT_R8G8_B8G8);
+        TEST(D3DFMT_D16_LOCKABLE);
+        TEST(D3DFMT_D32);
+        TEST(D3DFMT_D15S1);
+        TEST(D3DFMT_D24S8);
+        TEST(D3DFMT_D24X8);
+        TEST(D3DFMT_D24X4S4);
+        TEST(D3DFMT_D16);
+        TEST(D3DFMT_L16);
+        TEST(D3DFMT_D32F_LOCKABLE);
+        TEST(D3DFMT_D24FS8);
+        TEST(D3DFMT_VERTEXDATA);
+        TEST(D3DFMT_INDEX16);
+        TEST(D3DFMT_INDEX32);
+        TEST(D3DFMT_Q16W16V16U16);
+        TEST(D3DFMT_R16F);
+        TEST(D3DFMT_G16R16F);
+        TEST(D3DFMT_A16B16G16R16F);
+        TEST(D3DFMT_R32F);
+        TEST(D3DFMT_G32R32F);
+        TEST(D3DFMT_A32B32G32R32F);
+        TEST(D3DFMT_CxV8U8);
+        case D3DFMT_FORCE_DWORD:
+            break;
+        }
 
         snprintf(mText, sizeof(mText), "0x%x", mFormat);
         return mText;
     }
 };
+#undef TEST
+#define D3DFMT_TO_STR(x) ((const char*)d3dfmt_to_str(x))
 
 } // namespace
 
@@ -1498,10 +1504,10 @@ HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND window, 
           "\tFlags                      = 0x%lx\n"
           "\tFullScreen_RefreshRateInHz = %u\n"
           "\tPresentationInterval       = 0x%x\n",
-          params->BackBufferWidth, params->BackBufferHeight, (const char*)d3dfmt_conv(params->BackBufferFormat),
+          params->BackBufferWidth, params->BackBufferHeight, D3DFMT_TO_STR(params->BackBufferFormat),
           params->BackBufferCount, params->MultiSampleType, params->MultiSampleQuality,
           params->SwapEffect, params->hDeviceWindow, params->Windowed,
-          params->EnableAutoDepthStencil, (const char*)d3dfmt_conv(params->AutoDepthStencilFormat),
+          params->EnableAutoDepthStencil, D3DFMT_TO_STR(params->AutoDepthStencilFormat),
           params->Flags, params->FullScreen_RefreshRateInHz, params->PresentationInterval);
 
     if(!window && params->Windowed)
