@@ -399,79 +399,104 @@ HRESULT Direct3DGLDevice::GetCreationParameters(D3DDEVICE_CREATION_PARAMETERS *p
     return D3D_OK;
 }
 
-HRESULT Direct3DGLDevice::SetCursorProperties(UINT XHotSpot, UINT YHotSpot, IDirect3DSurface9* pCursorBitmap)
+HRESULT Direct3DGLDevice::SetCursorProperties(UINT xoffset, UINT yoffset, IDirect3DSurface9 *image)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, xoffset %u, yoffset %u, image %p : stub!\n", this, xoffset, yoffset, image);
     return E_NOTIMPL;
 }
 
-void Direct3DGLDevice::SetCursorPosition(int X,int Y, DWORD Flags)
+void Direct3DGLDevice::SetCursorPosition(int x, int y, DWORD flags)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, x %d, y %d, flags 0x%lx : stub!\n", this, x, y, flags);
 }
 
-WINBOOL Direct3DGLDevice::ShowCursor(WINBOOL bShow)
+WINBOOL Direct3DGLDevice::ShowCursor(WINBOOL show)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, show %u : stub!\n", this, show);
     return FALSE;
 }
 
-HRESULT Direct3DGLDevice::CreateAdditionalSwapChain(D3DPRESENT_PARAMETERS* pPresentationParameters, IDirect3DSwapChain9** pSwapChain)
+HRESULT Direct3DGLDevice::CreateAdditionalSwapChain(D3DPRESENT_PARAMETERS *params, IDirect3DSwapChain9 **schain)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, params %p, schain %p : stub!\n", this, params, schain);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetSwapChain(UINT iSwapChain, IDirect3DSwapChain9** pSwapChain)
+HRESULT Direct3DGLDevice::GetSwapChain(UINT swapchain, IDirect3DSwapChain9 **schain)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, swapchain %u, schain %p\n", this, swapchain, schain);
+
+    if(swapchain >= mSwapchains.size())
+    {
+        FIXME("Out of range swapchain (%u >= %u)\n", swapchain, mSwapchains.size());
+        return D3DERR_INVALIDCALL;
+    }
+
+    *schain = mSwapchains[swapchain];
+    (*schain)->AddRef();
+    return D3D_OK;
 }
 
 UINT Direct3DGLDevice::GetNumberOfSwapChains()
 {
-    FIXME("iface %p : stub!\n", this);
-    return 0;
+    TRACE("iface %p\n", this);
+    return mSwapchains.size();
 }
 
-HRESULT Direct3DGLDevice::Reset(D3DPRESENT_PARAMETERS* pPresentationParameters)
+HRESULT Direct3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, params %p : stub!\n", this, params);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::Present(CONST RECT* pSourceRect, CONST RECT* pDestRect, HWND hDestWindowOverride, CONST RGNDATA* pDirtyRegion)
+HRESULT Direct3DGLDevice::Present(const RECT *srcRect, const RECT *dstRect, HWND dstWindowOverride, const RGNDATA *dirtyRegion)
 {
-    FIXME("iface %p : stub!\n", this);
+    TRACE("iface %p, srcRect %p, dstRect %p, dstWindowOverride %p, dirtyRegion %p : semi-stub\n",
+          this, srcRect, dstRect, dstWindowOverride, dirtyRegion);
+
+    return mSwapchains[0]->Present(srcRect, dstRect, dstWindowOverride, dirtyRegion, 0);
+}
+
+HRESULT Direct3DGLDevice::GetBackBuffer(UINT swapchain, UINT backbuffer, D3DBACKBUFFER_TYPE type, IDirect3DSurface9 **bbuffer)
+{
+    TRACE("iface %p, swapchain %u, backbuffer %u, type 0x%x, bbuffer %p\n", this, swapchain, backbuffer, type, bbuffer);
+
+    if(swapchain >= mSwapchains.size())
+    {
+        WARN("Out of range swapchain (%u >= %u)\n", swapchain, mSwapchains.size());
+        return D3DERR_INVALIDCALL;
+    }
+
+    return mSwapchains[swapchain]->GetBackBuffer(backbuffer, type, bbuffer);
+}
+
+HRESULT Direct3DGLDevice::GetRasterStatus(UINT swapchain, D3DRASTER_STATUS *status)
+{
+    TRACE("iface %p, swapchain %u, status %p\n", this, swapchain, status);
+
+    if(swapchain >= mSwapchains.size())
+    {
+        WARN("Out of range swapchain (%u >= %u)\n", swapchain, mSwapchains.size());
+        return D3DERR_INVALIDCALL;
+    }
+
+    return mSwapchains[swapchain]->GetRasterStatus(status);
+}
+
+HRESULT Direct3DGLDevice::SetDialogBoxMode(WINBOOL enable)
+{
+    FIXME("iface %p, enable %u : stub!\n", this, enable);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetBackBuffer(UINT iSwapChain, UINT iBackBuffer, D3DBACKBUFFER_TYPE Type, IDirect3DSurface9** ppBackBuffer)
+void Direct3DGLDevice::SetGammaRamp(UINT swapchain, DWORD flags, const D3DGAMMARAMP *ramp)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    FIXME("iface %p, swapchain %u, flags 0x%lx, ramp %p : stub!\n", this, swapchain, flags, ramp);
 }
 
-HRESULT Direct3DGLDevice::GetRasterStatus(UINT iSwapChain, D3DRASTER_STATUS* pRasterStatus)
+void Direct3DGLDevice::GetGammaRamp(UINT swapchain, D3DGAMMARAMP *ramp)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
-}
-
-HRESULT Direct3DGLDevice::SetDialogBoxMode(WINBOOL bEnableDialogs)
-{
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
-}
-
-void Direct3DGLDevice::SetGammaRamp(UINT iSwapChain, DWORD Flags, CONST D3DGAMMARAMP* pRamp)
-{
-    FIXME("iface %p : stub!\n", this);
-}
-
-void Direct3DGLDevice::GetGammaRamp(UINT iSwapChain, D3DGAMMARAMP* pRamp)
-{
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, swapchain %u, ramp %p : stub!\n", this, swapchain, ramp);
 }
 
 HRESULT Direct3DGLDevice::CreateTexture(UINT Width, UINT Height, UINT Levels, DWORD Usage, D3DFORMAT Format, D3DPOOL Pool, IDirect3DTexture9** ppTexture, HANDLE* pSharedHandle)
