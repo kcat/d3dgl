@@ -3,6 +3,7 @@
 
 #include <cstdio>
 #include <d3d9.h>
+#include <ctype.h>
 
 
 enum eLogLevel {
@@ -144,7 +145,10 @@ public:
             break;
         }
 
-        snprintf(mText, sizeof(mText), "0x%x", mFormat);
+        if(isprint(mFormat&0xff) && isprint((mFormat>>8)&0xff) && isprint((mFormat>>16)&0xff) && isprint((mFormat>>24)&0xff))
+            snprintf(mText, sizeof(mText), "'%c%c%c%c'", (mFormat&0xff), ((mFormat>>8)&0xff), ((mFormat>>16)&0xff), ((mFormat>>24)&0xff));
+        else
+            snprintf(mText, sizeof(mText), "0x%x", mFormat);
         return mText;
     }
 };
