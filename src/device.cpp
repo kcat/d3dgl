@@ -304,7 +304,7 @@ bool Direct3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
 
 HRESULT Direct3DGLDevice::QueryInterface(const IID &riid, void **obj)
 {
-    TRACE("iface %p, riid %s, out %p.\n", this, (const char*)debugstr_guid(riid), obj);
+    TRACE("iface %p, riid %s, obj %p.\n", this, debugstr_guid(riid), obj);
 
     if(riid == IID_IDirect3DDevice9 || riid == IID_IUnknown)
     {
@@ -320,7 +320,7 @@ HRESULT Direct3DGLDevice::QueryInterface(const IID &riid, void **obj)
         return E_NOINTERFACE;
     }
 
-    WARN("%s not implemented, returning E_NOINTERFACE.\n", (const char*)debugstr_guid(riid));
+    WARN("%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(riid));
     *obj = NULL;
     return E_NOINTERFACE;
 }
@@ -686,7 +686,7 @@ HRESULT Direct3DGLDevice::GetClipPlane(DWORD Index, float* pPlane)
 
 HRESULT Direct3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
 {
-    FIXME("iface %p, state %s, value 0x%lx : stub!\n", this, D3DRS_TO_STR(state), value);
+    FIXME("iface %p, state %s, value 0x%lx : stub!\n", this, d3drs_to_str(state), value);
 
     if(state == D3DRS_DITHERENABLE)
     {
@@ -701,7 +701,7 @@ HRESULT Direct3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
 
 HRESULT Direct3DGLDevice::GetRenderState(D3DRENDERSTATETYPE state, DWORD *value)
 {
-    FIXME("iface %p, state %s, value %p : stub!\n", this, D3DRS_TO_STR(state), value);
+    FIXME("iface %p, state %s, value %p : stub!\n", this, d3drs_to_str(state), value);
 
     if(state >= mRenderState.size())
     {

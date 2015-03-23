@@ -1224,7 +1224,7 @@ Direct3DGL::~Direct3DGL()
 
 HRESULT Direct3DGL::QueryInterface(REFIID riid, void **obj)
 {
-    TRACE("iface %p, riid %s, out %p.\n", this, (const char*)debugstr_guid(riid), obj);
+    TRACE("iface %p, riid %s, obj %p.\n", this, debugstr_guid(riid), obj);
 
     if(riid == IID_IDirect3D9 || riid == IID_IUnknown)
     {
@@ -1239,7 +1239,7 @@ HRESULT Direct3DGL::QueryInterface(REFIID riid, void **obj)
         return E_NOINTERFACE;
     }
 
-    WARN("%s not implemented, returning E_NOINTERFACE.\n", (const char*)debugstr_guid(riid));
+    WARN("%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(riid));
 
     *obj = nullptr;
     return E_NOINTERFACE;
@@ -1421,10 +1421,10 @@ HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND window, 
           "\tFlags                      = 0x%lx\n"
           "\tFullScreen_RefreshRateInHz = %u\n"
           "\tPresentationInterval       = 0x%x\n",
-          params->BackBufferWidth, params->BackBufferHeight, D3DFMT_TO_STR(params->BackBufferFormat),
+          params->BackBufferWidth, params->BackBufferHeight, d3dfmt_to_str(params->BackBufferFormat),
           params->BackBufferCount, params->MultiSampleType, params->MultiSampleQuality,
           params->SwapEffect, params->hDeviceWindow, params->Windowed,
-          params->EnableAutoDepthStencil, D3DFMT_TO_STR(params->AutoDepthStencilFormat),
+          params->EnableAutoDepthStencil, d3dfmt_to_str(params->AutoDepthStencilFormat),
           params->Flags, params->FullScreen_RefreshRateInHz, params->PresentationInterval);
 
     if(!window && params->Windowed)

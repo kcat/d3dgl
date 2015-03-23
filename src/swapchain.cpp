@@ -37,7 +37,7 @@ void Direct3DGLSwapChain::checkDelete()
 
 HRESULT Direct3DGLSwapChain::QueryInterface(REFIID riid, void **obj)
 {
-    TRACE("iface %p, riid %s, obj %p.\n", this, (const char*)debugstr_guid(riid), obj);
+    TRACE("iface %p, riid %s, obj %p.\n", this, debugstr_guid(riid), obj);
 
     *obj = NULL;
     if(riid == IID_IUnknown || riid == IID_IDirect3DSwapChain9)

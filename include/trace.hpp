@@ -66,7 +66,7 @@ public:
     operator const char*() const
     { return mStr; }
 };
-
+#define debugstr_guid(x) ((const char*)debugstr_guid(x))
 
 #define TEST(id)  case id: return #id
 class d3dfmt_to_str {
@@ -149,8 +149,7 @@ public:
     }
 };
 #undef TEST
-#define D3DFMT_TO_STR(x) ((const char*)d3dfmt_to_str(x))
-
+#define d3dfmt_to_str(x) ((const char*)d3dfmt_to_str(x))
 
 #define TEST(x) case x: return #x
 class d3drs_to_str {
@@ -275,7 +274,6 @@ public:
     }
 };
 #undef TEST
-#define D3DRS_TO_STR(x) ((const char*)d3drs_to_str(x))
-
+#define d3drs_to_str(x) ((const char*)d3drs_to_str(x))
 
 #endif /* TRACE_HPP */
