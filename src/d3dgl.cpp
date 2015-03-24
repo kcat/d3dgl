@@ -25,6 +25,48 @@ namespace
 static const GUID IID_D3DDEVICE_D3DUID = GUID{ 0xaeb2cdd4, 0x6e41, 0x43ea, { 0x94,0x1c,0x83,0x61,0xcc,0x76,0x07,0x81 } };
 
 
+void init_adapters(void)
+{
+    // Only handle one adapter for now.
+    gAdapterList.push_back(gAdapterList.size());
+
+    for(size_t i = 0;i < gAdapterList.size();++i)
+    {
+        if(!gAdapterList[i].init())
+        {
+            ERR("Pruning adapter %u\n", i);
+            gAdapterList.erase(gAdapterList.begin()+i);
+            --i;
+        }
+    }
+
+    if(gAdapterList.empty())
+    {
+        ERR("No adapters available!\n");
+        std::terminate();
+    }
+}
+// Since MinGW doesn't seem to have call_once...
+void init_adapters_once()
+{
+    static std::atomic<ULONG> guard(0);
+    ULONG ret;
+    while((ret=guard.exchange(1)) == 1)
+        Sleep(1);
+    if(ret == 0)
+    {
+        try {
+            init_adapters();
+        }
+        catch(...) {
+            guard.store(0);
+            throw;
+        }
+    }
+    guard.store(2);
+}
+
+
 D3DFORMAT pixelformat_for_depth(DWORD depth)
 {
     switch(depth)
@@ -52,14 +94,7 @@ Direct3DGL::~Direct3DGL()
 
 bool Direct3DGL::init()
 {
-    // Only handle one adapter for now.
-    mAdapters.push_back(mAdapters.size());
-
-    for(size_t i = 0;i < mAdapters.size();++i)
-    {
-        if(!mAdapters[i].init())
-            return false;
-    }
+    init_adapters_once();
     return true;
 }
 
@@ -115,23 +150,23 @@ UINT Direct3DGL::GetAdapterCount(void)
 {
     TRACE("iface %p\n", this);
 
-    return mAdapters.size();
+    return gAdapterList.size();
 }
 
 HRESULT Direct3DGL::GetAdapterIdentifier(UINT adapter, DWORD flags, D3DADAPTER_IDENTIFIER9 *identifier)
 {
     FIXME("iface %p, adapter %u, flags 0x%lx, identifier %p semi-stub\n", this, adapter, flags, identifier);
 
-    if(adapter >= mAdapters.size())
-        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
+    if(adapter >= gAdapterList.size())
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, gAdapterList.size());
 
     snprintf(identifier->Driver, sizeof(identifier->Driver), "%s", "something.dll");
-    snprintf(identifier->Description, sizeof(identifier->Description), "%s", mAdapters[adapter].getDescription());
-    snprintf(identifier->DeviceName, sizeof(identifier->DeviceName), "%ls", mAdapters[adapter].getDeviceName().c_str());
+    snprintf(identifier->Description, sizeof(identifier->Description), "%s", gAdapterList[adapter].getDescription());
+    snprintf(identifier->DeviceName, sizeof(identifier->DeviceName), "%ls", gAdapterList[adapter].getDeviceName().c_str());
     identifier->DriverVersion.QuadPart = 0;
 
-    identifier->VendorId = mAdapters[adapter].getVendorId();
-    identifier->DeviceId = mAdapters[adapter].getDeviceId();
+    identifier->VendorId = gAdapterList[adapter].getVendorId();
+    identifier->DeviceId = gAdapterList[adapter].getDeviceId();
     identifier->SubSysId = 0;
     identifier->Revision = 0;
 
@@ -147,10 +182,10 @@ UINT Direct3DGL::GetAdapterModeCount(UINT adapter, D3DFORMAT format)
 {
     TRACE("iface %p, adapter %u, format %s : semi-stub\n", this, adapter, d3dfmt_to_str(format));
 
-    if(adapter >= mAdapters.size())
-        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
+    if(adapter >= gAdapterList.size())
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, gAdapterList.size());
 
-    return mAdapters[adapter].getModeCount(format);
+    return gAdapterList[adapter].getModeCount(format);
 }
 
 HRESULT Direct3DGL::EnumAdapterModes(UINT adapter, D3DFORMAT format, UINT mode, D3DDISPLAYMODE *displayMode)
@@ -163,14 +198,14 @@ HRESULT Direct3DGL::GetAdapterDisplayMode(UINT adapter, D3DDISPLAYMODE *displayM
 {
     TRACE("iface %p, adapter %u, displayMode %p\n", this, adapter, displayMode);
 
-    if(adapter >= mAdapters.size())
-        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
+    if(adapter >= gAdapterList.size())
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, gAdapterList.size());
 
     DEVMODEW m;
     memset(&m, 0, sizeof(m));
     m.dmSize = sizeof(m);
 
-    EnumDisplaySettingsExW(mAdapters[adapter].getDeviceName().c_str(), ENUM_CURRENT_SETTINGS, &m, 0);
+    EnumDisplaySettingsExW(gAdapterList[adapter].getDeviceName().c_str(), ENUM_CURRENT_SETTINGS, &m, 0);
     displayMode->Width = m.dmPelsWidth;
     displayMode->Height = m.dmPelsHeight;
     displayMode->RefreshRate = 0;
@@ -192,13 +227,13 @@ HRESULT Direct3DGL::CheckDeviceFormat(UINT adapter, D3DDEVTYPE devType, D3DFORMA
 {
     FIXME("iface %p, adapter %u, devType 0x%x, adapterFormat %s, usage 0x%lx, resType 0x%x, checkFormat %s : semi-stub\n", this, adapter, devType, d3dfmt_to_str(adapterFormat), usage, resType, d3dfmt_to_str(checkFormat));
 
-    if(adapter >= mAdapters.size())
-        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
+    if(adapter >= gAdapterList.size())
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, gAdapterList.size());
     if(devType != D3DDEVTYPE_HAL)
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Non-HAL type 0x%x not supported\n", devType);
 
     /* Check that there's at least one mode for the given format. */
-    if(mAdapters[adapter].getModeCount(adapterFormat) == 0)
+    if(gAdapterList[adapter].getModeCount(adapterFormat) == 0)
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter format %s not supported\n", d3dfmt_to_str(adapterFormat));
 
     HRESULT hr = D3D_OK;
@@ -599,12 +634,12 @@ HRESULT Direct3DGL::GetDeviceCaps(UINT adapter, D3DDEVTYPE devType, D3DCAPS9 *ca
 {
     FIXME("iface %p, adapter %u, devType 0x%x, caps %p stub!\n", this, adapter, devType, caps);
 
-    if(adapter >= mAdapters.size())
-        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
+    if(adapter >= gAdapterList.size())
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, gAdapterList.size());
     if(devType != D3DDEVTYPE_HAL)
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Non-HAL type 0x%x not supported\n", devType);
 
-    *caps = mAdapters[adapter].getCaps();
+    *caps = gAdapterList[adapter].getCaps();
     return D3D_OK;
 }
 
@@ -619,8 +654,8 @@ HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND window, 
 {
     FIXME("iface %p, adapter %u, devType 0x%x, window %p, flags 0x%lx, params %p, iface %p stub!\n", this, adapter, devType, window, flags, params, iface);
 
-    if(adapter >= mAdapters.size())
-        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
+    if(adapter >= gAdapterList.size())
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, gAdapterList.size());
     if(devType != D3DDEVTYPE_HAL)
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Non-HAL type 0x%x not supported\n", devType);
 
@@ -685,7 +720,7 @@ HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND window, 
         ERR("Unhandled flags: 0x%lx\n", UnknownFlags);
 
 
-    Direct3DGLDevice *device = new Direct3DGLDevice(this, mAdapters[adapter], window, flags);
+    Direct3DGLDevice *device = new Direct3DGLDevice(this, gAdapterList[adapter], window, flags);
     if(!device->init(params))
     {
         delete device;

@@ -1215,3 +1215,6 @@ UINT D3DAdapter::getModeCount(D3DFORMAT format) const
     }
     return i;
 }
+
+
+std::vector<D3DAdapter> gAdapterList;

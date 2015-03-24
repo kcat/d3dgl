@@ -15,8 +15,6 @@ class D3DAdapter;
 class Direct3DGL : public IDirect3D9 {
     std::atomic<ULONG> mRefCount;
 
-    std::vector<D3DAdapter> mAdapters;
-
 public:
     Direct3DGL();
     virtual ~Direct3DGL();

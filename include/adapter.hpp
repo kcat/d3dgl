@@ -1,6 +1,7 @@
 #ifndef ADAPTER_HPP
 #define ADAPTER_HPP
 
+#include <vector>
 #include <string>
 #include <d3d9.h>
 
@@ -78,5 +79,6 @@ public:
 
     UINT getModeCount(D3DFORMAT format) const;
 };
+extern std::vector<D3DAdapter> gAdapterList;
 
 #endif /* ADAPTER_HPP */
