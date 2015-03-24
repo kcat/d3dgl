@@ -69,3 +69,5 @@ target_link_libraries(${LIBNAME}  ${EXTRA_LIBS})
 if(WIN32)
     set_target_properties(${LIBNAME} PROPERTIES PREFIX "")
 endif()
+
+add_executable(d3dtest  d3dtest.cpp)
