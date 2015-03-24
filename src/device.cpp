@@ -10,6 +10,7 @@
 #include "d3dgl.hpp"
 #include "swapchain.hpp"
 #include "rendertarget.hpp"
+#include "adapter.hpp"
 
 
 namespace

@@ -48,6 +48,7 @@ endif()
 set(HDRS  include/swapchain.hpp
           include/rendertarget.hpp
           include/device.hpp
+          include/adapter.hpp
           include/d3dgl.hpp
           include/trace.hpp
           include/commandqueue.hpp
@@ -57,6 +58,7 @@ set(HDRS  include/swapchain.hpp
 set(SRCS  src/swapchain.cpp
           src/rendertarget.cpp
           src/device.cpp
+          src/adapter.cpp
           src/d3dgl.cpp
           src/commandqueue.cpp
           main.cpp
