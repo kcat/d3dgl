@@ -70,7 +70,6 @@ private:
     void init_ids();
 
 public:
-    D3DAdapter() = default;
     D3DAdapter(UINT adapter_num);
 
     bool init();
@@ -91,11 +90,11 @@ class Direct3DGL : public IDirect3D9 {
 
     std::vector<D3DAdapter> mAdapters;
 
-private:
-    virtual ~Direct3DGL();
-
 public:
     Direct3DGL();
+    virtual ~Direct3DGL();
+
+    bool init();
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj);

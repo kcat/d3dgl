@@ -1244,11 +1244,23 @@ UINT D3DAdapter::getModeCount(D3DFORMAT format) const
 Direct3DGL::Direct3DGL()
   : mRefCount(0)
 {
-    mAdapters.push_back(0);
 }
 
 Direct3DGL::~Direct3DGL()
 {
+}
+
+bool Direct3DGL::init()
+{
+    // Only handle one adapter for now.
+    mAdapters.push_back(mAdapters.size());
+
+    for(size_t i = 0;i < mAdapters.size();++i)
+    {
+        if(!mAdapters[i].init())
+            return false;
+    }
+    return true;
 }
 
 
@@ -1301,10 +1313,7 @@ HRESULT Direct3DGL::RegisterSoftwareDevice(void *initFunction)
 
 UINT Direct3DGL::GetAdapterCount(void)
 {
-    FIXME("iface %p semi-stub!\n", this);
-
-    std::vector<D3DAdapter>().swap(mAdapters);
-    mAdapters.push_back(0);
+    TRACE("iface %p\n", this);
 
     return mAdapters.size();
 }
@@ -1315,8 +1324,6 @@ HRESULT Direct3DGL::GetAdapterIdentifier(UINT adapter, DWORD flags, D3DADAPTER_I
 
     if(adapter >= mAdapters.size())
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
-    if(!mAdapters[adapter].init())
-        return D3DERR_INVALIDCALL;
 
     snprintf(identifier->Driver, sizeof(identifier->Driver), "%s", "something.dll");
     snprintf(identifier->Description, sizeof(identifier->Description), "%s", mAdapters[adapter].getDescription());
@@ -1342,8 +1349,6 @@ UINT Direct3DGL::GetAdapterModeCount(UINT adapter, D3DFORMAT format)
 
     if(adapter >= mAdapters.size())
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
-    if(!mAdapters[adapter].init())
-        return D3DERR_INVALIDCALL;
 
     return mAdapters[adapter].getModeCount(format);
 }
@@ -1360,8 +1365,6 @@ HRESULT Direct3DGL::GetAdapterDisplayMode(UINT adapter, D3DDISPLAYMODE *displayM
 
     if(adapter >= mAdapters.size())
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
-    if(!mAdapters[adapter].init())
-        return D3DERR_INVALIDCALL;
 
     DEVMODEW m;
     memset(&m, 0, sizeof(m));
@@ -1393,8 +1396,6 @@ HRESULT Direct3DGL::CheckDeviceFormat(UINT adapter, D3DDEVTYPE devType, D3DFORMA
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
     if(devType != D3DDEVTYPE_HAL)
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Non-HAL type 0x%x not supported\n", devType);
-    if(!mAdapters[adapter].init())
-        return D3DERR_INVALIDCALL;
 
     /* Check that there's at least one mode for the given format. */
     if(mAdapters[adapter].getModeCount(adapterFormat) == 0)
@@ -1802,8 +1803,6 @@ HRESULT Direct3DGL::GetDeviceCaps(UINT adapter, D3DDEVTYPE devType, D3DCAPS9 *ca
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
     if(devType != D3DDEVTYPE_HAL)
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Non-HAL type 0x%x not supported\n", devType);
-    if(!mAdapters[adapter].init())
-        return D3DERR_INVALIDCALL;
 
     *caps = mAdapters[adapter].getCaps();
     return D3D_OK;
@@ -1824,8 +1823,6 @@ HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND window, 
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, mAdapters.size());
     if(devType != D3DDEVTYPE_HAL)
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Non-HAL type 0x%x not supported\n", devType);
-    if(!mAdapters[adapter].init())
-        return D3DERR_INVALIDCALL;
 
     TRACE("Creating device with parameters:\n"
           "\tBackBufferWidth            = %u\n"

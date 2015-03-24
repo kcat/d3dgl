@@ -176,6 +176,11 @@ DECLSPEC_EXPORT IDirect3D9* WINAPI DECLSPEC_HOTPATCH Direct3DCreate9(UINT sdk_ve
     init_d3dgl();
 
     Direct3DGL *d3d = new Direct3DGL();
+    if(!d3d->init())
+    {
+        delete d3d;
+        return nullptr;
+    }
 
     d3d->AddRef();
     return d3d;
