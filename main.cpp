@@ -171,7 +171,7 @@ DECLSPEC_EXPORT void WINAPI DebugSetMute(void)
 
 DECLSPEC_EXPORT IDirect3D9* WINAPI DECLSPEC_HOTPATCH Direct3DCreate9(UINT sdk_version)
 {
-    FIXME("(%u)\n", sdk_version);
+    TRACE("(%u)\n", sdk_version);
 
     init_d3dgl();
 
