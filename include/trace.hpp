@@ -42,6 +42,20 @@ extern FILE *LogFile;
 } while(0)
 
 
+//#define checkGLError()
+#ifndef checkGLError
+#define checkGLError() do {          \
+    GLenum err = glGetError();       \
+    if(err != GL_NO_ERROR)           \
+    {                                \
+        ERR("<<<<<<<<< GL error detected @ %s:%u: 0x%04x\n", __FILE__, __LINE__, err);\
+        while((err=glGetError()) != GL_NO_ERROR) \
+           ERR("<<<<<<< GL error detected: 0x%04x\n", err);\
+    }                                \
+} while(0)
+#endif
+
+
 class debugstr_guid {
     char mStr[64];
 
