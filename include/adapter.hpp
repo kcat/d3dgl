@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <map>
 #include <d3d9.h>
 
 
@@ -45,6 +46,8 @@ public:
         UINT arb_ps_instructions;
         UINT arb_ps_temps;
     };
+    typedef std::pair<DWORD,D3DFORMAT> ResTypeFormatPair;
+    typedef std::map<ResTypeFormatPair,DWORD> UsageMap;
 
 private:
     UINT mOrdinal;
@@ -57,13 +60,14 @@ private:
     const char *mDescription;
 
     D3DCAPS9 mCaps;
+    UsageMap mUsage;
 
     Limits mLimits;
 
     void init_limits();
-
     void init_caps();
     void init_ids();
+    void init_usage();
 
 public:
     D3DAdapter(UINT adapter_num);
@@ -76,6 +80,7 @@ public:
     WORD getVendorId() const { return mVendorId; }
     WORD getDeviceId() const { return mDeviceId; }
     const char *getDescription() const { return mDescription; }
+    DWORD getUsage(DWORD restype, D3DFORMAT format) const;
 
     UINT getModeCount(D3DFORMAT format) const;
 };

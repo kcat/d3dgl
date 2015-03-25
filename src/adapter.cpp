@@ -26,6 +26,76 @@ size_t countof(const T(&)[N])
 { return N; }
 
 
+struct GLFormatInfo {
+    GLenum internalformat;
+    GLenum format;
+    GLenum type;
+    bool color;
+};
+static const std::map<DWORD,GLFormatInfo> FormatList{
+    /* FIXME: OpenGL reports GL_SRGB_READ/GL_SRGB_DECODE_ARB as false for
+     * GL_RGB(A)8. This is because EXT_texture_sRGB_decode requires an sRGB
+     * internalformat to be eligible for toggling sRGB decoding (GL_SRGB8 and
+     * others). The problem is that only GL_SRGB(_ALPHA) is available for an
+     * sRGB user data format -- there is no GL_SBGR(_ALPHA), and GL_BGR(A)
+     * would cause an unwanted colorspace conversion.
+     *
+     * So for now, we'll just wait until sRGB is needed and then enable it on
+     * the formats we can.
+     */
+    { D3DFMT_A8R8G8B8, { GL_RGBA8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, true } },
+    { D3DFMT_A8B8G8R8, { GL_RGBA8, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, true } },
+    { D3DFMT_X8R8G8B8, { GL_RGB8,  GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, true } },
+    { D3DFMT_X8B8G8R8, { GL_RGB8,  GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, true } },
+
+    { D3DFMT_R5G6B5,   { GL_RGB5,        GL_RGB,  GL_UNSIGNED_SHORT_5_6_5, true       } },
+    { D3DFMT_A1R5G5B5, { GL_RGB5_A1,     GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV, true } },
+    { D3DFMT_X1R5G5B5, { GL_RGB5,        GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV, true } },
+    { D3DFMT_A4R4G4B4, { GL_RGBA4,       GL_BGRA, GL_UNSIGNED_SHORT_4_4_4_4_REV, true } },
+    { D3DFMT_X4R4G4B4, { GL_RGB4,        GL_BGRA, GL_UNSIGNED_SHORT_4_4_4_4_REV, true } },
+    { D3DFMT_R3G3B2,   { GL_R3_G3_B2,    GL_BGR,  GL_UNSIGNED_BYTE_2_3_3_REV, true    } },
+//  { D3DFMT_A8R3G3B2, { GL_R3_G3_B2_A8, GL_BGRA, GL_UNSIGNED_SHORT_8_3_3_2_REV, true } },
+
+    { D3DFMT4CC(' ','R','1','6'), { GL_R16,    GL_RED,  GL_UNSIGNED_SHORT, true } },
+    { D3DFMT_G16R16,              { GL_RG16,   GL_RG,   GL_UNSIGNED_SHORT, true } },
+    { D3DFMT_A16B16G16R16,        { GL_RGBA16, GL_RGBA, GL_UNSIGNED_SHORT, true } },
+
+    { D3DFMT_A2R10G10B10, { GL_RGB10_A2, GL_BGRA, GL_UNSIGNED_INT_2_10_10_10_REV, true } },
+    { D3DFMT_A2B10G10R10, { GL_RGB10_A2, GL_RGBA, GL_UNSIGNED_INT_2_10_10_10_REV, true } },
+
+    { D3DFMT_A8,                  { GL_ALPHA8,              GL_ALPHA,           GL_UNSIGNED_BYTE, true         } },
+    { D3DFMT_L8,                  { GL_LUMINANCE8,          GL_LUMINANCE,       GL_UNSIGNED_BYTE, true         } },
+    { D3DFMT_A8L8,                { GL_LUMINANCE8_ALPHA8,   GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, true         } },
+//  { D3DFMT_A4L4,                { GL_LUMINANCE4_ALPHA4,   GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE_4_4_REV, true } },
+    { D3DFMT4CC('A','L','1','6'), { GL_LUMINANCE16_ALPHA16, GL_LUMINANCE_ALPHA, GL_UNSIGNED_SHORT, true        } },
+
+    { D3DFMT_D16,      { GL_DEPTH_COMPONENT16, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, false    } },
+    { D3DFMT_D24X8,    { GL_DEPTH_COMPONENT24, GL_DEPTH_STENCIL,   GL_UNSIGNED_INT_24_8, false } },
+    { D3DFMT_D24S8,    { GL_DEPTH24_STENCIL8,  GL_DEPTH_STENCIL,   GL_UNSIGNED_INT_24_8, false } },
+    { D3DFMT_D32,      { GL_DEPTH_COMPONENT32, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, false      } },
+
+    { D3DFMT_R16F,          { GL_R16F,        GL_RED,  GL_HALF_FLOAT, true } },
+    { D3DFMT_G16R16F,       { GL_RG16F,       GL_RG,   GL_HALF_FLOAT, true } },
+    { D3DFMT_A16B16G16R16F, { GL_RGBA16F_ARB, GL_RGBA, GL_HALF_FLOAT, true } },
+    { D3DFMT_R32F,          { GL_R32F,        GL_RED,  GL_FLOAT, true } },
+    { D3DFMT_G32R32F,       { GL_RG32F,       GL_RG,   GL_FLOAT, true } },
+    { D3DFMT_A32B32G32R32F, { GL_RGBA32F_ARB, GL_RGBA, GL_FLOAT, true } },
+
+    { D3DFMT_V8U8,     { GL_DSDT8_NV,                 GL_DSDT_NV,         GL_BYTE, true                          } },
+    { D3DFMT_X8L8V8U8, { GL_DSDT8_MAG8_INTENSITY8_NV, GL_DSDT_MAG_VIB_NV, GL_UNSIGNED_INT_8_8_S8_S8_REV_NV, true } },
+    { D3DFMT_Q8W8V8U8, { GL_SIGNED_RGBA8_NV,          GL_RGBA,            GL_BYTE, true                          } },
+
+    { D3DFMT_DXT1, { GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, GL_RGBA, GL_UNSIGNED_BYTE, true } },
+    { D3DFMT_DXT3, { GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, GL_RGBA, GL_UNSIGNED_BYTE, true } },
+    { D3DFMT_DXT5, { GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_RGBA, GL_UNSIGNED_BYTE, true } },
+    // NOTE: These are premultiplied-alpha versions of DXT formats. We don't
+    // support the premultiplication (yet), but there shouldn't be any other
+    // issue other than slightly darkened textures.
+    { D3DFMT_DXT2, { GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, GL_RGBA, GL_UNSIGNED_BYTE, true } },
+    { D3DFMT_DXT4, { GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_RGBA, GL_UNSIGNED_BYTE, true } },
+};
+
+
 /* NOTE: We only bother with GL3+ capable cards here. Some more can be trimmed... */
 
 /* The driver names reflect the lowest GPU supported
@@ -631,35 +701,35 @@ void D3DAdapter::init_limits()
     }
     if(GLEW_ARB_fragment_program)
     {
-        glGetProgramiv(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_ENV_PARAMETERS_ARB, &gl_max);
+        glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_ENV_PARAMETERS_ARB, &gl_max);
         mLimits.arb_ps_float_constants = gl_max;
         TRACE("Max ARB_FRAGMENT_PROGRAM float constants: %d.\n", mLimits.arb_ps_float_constants);
-        glGetProgramiv(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_PARAMETERS_ARB, &gl_max);
+        glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_PARAMETERS_ARB, &gl_max);
         mLimits.arb_ps_native_constants = gl_max;
         TRACE("Max ARB_FRAGMENT_PROGRAM native float constants: %d.\n",
                 mLimits.arb_ps_native_constants);
-        glGetProgramiv(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_TEMPORARIES_ARB, &gl_max);
+        glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_TEMPORARIES_ARB, &gl_max);
         mLimits.arb_ps_temps = gl_max;
         TRACE("Max ARB_FRAGMENT_PROGRAM native temporaries: %d.\n", mLimits.arb_ps_temps);
-        glGetProgramiv(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_INSTRUCTIONS_ARB, &gl_max);
+        glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_INSTRUCTIONS_ARB, &gl_max);
         mLimits.arb_ps_instructions = gl_max;
         TRACE("Max ARB_FRAGMENT_PROGRAM native instructions: %d.\n", mLimits.arb_ps_instructions);
-        glGetProgramiv(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_LOCAL_PARAMETERS_ARB, &gl_max);
+        glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_LOCAL_PARAMETERS_ARB, &gl_max);
         mLimits.arb_ps_local_constants = gl_max;
         TRACE("Max ARB_FRAGMENT_PROGRAM local parameters: %d.\n", mLimits.arb_ps_instructions);
     }
     if(GLEW_ARB_vertex_program)
     {
-        glGetProgramiv(GL_VERTEX_PROGRAM_ARB, GL_MAX_PROGRAM_ENV_PARAMETERS_ARB, &gl_max);
+        glGetProgramivARB(GL_VERTEX_PROGRAM_ARB, GL_MAX_PROGRAM_ENV_PARAMETERS_ARB, &gl_max);
         mLimits.arb_vs_float_constants = gl_max;
         TRACE("Max ARB_VERTEX_PROGRAM float constants: %d.\n", mLimits.arb_vs_float_constants);
-        glGetProgramiv(GL_VERTEX_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_PARAMETERS_ARB, &gl_max);
+        glGetProgramivARB(GL_VERTEX_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_PARAMETERS_ARB, &gl_max);
         mLimits.arb_vs_native_constants = gl_max;
         TRACE("Max ARB_VERTEX_PROGRAM native float constants: %d.\n", mLimits.arb_vs_native_constants);
-        glGetProgramiv(GL_VERTEX_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_TEMPORARIES_ARB, &gl_max);
+        glGetProgramivARB(GL_VERTEX_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_TEMPORARIES_ARB, &gl_max);
         mLimits.arb_vs_temps = gl_max;
         TRACE("Max ARB_VERTEX_PROGRAM native temporaries: %d.\n", mLimits.arb_vs_temps);
-        glGetProgramiv(GL_VERTEX_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_INSTRUCTIONS_ARB, &gl_max);
+        glGetProgramivARB(GL_VERTEX_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_INSTRUCTIONS_ARB, &gl_max);
         mLimits.arb_vs_instructions = gl_max;
         TRACE("Max ARB_VERTEX_PROGRAM native instructions: %d.\n", mLimits.arb_vs_instructions);
     }
@@ -1148,6 +1218,116 @@ void D3DAdapter::init_ids()
     WARN("Failed to match a GPU, using %04x:%04x for adapter %u", mVendorId, mDeviceId, mOrdinal);
 }
 
+void D3DAdapter::init_usage()
+{
+    if(!GLEW_VERSION_4_3 && !GLEW_ARB_internalformat_query2)
+    {
+        ERR("GL4.3 nor GL_ARB_internalformat_query2 are supported! Lots of checks will fail...\n");
+        return;
+    }
+
+    ResTypeFormatPair typefmt;
+    DWORD usage;
+    for(const auto &format : FormatList)
+    {
+        GLint res;
+
+        // SURFACE is either a plain surface (PBO), or a RenderTarget/DepthStencil surface (Renderbuffer)
+        typefmt = std::make_pair(D3DRTYPE_SURFACE, (D3DFORMAT)format.first);
+        usage = D3DUSAGE_DYNAMIC;
+        if(format.second.color)
+        {
+            res = GL_FALSE;
+            glGetInternalformativ(GL_RENDERBUFFER, format.second.internalformat, GL_FRAMEBUFFER_RENDERABLE, 1, &res);
+            if(res == GL_FULL_SUPPORT) usage |= D3DUSAGE_RENDERTARGET;
+
+            res = GL_FALSE;
+            glGetInternalformativ(GL_RENDERBUFFER, format.second.internalformat, GL_FRAMEBUFFER_BLEND, 1, &res);
+            if(res == GL_FULL_SUPPORT) usage |= D3DUSAGE_QUERY_POSTPIXELSHADER_BLENDING;
+        }
+        else
+        {
+            res = GL_FALSE;
+            glGetInternalformativ(GL_RENDERBUFFER, format.second.internalformat, GL_FRAMEBUFFER_RENDERABLE, 1, &res);
+            if(res == GL_FULL_SUPPORT) usage |= D3DUSAGE_DEPTHSTENCIL;
+        }
+        mUsage.insert(std::make_pair(typefmt, usage));
+
+        // VOLUME is a 3D plain surface (PBO). Not valid as a RenderTarget or DepthStencil surface.
+        typefmt = std::make_pair(D3DRTYPE_VOLUME, (D3DFORMAT)format.first);
+        usage = D3DUSAGE_DYNAMIC;
+        mUsage.insert(std::make_pair(typefmt, usage));
+
+        const struct {
+            DWORD rtype;
+            GLenum gltype;
+        } texture_types[]{
+            // TEXTURE is a normal 2D texture (potentially usable as a RenderTarget or DepthStencil)
+            { D3DRTYPE_TEXTURE, GL_TEXTURE_2D },
+            // VOLUMETEXTURE is a normal 3D texture (potentially usable as a RenderTarget or DepthStencil)
+            { D3DRTYPE_VOLUMETEXTURE, GL_TEXTURE_3D },
+            // CUBETEXTURE is a 6-faced texture cube (potentially usable as a RenderTarget or DepthStencil)
+            { D3DRTYPE_CUBETEXTURE, GL_TEXTURE_CUBE_MAP }
+        };
+        for(const auto &textype : texture_types)
+        {
+            typefmt = std::make_pair(textype.rtype, (D3DFORMAT)format.first);
+            usage = D3DUSAGE_DYNAMIC | D3DUSAGE_QUERY_WRAPANDMIP;
+
+            res = GL_FALSE;
+            glGetInternalformativ(textype.gltype, format.second.internalformat, GL_MANUAL_GENERATE_MIPMAP, 1, &res);
+            if(res == GL_FULL_SUPPORT) usage |= D3DUSAGE_AUTOGENMIPMAP;
+
+            res = GL_FALSE;
+            glGetInternalformativ(textype.gltype, format.second.internalformat, GL_FILTER, 1, &res);
+            if(res != GL_FALSE) usage |= D3DUSAGE_QUERY_FILTER;
+
+            res = GL_FALSE;
+            glGetInternalformativ(textype.gltype, format.second.internalformat, GL_VERTEX_TEXTURE, 1, &res);
+            if(res == GL_FULL_SUPPORT) usage |= D3DUSAGE_QUERY_VERTEXTEXTURE;
+
+            res = GL_FALSE;
+            glGetInternalformativ(textype.gltype, format.second.internalformat, GL_SRGB_DECODE_ARB, 1, &res);
+            if(res != GL_FALSE) usage |= D3DUSAGE_QUERY_SRGBREAD;
+
+            if(format.second.color)
+            {
+                res = GL_FALSE;
+                glGetInternalformativ(textype.gltype, format.second.internalformat, GL_FRAMEBUFFER_RENDERABLE, 1, &res);
+                if(res == GL_FULL_SUPPORT) usage |= D3DUSAGE_RENDERTARGET;
+
+                res = GL_FALSE;
+                glGetInternalformativ(textype.gltype, format.second.internalformat, GL_FRAMEBUFFER_BLEND, 1, &res);
+                if(res == GL_FULL_SUPPORT) usage |= D3DUSAGE_QUERY_POSTPIXELSHADER_BLENDING;
+
+                res = GL_FALSE;
+                glGetInternalformativ(textype.gltype, format.second.internalformat, GL_SRGB_WRITE, 1, &res);
+                if(res == GL_FULL_SUPPORT) usage |= D3DUSAGE_QUERY_SRGBWRITE;
+            }
+            else
+            {
+                res = GL_FALSE;
+                glGetInternalformativ(textype.gltype, format.second.internalformat, GL_FRAMEBUFFER_RENDERABLE, 1, &res);
+                if(res == GL_FULL_SUPPORT) usage |= D3DUSAGE_DEPTHSTENCIL;
+            }
+            mUsage.insert(std::make_pair(typefmt, usage));
+        }
+    }
+
+    typefmt = std::make_pair(D3DRTYPE_VERTEXBUFFER, D3DFMT_VERTEXDATA);
+    usage = D3DUSAGE_DYNAMIC | D3DUSAGE_SOFTWAREPROCESSING;
+    mUsage.insert(std::make_pair(typefmt, usage));
+
+    typefmt = std::make_pair(D3DRTYPE_INDEXBUFFER, D3DFMT_INDEX16);
+    usage = D3DUSAGE_DYNAMIC;
+    mUsage.insert(std::make_pair(typefmt, usage));
+
+    typefmt = std::make_pair(D3DRTYPE_INDEXBUFFER, D3DFMT_INDEX32);
+    usage = D3DUSAGE_DYNAMIC;
+    mUsage.insert(std::make_pair(typefmt, usage));
+}
+
+
 bool D3DAdapter::init()
 {
     if(mInited)
@@ -1178,6 +1358,7 @@ bool D3DAdapter::init()
     init_limits();
     init_caps();
     init_ids();
+    init_usage();
 
     retval = true;
 done:
@@ -1188,6 +1369,16 @@ done:
 
     mInited = retval;
     return retval;
+}
+
+
+DWORD D3DAdapter::getUsage(DWORD restype, D3DFORMAT format) const
+{
+    UsageMap::const_iterator usage = mUsage.find(std::make_pair(restype, format));
+    if(usage != mUsage.end()) return usage->second;
+    ERR("Usage flags not found for resource type 0x%lx, %s\n",
+        restype, d3dfmt_to_str(format));
+    return 0;
 }
 
 
