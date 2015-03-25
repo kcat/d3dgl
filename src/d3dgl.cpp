@@ -235,10 +235,7 @@ HRESULT Direct3DGL::CheckDeviceFormat(UINT adapter, D3DDEVTYPE devType, D3DFORMA
 
     DWORD realusage = gAdapterList[adapter].getUsage(resType, checkFormat);
     if(!realusage)
-    {
-        ERR("realusage = 0\n");
-        return D3DERR_INVALIDCALL;
-    }
+        return D3DERR_NOTAVAILABLE;
 
     if((usage&realusage) != usage)
     {
@@ -262,8 +259,34 @@ HRESULT Direct3DGL::CheckDeviceMultiSampleType(UINT adapter, D3DDEVTYPE devType,
 
 HRESULT Direct3DGL::CheckDepthStencilMatch(UINT adapter, D3DDEVTYPE devType, D3DFORMAT adapterFormat, D3DFORMAT renderTargetFormat, D3DFORMAT depthStencilFormat)
 {
-    FIXME("iface %p, adapter %u, devType 0x%x, adapterFormat %s, renderTargetFormat %s, depthStencilFormat %s : stub!\n", this, adapter, devType, d3dfmt_to_str(adapterFormat), d3dfmt_to_str(renderTargetFormat), d3dfmt_to_str(depthStencilFormat));
-    return E_NOTIMPL;
+    TRACE("iface %p, adapter %u, devType 0x%x, adapterFormat %s, renderTargetFormat %s, depthStencilFormat %s : semi-stub\n", this, adapter, devType, d3dfmt_to_str(adapterFormat), d3dfmt_to_str(renderTargetFormat), d3dfmt_to_str(depthStencilFormat));
+
+    if(adapter >= gAdapterList.size())
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, gAdapterList.size());
+    if(devType != D3DDEVTYPE_HAL)
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Non-HAL type 0x%x not supported\n", devType);
+
+    /* Check that there's at least one mode for the given format. */
+    if(gAdapterList[adapter].getModeCount(adapterFormat) == 0)
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter format %s not supported\n", d3dfmt_to_str(adapterFormat));
+
+    /* Currently we just check if the given formats are valid for RENDERTARGET
+     * and DEPTHSTENCIL usage as SURFACE resources. */
+    DWORD rtusage = gAdapterList[adapter].getUsage(D3DRTYPE_SURFACE, renderTargetFormat);
+    DWORD dsusage = gAdapterList[adapter].getUsage(D3DRTYPE_SURFACE, depthStencilFormat);
+
+    HRESULT hr = D3D_OK;
+    if(!(rtusage&D3DUSAGE_RENDERTARGET))
+    {
+        ERR("%s not usable as a RenderTarget\n", d3dfmt_to_str(renderTargetFormat));
+        hr = D3DERR_NOTAVAILABLE;
+    }
+    if(!(dsusage&D3DUSAGE_DEPTHSTENCIL))
+    {
+        ERR("%s not usable as a DepthStencil\n", d3dfmt_to_str(depthStencilFormat));
+        hr = D3DERR_NOTAVAILABLE;
+    }
+    return hr;
 }
 
 HRESULT Direct3DGL::CheckDeviceFormatConversion(UINT adapter, D3DDEVTYPE devType, D3DFORMAT srcFormat, D3DFORMAT dstFormat)
