@@ -320,7 +320,6 @@ bool Direct3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
         mDepthStencil = mAutoDepthStencil;
     }
 
-    mPresentParams = *params;
     return true;
 }
 

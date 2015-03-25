@@ -20,7 +20,6 @@ class Direct3DGLDevice : public IDirect3DDevice9 {
     ref_ptr<Direct3DGL> mParent;
 
     const D3DAdapter &mAdapter;
-    D3DPRESENT_PARAMETERS mPresentParams;
 
     HGLRC mGLContext;
 
