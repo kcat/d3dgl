@@ -11,6 +11,7 @@
 #include "swapchain.hpp"
 #include "rendertarget.hpp"
 #include "adapter.hpp"
+#include "texture.hpp"
 
 
 namespace
@@ -521,12 +522,59 @@ void Direct3DGLDevice::GetGammaRamp(UINT swapchain, D3DGAMMARAMP *ramp)
     FIXME("iface %p, swapchain %u, ramp %p : stub!\n", this, swapchain, ramp);
 }
 
-HRESULT Direct3DGLDevice::CreateTexture(UINT Width, UINT Height, UINT Levels, DWORD Usage, D3DFORMAT Format, D3DPOOL Pool, IDirect3DTexture9** ppTexture, HANDLE* pSharedHandle)
+HRESULT Direct3DGLDevice::CreateTexture(UINT width, UINT height, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DTexture9 **texture, HANDLE *handle)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    FIXME("iface %p, width %u, height %u, levels %u, usage 0x%lx, format %s, pool 0x%x, texture %p, handle %p : stub!\n", this, width, height, levels, usage, d3dfmt_to_str(format), pool, texture, handle);
+
+    if(handle)
+    {
+        WARN("Non-NULL handle specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+    if(!texture)
+    {
+        WARN("NULL texture storage specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    HRESULT hr = D3D_OK;
+    DWORD realusage = mAdapter.getUsage(D3DRTYPE_TEXTURE, format);
+    if((usage&realusage) != usage)
+    {
+        usage &= ~D3DUSAGE_AUTOGENMIPMAP;
+        if((usage&realusage) != usage)
+        {
+            ERR("Invalid usage flags, 0x%lx / 0x%lx\n", usage, realusage);
+            return D3DERR_INVALIDCALL;
+        }
+        WARN("AUTOGENMIPMAP requested, but unavailable (usage: 0x%lx)\n", realusage);
+        hr = D3DOK_NOAUTOGEN;
+    }
+
+    D3DSURFACE_DESC desc;
+    desc.Format = format;
+    desc.Type = D3DRTYPE_TEXTURE;
+    desc.Usage = usage;
+    desc.Pool = pool;
+    desc.MultiSampleType = D3DMULTISAMPLE_NONE;
+    desc.MultiSampleQuality = 0;
+    desc.Width = width;
+    desc.Height = height;
+
+    Direct3DGLTexture *tex = new Direct3DGLTexture(this);
+    if(!tex->init(&desc, levels))
+    {
+        delete tex;
+        return D3DERR_INVALIDCALL;
+    }
+
+    *texture = tex;
+    (*texture)->AddRef();
+
+    return hr;
 }
 
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 HRESULT Direct3DGLDevice::CreateVolumeTexture(UINT Width, UINT Height, UINT Depth, UINT Levels, DWORD Usage, D3DFORMAT Format, D3DPOOL Pool, IDirect3DVolumeTexture9** ppVolumeTexture, HANDLE* pSharedHandle)
 {
     FIXME("iface %p : stub!\n", this);

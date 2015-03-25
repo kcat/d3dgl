@@ -3,11 +3,27 @@
 
 #include <atomic>
 #include <vector>
-
+#include <map>
 #include <d3d9.h>
+
+#include "glew.h"
 
 
 bool CreateFakeContext(HINSTANCE hInstance, HWND &hWnd, HDC &dc, HGLRC &glrc);
+
+
+#ifndef D3DFMT4CC
+#define D3DFMT4CC(a,b,c,d)  (a | ((b<<8)&0xff00) | ((b<<16)&0xff0000) | ((d<<24)&0xff000000))
+#endif
+
+struct GLFormatInfo {
+    GLenum internalformat;
+    GLenum format;
+    GLenum type;
+    int bytesperpixel; /* For compressed formats, bytes per block */
+    bool color;
+};
+extern const std::map<DWORD,GLFormatInfo> gFormatList;
 
 
 class D3DAdapter;

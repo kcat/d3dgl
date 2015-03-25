@@ -42,8 +42,7 @@ public:
 
     bool init(D3DPRESENT_PARAMETERS *params);
 
-    bool isMasterSwapchain(Direct3DGLSwapChain *schain) const
-    { return mSwapchains[0] == schain; }
+    const D3DAdapter &getAdapter() const { return mAdapter; }
 
     CommandQueue &getQueue() { return mQueue; }
 
