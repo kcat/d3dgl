@@ -1,6 +1,8 @@
 
 #include "texture.hpp"
 
+#include <limits>
+
 #include "d3dgl.hpp"
 #include "device.hpp"
 #include "adapter.hpp"
@@ -13,14 +15,25 @@ class D3DGLTextureSurface : public IDirect3DSurface9 {
     Direct3DGLTexture *mParent;
     UINT mLevel;
 
+    enum LockType {
+        LT_Unlocked,
+        LT_ReadOnly,
+        LT_Full
+    };
+    std::atomic<LockType> mLock;
+    RECT mLockRegion;
+
     UINT mDataOffset;
     UINT mDataLength;
+
+    GLubyte *mScratchMem;
 
 public:
     D3DGLTextureSurface(Direct3DGLTexture *parent, UINT level);
     virtual ~D3DGLTextureSurface();
 
     void init(UINT offset, UINT length);
+    UINT getDataLength() const { return mDataLength; }
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj);
@@ -49,18 +62,29 @@ void Direct3DGLTexture::initGL()
 {
     glActiveTexture(GL_TEXTURE0);
     glGenTextures(1, &mTexId);
+    glBindTexture(GL_TEXTURE_2D, mTexId);
     checkGLError();
 
-    if(!mTexId)
-       return;
+    glTexImage2D(GL_TEXTURE_2D, 0, mGLFormat->internalformat, mDesc.Width, mDesc.Height, 0,
+                 mGLFormat->format, mGLFormat->type, NULL);
+    checkGLError();
 
-    glBindTexture(GL_TEXTURE_2D, mTexId);
-    //mParent->Samplers[0].dirty = true;
+    if(mDesc.Pool == D3DPOOL_MANAGED)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_LOD, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, mSurfaces.size()-1);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+    // Force allocation of mipmap levels, if any
+    if(mSurfaces.size() > 1)
+        glGenerateMipmap(GL_TEXTURE_2D);
+    checkGLError();
 
     UINT total_size = 0;
     GLint w = mDesc.Width;
     GLint h = mDesc.Height;
-    for(UINT l = 0;l < mSurfaces.size();l++)
+    for(D3DGLTextureSurface *surface : mSurfaces)
     {
         w = std::max(1, w);
         h = std::max(1, h);
@@ -73,12 +97,8 @@ void Direct3DGLTexture::initGL()
         else
             level_size = w*h * mGLFormat->bytesperpixel;
 
-        mSurfaces[l]->init(total_size, level_size);
+        surface->init(total_size, level_size);
         total_size += level_size;
-
-        glTexImage2D(GL_TEXTURE_2D, l, mGLFormat->internalformat, w, h, 0,
-                     mGLFormat->format, mGLFormat->type, NULL);
-        checkGLError();
 
         w >>= 1;
         h >>= 1;
@@ -93,26 +113,18 @@ void Direct3DGLTexture::initGL()
         {
             glBindBuffer(GL_PIXEL_PACK_BUFFER, mPBO);
             glBufferData(GL_PIXEL_PACK_BUFFER, total_size, NULL, GL_DYNAMIC_DRAW);
+            mUserPtr = glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_WRITE);
             glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
             checkGLError();
         }
     }*/
     if((mDesc.Pool == D3DPOOL_SYSTEMMEM || (mDesc.Usage&D3DUSAGE_DYNAMIC)) && !mPBO)
-        mSysMem.resize(total_size);
-
-    if(mDesc.Pool == D3DPOOL_MANAGED)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_LOD, 0);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, mSurfaces.size()-1);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    checkGLError();
-
-    if((mDesc.Usage&D3DUSAGE_AUTOGENMIPMAP))
     {
-        glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_TRUE);
-        checkGLError();
+        mSysMem.resize(total_size);
+        mUserPtr = mSysMem.data();
     }
+
+    mUpdateInProgress = false;
 }
 class TextureInitCmd : public Command {
     Direct3DGLTexture *mTarget;
@@ -126,6 +138,7 @@ public:
         return sizeof(*this);
     }
 };
+
 
 void Direct3DGLTexture::deinitGL()
 {
@@ -148,14 +161,13 @@ public:
     }
 };
 
+
 void Direct3DGLTexture::setLodGL(DWORD lod)
 {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mTexId);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, lod);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_LOD, lod);
     checkGLError();
-
-    //mParent->Samplers[0].dirty = true;
 }
 class TextureSetLODCmd : public Command {
     Direct3DGLTexture *mTarget;
@@ -173,14 +185,13 @@ public:
     }
 };
 
+
 void Direct3DGLTexture::genMipmapGL()
 {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mTexId);
     glGenerateMipmap(GL_TEXTURE_2D);
     checkGLError();
-
-    //mParent->Samplers[0].dirty = true;
 }
 class TextureGenMipCmd : public Command {
     Direct3DGLTexture *mTarget;
@@ -196,6 +207,89 @@ public:
 };
 
 
+void Direct3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr)
+{
+    UINT w = std::max(1u, mDesc.Width>>level);
+    /*UINT h = std::max(1u, mDesc.Height>>Level);*/
+
+    if(mPBO)
+    {
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, mPBO);
+        glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+        checkGLError();
+
+        dataPtr = (GLubyte*)(dataPtr-mUserPtr);
+    }
+
+    D3DGLTextureSurface *surface = mSurfaces[level];
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, mTexId);
+    if(mIsCompressed)
+    {
+        GLsizei len = -1;
+        if(mDesc.Format == D3DFMT_DXT1 || mDesc.Format == D3DFMT_DXT2 ||
+           mDesc.Format == D3DFMT_DXT3 || mDesc.Format == D3DFMT_DXT4 ||
+           mDesc.Format == D3DFMT_DXT5)
+        {
+            len  = surface->getDataLength();
+            len -= (((rect.top+3)/4)*((w+3)/4) + ((rect.left+3)/4)) *
+                   mGLFormat->bytesperpixel;
+            dataPtr += ((rect.top/4)*(w/4) + (rect.left/4)) *
+                       mGLFormat->bytesperpixel;
+            glPixelStorei(GL_UNPACK_ROW_LENGTH, ((w+3)/4)*mGLFormat->bytesperpixel);
+        }
+        glCompressedTexSubImage2D(GL_TEXTURE_2D, level,
+            rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top,
+            mGLFormat->internalformat, len, dataPtr
+        );
+    }
+    else
+    {
+        dataPtr += (rect.top*w + rect.left) * mGLFormat->bytesperpixel;
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, w);
+        glTexSubImage2D(GL_TEXTURE_2D, level,
+            rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top,
+            mGLFormat->format, mGLFormat->type, dataPtr
+        );
+    }
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+
+    if(level == 0 && (mDesc.Usage&D3DUSAGE_AUTOGENMIPMAP) && mSurfaces.size() > 1)
+        glGenerateMipmap(GL_TEXTURE_2D);
+    checkGLError();
+
+    if(mPBO)
+    {
+        mUserPtr = (GLubyte*)glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_READ_WRITE);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        checkGLError();
+    }
+
+    if(deletePtr)
+        delete dataPtr;
+    --mUpdateInProgress;
+}
+class TextureLoadLevelCmd : public Command {
+    Direct3DGLTexture *mTarget;
+    DWORD mLevel;
+    RECT mRect;
+    GLubyte *mDataPtr;
+    bool mDeletePtr;
+
+public:
+    TextureLoadLevelCmd(Direct3DGLTexture *target, DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr)
+      : mTarget(target), mLevel(level), mRect(rect), mDataPtr(dataPtr), mDeletePtr(deletePtr)
+    { }
+
+    virtual ULONG execute()
+    {
+        mTarget->loadTexLevelGL(mLevel, mRect, mDataPtr, mDeletePtr);
+        return sizeof(*this);
+    }
+};
+
+
 Direct3DGLTexture::Direct3DGLTexture(Direct3DGLDevice *parent)
   : mRefCount(0)
   , mIfaceCount(0)
@@ -203,6 +297,10 @@ Direct3DGLTexture::Direct3DGLTexture(Direct3DGLDevice *parent)
   , mGLFormat(nullptr)
   , mTexId(0)
   , mPBO(0)
+  , mUserPtr(nullptr)
+  , mDirtyRect({std::numeric_limits<LONG>::max(), std::numeric_limits<LONG>::max(),
+                std::numeric_limits<LONG>::min(), std::numeric_limits<LONG>::min()})
+  , mUpdateInProgress(1)
   , mLodLevel(0)
 {
     mParent->AddRef();
@@ -215,7 +313,7 @@ Direct3DGLTexture::~Direct3DGLTexture()
     WaitForSingleObject(finished, INFINITE);
     CloseHandle(finished);
 
-    for(auto &surface : mSurfaces)
+    for(auto surface : mSurfaces)
         delete surface;
     mSurfaces.clear();
 
@@ -300,6 +398,14 @@ bool Direct3DGLTexture::init(const D3DSURFACE_DESC *desc, UINT levels)
     mParent->getQueue().send<TextureInitCmd>(this);
 
     return true;
+}
+
+void Direct3DGLTexture::updateTexture(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr)
+{
+    CommandQueue &queue = mParent->getQueue();
+    queue.lock();
+    mUpdateInProgress = true;
+    queue.sendAndUnlock<TextureLoadLevelCmd>(this, level, rect, dataPtr, deletePtr);
 }
 
 void Direct3DGLTexture::addIface()
@@ -417,10 +523,7 @@ DWORD Direct3DGLTexture::SetLOD(DWORD lod)
     if(mLodLevel.exchange(lod) == lod)
         queue.unlock();
     else
-    {
-        mLodLevel = lod;
         queue.sendAndUnlock<TextureSetLODCmd>(this, lod);
-    }
 
     return lod;
 }
@@ -446,7 +549,7 @@ HRESULT Direct3DGLTexture::SetAutoGenFilterType(D3DTEXTUREFILTERTYPE type)
 D3DTEXTUREFILTERTYPE Direct3DGLTexture::GetAutoGenFilterType()
 {
     FIXME("iface %p\n", this);
-    return D3DTEXF_GAUSSIANQUAD;
+    return D3DTEXF_LINEAR;
 }
 
 void Direct3DGLTexture::GenerateMipSubLevels()
@@ -512,15 +615,22 @@ HRESULT Direct3DGLTexture::UnlockRect(UINT level)
 
 HRESULT Direct3DGLTexture::AddDirtyRect(const RECT *rect)
 {
-    FIXME("iface %p, rect %p : stub!\n", this, rect);
-    return E_NOTIMPL;
+    TRACE("iface %p, rect %p\n", this, rect);
+    mDirtyRect.left = std::min(mDirtyRect.left, rect->left);
+    mDirtyRect.top = std::min(mDirtyRect.top, rect->top);
+    mDirtyRect.right = std::max(mDirtyRect.right, rect->right);
+    mDirtyRect.bottom = std::max(mDirtyRect.bottom, rect->bottom);
+    return D3D_OK;
 }
 
 
 
 D3DGLTextureSurface::D3DGLTextureSurface(Direct3DGLTexture *parent, UINT level)
-  : mParent(parent)
+  : mRefCount(0)
+  , mParent(parent)
   , mLevel(level)
+  , mLock(LT_Unlocked)
+  , mScratchMem(nullptr)
 {
 }
 
@@ -643,14 +753,115 @@ HRESULT D3DGLTextureSurface::GetDesc(D3DSURFACE_DESC *desc)
 
 HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *rect, DWORD flags)
 {
-    FIXME("iface %p, lockedRect %p, rect %p, flags 0x%lx : stub!\n", this, lockedRect, rect, flags);
-    return E_NOTIMPL;
+    TRACE("iface %p, lockedRect %p, rect %p, flags 0x%lx\n", this, lockedRect, rect, flags);
+
+    if(mParent->mDesc.Pool == D3DPOOL_DEFAULT && !(mParent->mDesc.Usage&D3DUSAGE_DYNAMIC))
+    {
+        WARN("Cannot lock non-dynamic textures in default pool\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    UINT w = std::max(1u, mParent->mDesc.Width>>mLevel);
+    UINT h = std::max(1u, mParent->mDesc.Height>>mLevel);
+    RECT full = { 0, 0, (LONG)w, (LONG)h };
+    if((flags&D3DLOCK_DISCARD))
+    {
+        if((flags&D3DLOCK_READONLY))
+        {
+            WARN("Read-only discard specified\n");
+            return D3DERR_INVALIDCALL;
+        }
+        if(rect)
+        {
+            WARN("Discardable rect specified\n");
+            return D3DERR_INVALIDCALL;
+        }
+    }
+    if(!rect)
+        rect = &full;
+
+    {
+        LockType lt = ((flags&D3DLOCK_READONLY) ? LT_ReadOnly : LT_Full);
+        LockType nolock = LT_Unlocked;
+        if(!mLock.compare_exchange_strong(nolock, lt))
+        {
+            ERR("Texture surface %u already locked!\n", mLevel);
+            return D3DERR_INVALIDCALL;
+        }
+    }
+
+    while(mParent->mUpdateInProgress)
+        Sleep(1);
+
+    bool updateMem = false;
+
+    /* NOTE: D3DPOOL_MANAGED resources are lockable, however their main purpose
+     * (ensuring resources aren't lost) is already gauranteed by OpenGL. But
+     * because they're lockable, we need something the app can write to and
+     * read from. Allocating system memory space for this anyway is wasteful
+     * (GL already has one), and a pixel buffer object (PBO) would increase
+     * VRAM/AGP memory usage just as bad.
+     * Instead, temporarilly allocate storage to pass to the app. It will be
+     * deallocated after load so as not to hold unnecessary memory. */
+    GLubyte *memPtr = mParent->mUserPtr;
+    if(memPtr)
+        memPtr += mDataOffset;
+    else
+    {
+        if(!mScratchMem)
+            mScratchMem = new GLubyte[mDataLength];
+        memPtr = mScratchMem;
+        updateMem = !(flags&D3DLOCK_DISCARD);
+    }
+
+    if(updateMem)
+    {
+        ERR("Skipping local memory update\n");
+    }
+
+    mLockRegion = *rect;
+    if(mParent->mIsCompressed)
+    {
+        memPtr += ((rect->top/4*((w+3)/4)) + (rect->left/4)) * mParent->mGLFormat->bytesperpixel;
+        lockedRect->Pitch = (w+3)/4 * mParent->mGLFormat->bytesperpixel;
+    }
+    else
+    {
+        memPtr += (rect->top*w + rect->left) * mParent->mGLFormat->bytesperpixel;
+        lockedRect->Pitch = w * mParent->mGLFormat->bytesperpixel;
+    }
+    lockedRect->pBits = memPtr;
+
+    if(!(flags&(D3DLOCK_NO_DIRTY_UPDATE|D3DLOCK_READONLY)))
+    {
+        RECT dirty = { rect->left<<mLevel, rect->top<<mLevel,
+                       rect->right<<mLevel, rect->bottom<<mLevel };
+        mParent->AddDirtyRect(&dirty);
+    }
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLTextureSurface::UnlockRect()
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p\n", this);
+
+    if(mLock == LT_Unlocked)
+    {
+        ERR("Attempted to unlock an unlocked surface\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(mScratchMem)
+    {
+        mParent->updateTexture(mLevel, mLockRegion, mScratchMem, true);
+        mScratchMem = nullptr;
+    }
+    else
+        mParent->updateTexture(mLevel, mLockRegion, mParent->mUserPtr+mDataOffset, false);
+
+    mLock = LT_Unlocked;
+    return D3D_OK;
 }
 
 HRESULT D3DGLTextureSurface::GetDC(HDC *hdc)

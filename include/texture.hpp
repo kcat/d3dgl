@@ -24,6 +24,10 @@ class Direct3DGLTexture : public IDirect3DTexture9 {
     GLuint mPBO;
     std::vector<GLubyte> mSysMem;
 
+    GLubyte *mUserPtr;
+    RECT mDirtyRect;
+    std::atomic<ULONG> mUpdateInProgress;
+
     D3DSURFACE_DESC mDesc;
     std::vector<D3DGLTextureSurface*> mSurfaces;
     std::atomic<DWORD> mLodLevel;
@@ -38,11 +42,13 @@ public:
     virtual ~Direct3DGLTexture();
 
     bool init(const D3DSURFACE_DESC *desc, UINT levels);
+    void updateTexture(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr);
 
     void initGL();
     void deinitGL();
     void setLodGL(DWORD lod);
     void genMipmapGL();
+    void loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr);
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj);
