@@ -524,7 +524,7 @@ void Direct3DGLDevice::GetGammaRamp(UINT swapchain, D3DGAMMARAMP *ramp)
 
 HRESULT Direct3DGLDevice::CreateTexture(UINT width, UINT height, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DTexture9 **texture, HANDLE *handle)
 {
-    FIXME("iface %p, width %u, height %u, levels %u, usage 0x%lx, format %s, pool 0x%x, texture %p, handle %p : stub!\n", this, width, height, levels, usage, d3dfmt_to_str(format), pool, texture, handle);
+    TRACE("iface %p, width %u, height %u, levels %u, usage 0x%lx, format %s, pool 0x%x, texture %p, handle %p\n", this, width, height, levels, usage, d3dfmt_to_str(format), pool, texture, handle);
 
     if(handle)
     {
