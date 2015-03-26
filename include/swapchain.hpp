@@ -1,21 +1,29 @@
 #ifndef D3DGLSWAPCHAIN_HPP
 #define D3DGLSWAPCHAIN_HPP
 
-#include <d3d9.h>
-
 #include <atomic>
+#include <vector>
+#include <d3d9.h>
 
 
 class Direct3DGLDevice;
+class D3DGLBackbufferSurface;
 
 class Direct3DGLSwapChain : public IDirect3DSwapChain9 {
     std::atomic<ULONG> mRefCount;
+    std::atomic<ULONG> mIfaceCount;
 
     Direct3DGLDevice *mParent;
 
+    std::vector<D3DGLBackbufferSurface*> mBackbuffers;
     D3DPRESENT_PARAMETERS mParams;
     HWND mWindow;
     bool mIsAuto;
+
+    void addIface();
+    void releaseIface();
+
+    friend class D3DGLBackbufferSurface;
 
 public:
     Direct3DGLSwapChain(Direct3DGLDevice *parent);
