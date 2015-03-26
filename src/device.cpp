@@ -177,18 +177,28 @@ public:
 };
 
 class MaterialSet : public Command {
-    D3DMATERIAL9 mMaterial;
+    float mShininess;
+    float mDiffuse[4];
+    float mAmbient[4];
+    float mSpecular[4];
+    float mEmission[4];
 
 public:
-    MaterialSet(const D3DMATERIAL9 &material) : mMaterial(material) { }
+    MaterialSet(const D3DMATERIAL9 &material)
+      : mShininess(material.Power)
+      , mDiffuse{material.Diffuse.r, material.Diffuse.g, material.Diffuse.b, material.Diffuse.a}
+      , mAmbient{material.Ambient.r, material.Ambient.g, material.Ambient.b, material.Ambient.a}
+      , mSpecular{material.Specular.r, material.Specular.g, material.Specular.b, material.Specular.a}
+      , mEmission{material.Emissive.r, material.Emissive.g, material.Emissive.b, material.Emissive.a}
+    { }
 
     virtual ULONG execute()
     {
-        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, mMaterial.Power);
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, &mMaterial.Diffuse.r);
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, &mMaterial.Ambient.r);
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, &mMaterial.Specular.r);
-        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, &mMaterial.Emissive.r);
+        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, mShininess);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mDiffuse);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, mAmbient);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mSpecular);
+        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, mEmission);
         return sizeof(*this);
     }
 };
