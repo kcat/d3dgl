@@ -294,4 +294,79 @@ public:
 #undef TEST
 #define d3drs_to_str(x) ((const char*)d3drs_to_str(x))
 
+#define TEST(x) case x: return #x
+class d3dtss_to_str {
+    char mBuffer[12];
+    D3DTEXTURESTAGESTATETYPE mType;
+
+public:
+    d3dtss_to_str(D3DTEXTURESTAGESTATETYPE type) : mType(type) { }
+
+    operator const char*()
+    {
+        switch(mType)
+        {
+        TEST(D3DTSS_COLOROP);
+        TEST(D3DTSS_COLORARG1);
+        TEST(D3DTSS_COLORARG2);
+        TEST(D3DTSS_ALPHAOP);
+        TEST(D3DTSS_ALPHAARG1);
+        TEST(D3DTSS_ALPHAARG2);
+        TEST(D3DTSS_BUMPENVMAT00);
+        TEST(D3DTSS_BUMPENVMAT01);
+        TEST(D3DTSS_BUMPENVMAT10);
+        TEST(D3DTSS_BUMPENVMAT11);
+        TEST(D3DTSS_TEXCOORDINDEX);
+        TEST(D3DTSS_BUMPENVLSCALE);
+        TEST(D3DTSS_BUMPENVLOFFSET);
+        TEST(D3DTSS_TEXTURETRANSFORMFLAGS);
+        TEST(D3DTSS_COLORARG0);
+        TEST(D3DTSS_ALPHAARG0);
+        TEST(D3DTSS_RESULTARG);
+        TEST(D3DTSS_CONSTANT);
+        case D3DTSS_FORCE_DWORD:
+            break;
+        }
+        snprintf(mBuffer, sizeof(mBuffer), "0x%x", mType);
+        return mBuffer;
+    }
+};
+#undef TEST
+#define d3dtss_to_str(x) ((const char*)d3dtss_to_str(x))
+
+#define TEST(x) case x: return #x
+class d3dsamp_to_str {
+    char mBuffer[12];
+    D3DSAMPLERSTATETYPE mType;
+
+public:
+    d3dsamp_to_str(D3DSAMPLERSTATETYPE type) : mType(type) { }
+
+    operator const char*()
+    {
+        switch(mType)
+        {
+        TEST(D3DSAMP_ADDRESSU);
+        TEST(D3DSAMP_ADDRESSV);
+        TEST(D3DSAMP_ADDRESSW);
+        TEST(D3DSAMP_BORDERCOLOR);
+        TEST(D3DSAMP_MAGFILTER);
+        TEST(D3DSAMP_MINFILTER);
+        TEST(D3DSAMP_MIPFILTER);
+        TEST(D3DSAMP_MIPMAPLODBIAS);
+        TEST(D3DSAMP_MAXMIPLEVEL);
+        TEST(D3DSAMP_MAXANISOTROPY);
+        TEST(D3DSAMP_SRGBTEXTURE);
+        TEST(D3DSAMP_ELEMENTINDEX);
+        TEST(D3DSAMP_DMAPOFFSET);
+        case D3DSAMP_FORCE_DWORD:
+            break;
+        }
+        snprintf(mBuffer, sizeof(mBuffer), "0x%x", mType);
+        return mBuffer;
+    }
+};
+#undef TEST
+#define d3dsamp_to_str(x) ((const char*)d3dsamp_to_str(x))
+
 #endif /* TRACE_HPP */

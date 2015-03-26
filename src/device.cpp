@@ -856,27 +856,27 @@ HRESULT Direct3DGLDevice::SetTexture(DWORD Stage, IDirect3DBaseTexture9* pTextur
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetTextureStageState(DWORD Stage, D3DTEXTURESTAGESTATETYPE Type, DWORD* pValue)
+HRESULT Direct3DGLDevice::GetTextureStageState(DWORD stage, D3DTEXTURESTAGESTATETYPE type, DWORD *value)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, stage %lu, type %s, value %p : stub!\n", this, stage, d3dtss_to_str(type), value);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetTextureStageState(DWORD Stage, D3DTEXTURESTAGESTATETYPE Type, DWORD Value)
+HRESULT Direct3DGLDevice::SetTextureStageState(DWORD stage, D3DTEXTURESTAGESTATETYPE type, DWORD value)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, stage %lu, type %s, value 0x%lx : stub!\n", this, stage, d3dtss_to_str(type), value);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetSamplerState(DWORD Sampler, D3DSAMPLERSTATETYPE Type, DWORD* pValue)
+HRESULT Direct3DGLDevice::GetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DWORD *value)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, sampler %lu, type %s, value %p : stub!\n", this, sampler, d3dsamp_to_str(type), value);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetSamplerState(DWORD Sampler, D3DSAMPLERSTATETYPE Type, DWORD Value)
+HRESULT Direct3DGLDevice::SetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DWORD value)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, sampler %lu, type %s, value 0x%lx : stub!\n", this, sampler, d3dsamp_to_str(type), value);
     return E_NOTIMPL;
 }
 
