@@ -1178,8 +1178,8 @@ HRESULT D3DGLDevice::DeletePatch(UINT Handle)
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::CreateQuery(D3DQUERYTYPE Type, IDirect3DQuery9** ppQuery)
+HRESULT D3DGLDevice::CreateQuery(D3DQUERYTYPE type, IDirect3DQuery9 **query)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, type %s, query %p : stub!\n", this, d3dquery_to_str(type), query);
     return E_NOTIMPL;
 }

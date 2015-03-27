@@ -369,4 +369,38 @@ public:
 #undef TEST
 #define d3dsamp_to_str(x) ((const char*)d3dsamp_to_str(x))
 
+#define TEST(x) case x: return #x
+class d3dquery_to_str {
+    char mBuffer[12];
+    D3DQUERYTYPE mType;
+
+public:
+    d3dquery_to_str(D3DQUERYTYPE type) : mType(type) { }
+
+    operator const char*()
+    {
+        switch(mType)
+        {
+        TEST(D3DQUERYTYPE_VCACHE);
+        TEST(D3DQUERYTYPE_RESOURCEMANAGER);
+        TEST(D3DQUERYTYPE_VERTEXSTATS);
+        TEST(D3DQUERYTYPE_EVENT);
+        TEST(D3DQUERYTYPE_OCCLUSION);
+        TEST(D3DQUERYTYPE_TIMESTAMP);
+        TEST(D3DQUERYTYPE_TIMESTAMPDISJOINT);
+        TEST(D3DQUERYTYPE_TIMESTAMPFREQ);
+        TEST(D3DQUERYTYPE_PIPELINETIMINGS);
+        TEST(D3DQUERYTYPE_INTERFACETIMINGS);
+        TEST(D3DQUERYTYPE_VERTEXTIMINGS);
+        TEST(D3DQUERYTYPE_PIXELTIMINGS);
+        TEST(D3DQUERYTYPE_BANDWIDTHTIMINGS);
+        TEST(D3DQUERYTYPE_CACHEUTILIZATION);
+        }
+        snprintf(mBuffer, sizeof(mBuffer), "0x%x", mType);
+        return mBuffer;
+    }
+};
+#undef TEST
+#define d3dquery_to_str(x) ((const char*)d3dquery_to_str(x))
+
 #endif /* TRACE_HPP */
