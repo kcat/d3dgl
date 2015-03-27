@@ -6,14 +6,14 @@
 #include <d3d9.h>
 
 
-class Direct3DGLDevice;
+class D3DGLDevice;
 class D3DGLBackbufferSurface;
 
-class Direct3DGLSwapChain : public IDirect3DSwapChain9 {
+class D3DGLSwapChain : public IDirect3DSwapChain9 {
     std::atomic<ULONG> mRefCount;
     std::atomic<ULONG> mIfaceCount;
 
-    Direct3DGLDevice *mParent;
+    D3DGLDevice *mParent;
 
     std::vector<D3DGLBackbufferSurface*> mBackbuffers;
     D3DPRESENT_PARAMETERS mParams;
@@ -26,8 +26,8 @@ class Direct3DGLSwapChain : public IDirect3DSwapChain9 {
     friend class D3DGLBackbufferSurface;
 
 public:
-    Direct3DGLSwapChain(Direct3DGLDevice *parent);
-    virtual ~Direct3DGLSwapChain();
+    D3DGLSwapChain(D3DGLDevice *parent);
+    virtual ~D3DGLSwapChain();
 
     bool init(const D3DPRESENT_PARAMETERS *params, HWND window, bool isauto=false);
     void checkDelete();

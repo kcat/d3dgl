@@ -12,7 +12,7 @@
 class D3DGLTextureSurface : public IDirect3DSurface9 {
     std::atomic<ULONG> mRefCount;
 
-    Direct3DGLTexture *mParent;
+    D3DGLTexture *mParent;
     UINT mLevel;
 
     enum LockType {
@@ -29,7 +29,7 @@ class D3DGLTextureSurface : public IDirect3DSurface9 {
     GLubyte *mScratchMem;
 
 public:
-    D3DGLTextureSurface(Direct3DGLTexture *parent, UINT level);
+    D3DGLTextureSurface(D3DGLTexture *parent, UINT level);
     virtual ~D3DGLTextureSurface();
 
     void init(UINT offset, UINT length);
@@ -58,7 +58,7 @@ public:
 };
 
 
-void Direct3DGLTexture::initGL()
+void D3DGLTexture::initGL()
 {
     glActiveTexture(GL_TEXTURE0);
     glGenTextures(1, &mTexId);
@@ -124,13 +124,13 @@ void Direct3DGLTexture::initGL()
         mUserPtr = mSysMem.data();
     }
 
-    mUpdateInProgress = false;
+    mUpdateInProgress = 0;
 }
 class TextureInitCmd : public Command {
-    Direct3DGLTexture *mTarget;
+    D3DGLTexture *mTarget;
 
 public:
-    TextureInitCmd(Direct3DGLTexture *target) : mTarget(target) { }
+    TextureInitCmd(D3DGLTexture *target) : mTarget(target) { }
 
     virtual ULONG execute()
     {
@@ -140,18 +140,18 @@ public:
 };
 
 
-void Direct3DGLTexture::deinitGL()
+void D3DGLTexture::deinitGL()
 {
     glDeleteTextures(1, &mTexId);
     glDeleteBuffers(1, &mPBO);
     checkGLError();
 }
 class TextureDeinitCmd : public Command {
-    Direct3DGLTexture *mTarget;
+    D3DGLTexture *mTarget;
     HANDLE mFinished;
 
 public:
-    TextureDeinitCmd(Direct3DGLTexture *target, HANDLE finished) : mTarget(target), mFinished(finished) { }
+    TextureDeinitCmd(D3DGLTexture *target, HANDLE finished) : mTarget(target), mFinished(finished) { }
 
     virtual ULONG execute()
     {
@@ -162,7 +162,7 @@ public:
 };
 
 
-void Direct3DGLTexture::setLodGL(DWORD lod)
+void D3DGLTexture::setLodGL(DWORD lod)
 {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mTexId);
@@ -170,11 +170,11 @@ void Direct3DGLTexture::setLodGL(DWORD lod)
     checkGLError();
 }
 class TextureSetLODCmd : public Command {
-    Direct3DGLTexture *mTarget;
+    D3DGLTexture *mTarget;
     DWORD mLodLevel;
 
 public:
-    TextureSetLODCmd(Direct3DGLTexture *target, DWORD lod)
+    TextureSetLODCmd(D3DGLTexture *target, DWORD lod)
       : mTarget(target), mLodLevel(lod)
     { }
 
@@ -186,7 +186,7 @@ public:
 };
 
 
-void Direct3DGLTexture::genMipmapGL()
+void D3DGLTexture::genMipmapGL()
 {
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mTexId);
@@ -194,10 +194,10 @@ void Direct3DGLTexture::genMipmapGL()
     checkGLError();
 }
 class TextureGenMipCmd : public Command {
-    Direct3DGLTexture *mTarget;
+    D3DGLTexture *mTarget;
 
 public:
-    TextureGenMipCmd(Direct3DGLTexture *target) : mTarget(target) { }
+    TextureGenMipCmd(D3DGLTexture *target) : mTarget(target) { }
 
     virtual ULONG execute()
     {
@@ -207,7 +207,7 @@ public:
 };
 
 
-void Direct3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr)
+void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr)
 {
     UINT w = std::max(1u, mDesc.Width>>level);
     /*UINT h = std::max(1u, mDesc.Height>>Level);*/
@@ -271,14 +271,14 @@ void Direct3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *d
     --mUpdateInProgress;
 }
 class TextureLoadLevelCmd : public Command {
-    Direct3DGLTexture *mTarget;
+    D3DGLTexture *mTarget;
     DWORD mLevel;
     RECT mRect;
     GLubyte *mDataPtr;
     bool mDeletePtr;
 
 public:
-    TextureLoadLevelCmd(Direct3DGLTexture *target, DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr)
+    TextureLoadLevelCmd(D3DGLTexture *target, DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr)
       : mTarget(target), mLevel(level), mRect(rect), mDataPtr(dataPtr), mDeletePtr(deletePtr)
     { }
 
@@ -290,7 +290,7 @@ public:
 };
 
 
-Direct3DGLTexture::Direct3DGLTexture(Direct3DGLDevice *parent)
+D3DGLTexture::D3DGLTexture(D3DGLDevice *parent)
   : mRefCount(0)
   , mIfaceCount(0)
   , mParent(parent)
@@ -306,7 +306,7 @@ Direct3DGLTexture::Direct3DGLTexture(Direct3DGLDevice *parent)
     mParent->AddRef();
 }
 
-Direct3DGLTexture::~Direct3DGLTexture()
+D3DGLTexture::~D3DGLTexture()
 {
     HANDLE finished = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     mParent->getQueue().send<TextureDeinitCmd>(this, finished);
@@ -322,7 +322,7 @@ Direct3DGLTexture::~Direct3DGLTexture()
 }
 
 
-bool Direct3DGLTexture::init(const D3DSURFACE_DESC *desc, UINT levels)
+bool D3DGLTexture::init(const D3DSURFACE_DESC *desc, UINT levels)
 {
     mDesc = *desc;
 
@@ -400,27 +400,27 @@ bool Direct3DGLTexture::init(const D3DSURFACE_DESC *desc, UINT levels)
     return true;
 }
 
-void Direct3DGLTexture::updateTexture(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr)
+void D3DGLTexture::updateTexture(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr)
 {
     CommandQueue &queue = mParent->getQueue();
     queue.lock();
-    mUpdateInProgress = true;
+    ++mUpdateInProgress;
     queue.sendAndUnlock<TextureLoadLevelCmd>(this, level, rect, dataPtr, deletePtr);
 }
 
-void Direct3DGLTexture::addIface()
+void D3DGLTexture::addIface()
 {
     ++mIfaceCount;
 }
 
-void Direct3DGLTexture::releaseIface()
+void D3DGLTexture::releaseIface()
 {
     if(--mIfaceCount == 0)
         delete this;
 }
 
 
-HRESULT Direct3DGLTexture::QueryInterface(REFIID riid, void **obj)
+HRESULT D3DGLTexture::QueryInterface(REFIID riid, void **obj)
 {
     TRACE("iface %p, riid %s, obj %p\n", this, debugstr_guid(riid), obj);
 
@@ -442,7 +442,7 @@ HRESULT Direct3DGLTexture::QueryInterface(REFIID riid, void **obj)
     return E_NOINTERFACE;
 }
 
-ULONG Direct3DGLTexture::AddRef()
+ULONG D3DGLTexture::AddRef()
 {
     ULONG ret = ++mRefCount;
     TRACE("%p New refcount: %lu\n", this, ret);
@@ -450,7 +450,7 @@ ULONG Direct3DGLTexture::AddRef()
     return ret;
 }
 
-ULONG Direct3DGLTexture::Release()
+ULONG D3DGLTexture::Release()
 {
     ULONG ret = --mRefCount;
     TRACE("%p New refcount: %lu\n", this, ret);
@@ -459,7 +459,7 @@ ULONG Direct3DGLTexture::Release()
 }
 
 
-HRESULT Direct3DGLTexture::GetDevice(IDirect3DDevice9 **device)
+HRESULT D3DGLTexture::GetDevice(IDirect3DDevice9 **device)
 {
     TRACE("iface %p, device %p\n", this, device);
     *device = mParent;
@@ -467,49 +467,49 @@ HRESULT Direct3DGLTexture::GetDevice(IDirect3DDevice9 **device)
     return D3D_OK;
 }
 
-HRESULT Direct3DGLTexture::SetPrivateData(REFGUID refguid, const void *data, DWORD size, DWORD flags)
+HRESULT D3DGLTexture::SetPrivateData(REFGUID refguid, const void *data, DWORD size, DWORD flags)
 {
     FIXME("iface %p, refguid %s, data %p, size %lu, flags 0x%lx : stub!\n", this, debugstr_guid(refguid), data, size, flags);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLTexture::GetPrivateData(REFGUID refguid, void *data, DWORD *size)
+HRESULT D3DGLTexture::GetPrivateData(REFGUID refguid, void *data, DWORD *size)
 {
     FIXME("iface %p, refguid %s, data %p, size %p : stub!\n", this, debugstr_guid(refguid), data, size);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLTexture::FreePrivateData(REFGUID refguid)
+HRESULT D3DGLTexture::FreePrivateData(REFGUID refguid)
 {
     FIXME("iface %p, refguid %s : stub!\n", this, debugstr_guid(refguid));
     return E_NOTIMPL;
 }
 
-DWORD Direct3DGLTexture::SetPriority(DWORD priority)
+DWORD D3DGLTexture::SetPriority(DWORD priority)
 {
     FIXME("iface %p, priority %lu : stub!\n", this, priority);
     return 0;
 }
 
-DWORD Direct3DGLTexture::GetPriority()
+DWORD D3DGLTexture::GetPriority()
 {
     FIXME("iface %p : stub!\n", this);
     return 0;
 }
 
-void Direct3DGLTexture::PreLoad()
+void D3DGLTexture::PreLoad()
 {
     FIXME("iface %p : stub!\n", this);
 }
 
-D3DRESOURCETYPE Direct3DGLTexture::GetType()
+D3DRESOURCETYPE D3DGLTexture::GetType()
 {
     TRACE("iface %p\n", this);
     return D3DRTYPE_TEXTURE;
 }
 
 
-DWORD Direct3DGLTexture::SetLOD(DWORD lod)
+DWORD D3DGLTexture::SetLOD(DWORD lod)
 {
     TRACE("iface %p, lod %lu\n", this, lod);
 
@@ -528,38 +528,38 @@ DWORD Direct3DGLTexture::SetLOD(DWORD lod)
     return lod;
 }
 
-DWORD Direct3DGLTexture::GetLOD()
+DWORD D3DGLTexture::GetLOD()
 {
     TRACE("iface %p\n", this);
     return mLodLevel.load();
 }
 
-DWORD Direct3DGLTexture::GetLevelCount()
+DWORD D3DGLTexture::GetLevelCount()
 {
     TRACE("iface %p\n", this);
     return mSurfaces.size();
 }
 
-HRESULT Direct3DGLTexture::SetAutoGenFilterType(D3DTEXTUREFILTERTYPE type)
+HRESULT D3DGLTexture::SetAutoGenFilterType(D3DTEXTUREFILTERTYPE type)
 {
     FIXME("iface %p, type 0x%x : stub!\n", this, type);
     return D3D_OK;
 }
 
-D3DTEXTUREFILTERTYPE Direct3DGLTexture::GetAutoGenFilterType()
+D3DTEXTUREFILTERTYPE D3DGLTexture::GetAutoGenFilterType()
 {
     FIXME("iface %p\n", this);
     return D3DTEXF_LINEAR;
 }
 
-void Direct3DGLTexture::GenerateMipSubLevels()
+void D3DGLTexture::GenerateMipSubLevels()
 {
     TRACE("iface %p\n", this);
     mParent->getQueue().send<TextureGenMipCmd>(this);
 }
 
 
-HRESULT Direct3DGLTexture::GetLevelDesc(UINT level, D3DSURFACE_DESC *desc)
+HRESULT D3DGLTexture::GetLevelDesc(UINT level, D3DSURFACE_DESC *desc)
 {
     TRACE("iface %p, level %u, desc %p\n", this, level, desc);
 
@@ -572,7 +572,7 @@ HRESULT Direct3DGLTexture::GetLevelDesc(UINT level, D3DSURFACE_DESC *desc)
     return mSurfaces[level]->GetDesc(desc);
 }
 
-HRESULT Direct3DGLTexture::GetSurfaceLevel(UINT level, IDirect3DSurface9 **surface)
+HRESULT D3DGLTexture::GetSurfaceLevel(UINT level, IDirect3DSurface9 **surface)
 {
     TRACE("iface %p, level %u, surface %p\n", this, level, surface);
 
@@ -587,7 +587,7 @@ HRESULT Direct3DGLTexture::GetSurfaceLevel(UINT level, IDirect3DSurface9 **surfa
     return D3D_OK;
 }
 
-HRESULT Direct3DGLTexture::LockRect(UINT level, D3DLOCKED_RECT *lockedRect, const RECT *rect, DWORD flags)
+HRESULT D3DGLTexture::LockRect(UINT level, D3DLOCKED_RECT *lockedRect, const RECT *rect, DWORD flags)
 {
     TRACE("iface %p, level %u, lockedRect %p, rect %p, flags 0x%lx\n", this, level, lockedRect, rect, flags);
 
@@ -600,7 +600,7 @@ HRESULT Direct3DGLTexture::LockRect(UINT level, D3DLOCKED_RECT *lockedRect, cons
     return mSurfaces[level]->LockRect(lockedRect, rect, flags);
 }
 
-HRESULT Direct3DGLTexture::UnlockRect(UINT level)
+HRESULT D3DGLTexture::UnlockRect(UINT level)
 {
     TRACE("iface %p, level %u\n", this, level);
 
@@ -613,7 +613,7 @@ HRESULT Direct3DGLTexture::UnlockRect(UINT level)
     return mSurfaces[level]->UnlockRect();
 }
 
-HRESULT Direct3DGLTexture::AddDirtyRect(const RECT *rect)
+HRESULT D3DGLTexture::AddDirtyRect(const RECT *rect)
 {
     TRACE("iface %p, rect %p\n", this, rect);
     mDirtyRect.left = std::min(mDirtyRect.left, rect->left);
@@ -625,7 +625,7 @@ HRESULT Direct3DGLTexture::AddDirtyRect(const RECT *rect)
 
 
 
-D3DGLTextureSurface::D3DGLTextureSurface(Direct3DGLTexture *parent, UINT level)
+D3DGLTextureSurface::D3DGLTextureSurface(D3DGLTexture *parent, UINT level)
   : mRefCount(0)
   , mParent(parent)
   , mLevel(level)

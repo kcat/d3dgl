@@ -7,10 +7,10 @@
 class D3DGLBackbufferSurface : public IDirect3DSurface9 {
     std::atomic<ULONG> mRefCount;
 
-    Direct3DGLSwapChain *mParent;
+    D3DGLSwapChain *mParent;
 
 public:
-    D3DGLBackbufferSurface(Direct3DGLSwapChain *parent);
+    D3DGLBackbufferSurface(D3DGLSwapChain *parent);
     virtual ~D3DGLBackbufferSurface();
 
     /*** IUnknown methods ***/
@@ -36,7 +36,7 @@ public:
 };
 
 
-Direct3DGLSwapChain::Direct3DGLSwapChain(Direct3DGLDevice *parent)
+D3DGLSwapChain::D3DGLSwapChain(D3DGLDevice *parent)
   : mRefCount(0)
   , mIfaceCount(0)
   , mParent(parent)
@@ -45,7 +45,7 @@ Direct3DGLSwapChain::Direct3DGLSwapChain(Direct3DGLDevice *parent)
 {
 }
 
-Direct3DGLSwapChain::~Direct3DGLSwapChain()
+D3DGLSwapChain::~D3DGLSwapChain()
 {
     // FIXME: Send a command to destroy GL objects, and wait for it to complete.
 
@@ -54,7 +54,7 @@ Direct3DGLSwapChain::~Direct3DGLSwapChain()
     mBackbuffers.clear();
 }
 
-bool Direct3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window, bool isauto)
+bool D3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window, bool isauto)
 {
     // Params are already sanitized.
     mParams = *params;
@@ -67,13 +67,13 @@ bool Direct3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window,
     return true;
 }
 
-void Direct3DGLSwapChain::addIface()
+void D3DGLSwapChain::addIface()
 {
     if(++mIfaceCount == 1)
         mParent->AddRef();
 }
 
-void Direct3DGLSwapChain::releaseIface()
+void D3DGLSwapChain::releaseIface()
 {
     if(--mIfaceCount == 0)
     {
@@ -89,7 +89,7 @@ void Direct3DGLSwapChain::releaseIface()
 }
 
 
-HRESULT Direct3DGLSwapChain::QueryInterface(REFIID riid, void **obj)
+HRESULT D3DGLSwapChain::QueryInterface(REFIID riid, void **obj)
 {
     TRACE("iface %p, riid %s, obj %p\n", this, debugstr_guid(riid), obj);
 
@@ -104,7 +104,7 @@ HRESULT Direct3DGLSwapChain::QueryInterface(REFIID riid, void **obj)
     return E_NOINTERFACE;
 }
 
-ULONG Direct3DGLSwapChain::AddRef()
+ULONG D3DGLSwapChain::AddRef()
 {
     ULONG ret = ++mRefCount;
     TRACE("%p New refcount: %lu\n", this, ret);
@@ -112,7 +112,7 @@ ULONG Direct3DGLSwapChain::AddRef()
     return ret;
 }
 
-ULONG Direct3DGLSwapChain::Release()
+ULONG D3DGLSwapChain::Release()
 {
     ULONG ret = --mRefCount;
     TRACE("%p New refcount: %lu\n", this, ret);
@@ -121,19 +121,19 @@ ULONG Direct3DGLSwapChain::Release()
 }
 
 
-HRESULT Direct3DGLSwapChain::Present(const RECT *srcRect, const RECT *dstRect, HWND dstWindowOverride, const RGNDATA *dirtyRegion, DWORD flags)
+HRESULT D3DGLSwapChain::Present(const RECT *srcRect, const RECT *dstRect, HWND dstWindowOverride, const RGNDATA *dirtyRegion, DWORD flags)
 {
     FIXME("iface %p, srcRect %p, dstRect %p, dstWindowOverride %p, dirtyRegion %p, flags 0x%lx : stub!\n", this, srcRect, dstRect, dstWindowOverride, dirtyRegion, flags);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLSwapChain::GetFrontBufferData(IDirect3DSurface9 *dstSurface)
+HRESULT D3DGLSwapChain::GetFrontBufferData(IDirect3DSurface9 *dstSurface)
 {
     FIXME("iface %p, dstSurface %p : stub!\n", this, dstSurface);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLSwapChain::GetBackBuffer(UINT backbuffer, D3DBACKBUFFER_TYPE type, IDirect3DSurface9 **out)
+HRESULT D3DGLSwapChain::GetBackBuffer(UINT backbuffer, D3DBACKBUFFER_TYPE type, IDirect3DSurface9 **out)
 {
     TRACE("iface %p, backbuffer %u, type 0x%x, out %p\n", this, backbuffer, type, out);
 
@@ -154,13 +154,13 @@ HRESULT Direct3DGLSwapChain::GetBackBuffer(UINT backbuffer, D3DBACKBUFFER_TYPE t
     return D3D_OK;
 }
 
-HRESULT Direct3DGLSwapChain::GetRasterStatus(D3DRASTER_STATUS *status)
+HRESULT D3DGLSwapChain::GetRasterStatus(D3DRASTER_STATUS *status)
 {
     FIXME("iface %p, status %p : stub!\n", this, status);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLSwapChain::GetDisplayMode(D3DDISPLAYMODE *mode)
+HRESULT D3DGLSwapChain::GetDisplayMode(D3DDISPLAYMODE *mode)
 {
     TRACE("iface %p, mode %p\n", this, mode);
 
@@ -178,7 +178,7 @@ HRESULT Direct3DGLSwapChain::GetDisplayMode(D3DDISPLAYMODE *mode)
     return D3D_OK;
 }
 
-HRESULT Direct3DGLSwapChain::GetDevice(IDirect3DDevice9 **device)
+HRESULT D3DGLSwapChain::GetDevice(IDirect3DDevice9 **device)
 {
     TRACE("iface %p, device %p\n", this, device);
     *device = mParent;
@@ -186,7 +186,7 @@ HRESULT Direct3DGLSwapChain::GetDevice(IDirect3DDevice9 **device)
     return D3D_OK;
 }
 
-HRESULT Direct3DGLSwapChain::GetPresentParameters(D3DPRESENT_PARAMETERS *params)
+HRESULT D3DGLSwapChain::GetPresentParameters(D3DPRESENT_PARAMETERS *params)
 {
     TRACE("iface %p, params %p\n", this, params);
     *params = mParams;
@@ -194,7 +194,7 @@ HRESULT Direct3DGLSwapChain::GetPresentParameters(D3DPRESENT_PARAMETERS *params)
 }
 
 
-D3DGLBackbufferSurface::D3DGLBackbufferSurface(Direct3DGLSwapChain *parent)
+D3DGLBackbufferSurface::D3DGLBackbufferSurface(D3DGLSwapChain *parent)
   : mRefCount(0)
   , mParent(parent)
 {

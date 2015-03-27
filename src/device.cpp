@@ -206,7 +206,7 @@ public:
 } // namespace
 
 
-Direct3DGLDevice::Direct3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags)
+D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags)
   : mRefCount(0)
   , mParent(parent)
   , mAdapter(adapter)
@@ -220,7 +220,7 @@ Direct3DGLDevice::Direct3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter
     mRenderState[D3DRS_POINTSIZE_MAX] = float_to_dword(mAdapter.getLimits().pointsize_max);
 }
 
-Direct3DGLDevice::~Direct3DGLDevice()
+D3DGLDevice::~D3DGLDevice()
 {
     for(auto schain : mSwapchains)
         delete schain;
@@ -236,7 +236,7 @@ Direct3DGLDevice::~Direct3DGLDevice()
     mParent = nullptr;
 }
 
-bool Direct3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
+bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
 {
     if(params->BackBufferCount > 1)
     {
@@ -305,7 +305,7 @@ bool Direct3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
     if(!mQueue.init(win, mGLContext))
         return false;
 
-    Direct3DGLSwapChain *schain = new Direct3DGLSwapChain(this);
+    D3DGLSwapChain *schain = new D3DGLSwapChain(this);
     if(!schain->init(params, win, true))
     {
         delete schain;
@@ -325,7 +325,7 @@ bool Direct3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
         desc.Width = params->BackBufferWidth;
         desc.Height = params->BackBufferHeight;
 
-        mAutoDepthStencil = new Direct3DGLRenderTarget(this);
+        mAutoDepthStencil = new D3DGLRenderTarget(this);
         if(!mAutoDepthStencil->init(&desc, true))
             return false;
         mDepthStencil = mAutoDepthStencil;
@@ -335,7 +335,7 @@ bool Direct3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
 }
 
 
-HRESULT Direct3DGLDevice::QueryInterface(const IID &riid, void **obj)
+HRESULT D3DGLDevice::QueryInterface(const IID &riid, void **obj)
 {
     TRACE("iface %p, riid %s, obj %p.\n", this, debugstr_guid(riid), obj);
 
@@ -358,14 +358,14 @@ HRESULT Direct3DGLDevice::QueryInterface(const IID &riid, void **obj)
     return E_NOINTERFACE;
 }
 
-ULONG Direct3DGLDevice::AddRef(void)
+ULONG D3DGLDevice::AddRef(void)
 {
     ULONG ret = ++mRefCount;
     TRACE("%p New refcount: %lu\n", this, ret);
     return ret;
 }
 
-ULONG Direct3DGLDevice::Release(void)
+ULONG D3DGLDevice::Release(void)
 {
     ULONG ret = --mRefCount;
     TRACE("%p New refcount: %lu\n", this, ret);
@@ -374,25 +374,25 @@ ULONG Direct3DGLDevice::Release(void)
 }
 
 
-HRESULT Direct3DGLDevice::TestCooperativeLevel()
+HRESULT D3DGLDevice::TestCooperativeLevel()
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-UINT Direct3DGLDevice::GetAvailableTextureMem()
+UINT D3DGLDevice::GetAvailableTextureMem()
 {
     FIXME("iface %p : stub!\n", this);
     return 0;
 }
 
-HRESULT Direct3DGLDevice::EvictManagedResources()
+HRESULT D3DGLDevice::EvictManagedResources()
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetDirect3D(IDirect3D9 **d3d9)
+HRESULT D3DGLDevice::GetDirect3D(IDirect3D9 **d3d9)
 {
     TRACE("iface %p, d3d9 %p\n", this, d3d9);
     *d3d9 = mParent;
@@ -400,14 +400,14 @@ HRESULT Direct3DGLDevice::GetDirect3D(IDirect3D9 **d3d9)
     return D3D_OK;
 }
 
-HRESULT Direct3DGLDevice::GetDeviceCaps(D3DCAPS9 *caps)
+HRESULT D3DGLDevice::GetDeviceCaps(D3DCAPS9 *caps)
 {
     TRACE("iface %p, caps %p\n", this, caps);
     *caps = mAdapter.getCaps();
     return D3D_OK;
 }
 
-HRESULT Direct3DGLDevice::GetDisplayMode(UINT swapchain, D3DDISPLAYMODE *mode)
+HRESULT D3DGLDevice::GetDisplayMode(UINT swapchain, D3DDISPLAYMODE *mode)
 {
     TRACE("iface %p, swapchain %u, mode %p\n", this, swapchain, mode);
 
@@ -420,7 +420,7 @@ HRESULT Direct3DGLDevice::GetDisplayMode(UINT swapchain, D3DDISPLAYMODE *mode)
     return mSwapchains[swapchain]->GetDisplayMode(mode);
 }
 
-HRESULT Direct3DGLDevice::GetCreationParameters(D3DDEVICE_CREATION_PARAMETERS *params)
+HRESULT D3DGLDevice::GetCreationParameters(D3DDEVICE_CREATION_PARAMETERS *params)
 {
     TRACE("iface %p, params %p\n", this, params);
 
@@ -432,30 +432,30 @@ HRESULT Direct3DGLDevice::GetCreationParameters(D3DDEVICE_CREATION_PARAMETERS *p
     return D3D_OK;
 }
 
-HRESULT Direct3DGLDevice::SetCursorProperties(UINT xoffset, UINT yoffset, IDirect3DSurface9 *image)
+HRESULT D3DGLDevice::SetCursorProperties(UINT xoffset, UINT yoffset, IDirect3DSurface9 *image)
 {
     FIXME("iface %p, xoffset %u, yoffset %u, image %p : stub!\n", this, xoffset, yoffset, image);
     return E_NOTIMPL;
 }
 
-void Direct3DGLDevice::SetCursorPosition(int x, int y, DWORD flags)
+void D3DGLDevice::SetCursorPosition(int x, int y, DWORD flags)
 {
     FIXME("iface %p, x %d, y %d, flags 0x%lx : stub!\n", this, x, y, flags);
 }
 
-WINBOOL Direct3DGLDevice::ShowCursor(WINBOOL show)
+WINBOOL D3DGLDevice::ShowCursor(WINBOOL show)
 {
     FIXME("iface %p, show %u : stub!\n", this, show);
     return FALSE;
 }
 
-HRESULT Direct3DGLDevice::CreateAdditionalSwapChain(D3DPRESENT_PARAMETERS *params, IDirect3DSwapChain9 **schain)
+HRESULT D3DGLDevice::CreateAdditionalSwapChain(D3DPRESENT_PARAMETERS *params, IDirect3DSwapChain9 **schain)
 {
     FIXME("iface %p, params %p, schain %p : stub!\n", this, params, schain);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetSwapChain(UINT swapchain, IDirect3DSwapChain9 **schain)
+HRESULT D3DGLDevice::GetSwapChain(UINT swapchain, IDirect3DSwapChain9 **schain)
 {
     TRACE("iface %p, swapchain %u, schain %p\n", this, swapchain, schain);
 
@@ -470,19 +470,19 @@ HRESULT Direct3DGLDevice::GetSwapChain(UINT swapchain, IDirect3DSwapChain9 **sch
     return D3D_OK;
 }
 
-UINT Direct3DGLDevice::GetNumberOfSwapChains()
+UINT D3DGLDevice::GetNumberOfSwapChains()
 {
     TRACE("iface %p\n", this);
     return mSwapchains.size();
 }
 
-HRESULT Direct3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
+HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
 {
     FIXME("iface %p, params %p : stub!\n", this, params);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::Present(const RECT *srcRect, const RECT *dstRect, HWND dstWindowOverride, const RGNDATA *dirtyRegion)
+HRESULT D3DGLDevice::Present(const RECT *srcRect, const RECT *dstRect, HWND dstWindowOverride, const RGNDATA *dirtyRegion)
 {
     TRACE("iface %p, srcRect %p, dstRect %p, dstWindowOverride %p, dirtyRegion %p : semi-stub\n",
           this, srcRect, dstRect, dstWindowOverride, dirtyRegion);
@@ -490,7 +490,7 @@ HRESULT Direct3DGLDevice::Present(const RECT *srcRect, const RECT *dstRect, HWND
     return mSwapchains[0]->Present(srcRect, dstRect, dstWindowOverride, dirtyRegion, 0);
 }
 
-HRESULT Direct3DGLDevice::GetBackBuffer(UINT swapchain, UINT backbuffer, D3DBACKBUFFER_TYPE type, IDirect3DSurface9 **bbuffer)
+HRESULT D3DGLDevice::GetBackBuffer(UINT swapchain, UINT backbuffer, D3DBACKBUFFER_TYPE type, IDirect3DSurface9 **bbuffer)
 {
     TRACE("iface %p, swapchain %u, backbuffer %u, type 0x%x, bbuffer %p\n", this, swapchain, backbuffer, type, bbuffer);
 
@@ -503,7 +503,7 @@ HRESULT Direct3DGLDevice::GetBackBuffer(UINT swapchain, UINT backbuffer, D3DBACK
     return mSwapchains[swapchain]->GetBackBuffer(backbuffer, type, bbuffer);
 }
 
-HRESULT Direct3DGLDevice::GetRasterStatus(UINT swapchain, D3DRASTER_STATUS *status)
+HRESULT D3DGLDevice::GetRasterStatus(UINT swapchain, D3DRASTER_STATUS *status)
 {
     TRACE("iface %p, swapchain %u, status %p\n", this, swapchain, status);
 
@@ -516,23 +516,23 @@ HRESULT Direct3DGLDevice::GetRasterStatus(UINT swapchain, D3DRASTER_STATUS *stat
     return mSwapchains[swapchain]->GetRasterStatus(status);
 }
 
-HRESULT Direct3DGLDevice::SetDialogBoxMode(WINBOOL enable)
+HRESULT D3DGLDevice::SetDialogBoxMode(WINBOOL enable)
 {
     FIXME("iface %p, enable %u : stub!\n", this, enable);
     return E_NOTIMPL;
 }
 
-void Direct3DGLDevice::SetGammaRamp(UINT swapchain, DWORD flags, const D3DGAMMARAMP *ramp)
+void D3DGLDevice::SetGammaRamp(UINT swapchain, DWORD flags, const D3DGAMMARAMP *ramp)
 {
     FIXME("iface %p, swapchain %u, flags 0x%lx, ramp %p : stub!\n", this, swapchain, flags, ramp);
 }
 
-void Direct3DGLDevice::GetGammaRamp(UINT swapchain, D3DGAMMARAMP *ramp)
+void D3DGLDevice::GetGammaRamp(UINT swapchain, D3DGAMMARAMP *ramp)
 {
     FIXME("iface %p, swapchain %u, ramp %p : stub!\n", this, swapchain, ramp);
 }
 
-HRESULT Direct3DGLDevice::CreateTexture(UINT width, UINT height, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DTexture9 **texture, HANDLE *handle)
+HRESULT D3DGLDevice::CreateTexture(UINT width, UINT height, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DTexture9 **texture, HANDLE *handle)
 {
     TRACE("iface %p, width %u, height %u, levels %u, usage 0x%lx, format %s, pool 0x%x, texture %p, handle %p\n", this, width, height, levels, usage, d3dfmt_to_str(format), pool, texture, handle);
 
@@ -571,7 +571,7 @@ HRESULT Direct3DGLDevice::CreateTexture(UINT width, UINT height, UINT levels, DW
     desc.Width = width;
     desc.Height = height;
 
-    Direct3DGLTexture *tex = new Direct3DGLTexture(this);
+    D3DGLTexture *tex = new D3DGLTexture(this);
     if(!tex->init(&desc, levels))
     {
         delete tex;
@@ -585,97 +585,97 @@ HRESULT Direct3DGLDevice::CreateTexture(UINT width, UINT height, UINT levels, DW
 }
 
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-HRESULT Direct3DGLDevice::CreateVolumeTexture(UINT Width, UINT Height, UINT Depth, UINT Levels, DWORD Usage, D3DFORMAT Format, D3DPOOL Pool, IDirect3DVolumeTexture9** ppVolumeTexture, HANDLE* pSharedHandle)
+HRESULT D3DGLDevice::CreateVolumeTexture(UINT Width, UINT Height, UINT Depth, UINT Levels, DWORD Usage, D3DFORMAT Format, D3DPOOL Pool, IDirect3DVolumeTexture9** ppVolumeTexture, HANDLE* pSharedHandle)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::CreateCubeTexture(UINT EdgeLength, UINT Levels, DWORD Usage, D3DFORMAT Format, D3DPOOL Pool, IDirect3DCubeTexture9** ppCubeTexture, HANDLE* pSharedHandle)
+HRESULT D3DGLDevice::CreateCubeTexture(UINT EdgeLength, UINT Levels, DWORD Usage, D3DFORMAT Format, D3DPOOL Pool, IDirect3DCubeTexture9** ppCubeTexture, HANDLE* pSharedHandle)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::CreateVertexBuffer(UINT Length, DWORD Usage, DWORD FVF, D3DPOOL Pool, IDirect3DVertexBuffer9** ppVertexBuffer, HANDLE* pSharedHandle)
+HRESULT D3DGLDevice::CreateVertexBuffer(UINT Length, DWORD Usage, DWORD FVF, D3DPOOL Pool, IDirect3DVertexBuffer9** ppVertexBuffer, HANDLE* pSharedHandle)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::CreateIndexBuffer(UINT Length, DWORD Usage, D3DFORMAT Format, D3DPOOL Pool, IDirect3DIndexBuffer9** ppIndexBuffer, HANDLE* pSharedHandle)
+HRESULT D3DGLDevice::CreateIndexBuffer(UINT Length, DWORD Usage, D3DFORMAT Format, D3DPOOL Pool, IDirect3DIndexBuffer9** ppIndexBuffer, HANDLE* pSharedHandle)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::CreateRenderTarget(UINT Width, UINT Height, D3DFORMAT Format, D3DMULTISAMPLE_TYPE MultiSample, DWORD MultisampleQuality, WINBOOL Lockable, IDirect3DSurface9** ppSurface, HANDLE* pSharedHandle)
+HRESULT D3DGLDevice::CreateRenderTarget(UINT Width, UINT Height, D3DFORMAT Format, D3DMULTISAMPLE_TYPE MultiSample, DWORD MultisampleQuality, WINBOOL Lockable, IDirect3DSurface9** ppSurface, HANDLE* pSharedHandle)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::CreateDepthStencilSurface(UINT Width, UINT Height, D3DFORMAT Format, D3DMULTISAMPLE_TYPE MultiSample, DWORD MultisampleQuality, WINBOOL Discard, IDirect3DSurface9** ppSurface, HANDLE* pSharedHandle)
+HRESULT D3DGLDevice::CreateDepthStencilSurface(UINT Width, UINT Height, D3DFORMAT Format, D3DMULTISAMPLE_TYPE MultiSample, DWORD MultisampleQuality, WINBOOL Discard, IDirect3DSurface9** ppSurface, HANDLE* pSharedHandle)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::UpdateSurface(IDirect3DSurface9* pSourceSurface, CONST RECT* pSourceRect, IDirect3DSurface9* pDestinationSurface, CONST POINT* pDestPoint)
+HRESULT D3DGLDevice::UpdateSurface(IDirect3DSurface9* pSourceSurface, CONST RECT* pSourceRect, IDirect3DSurface9* pDestinationSurface, CONST POINT* pDestPoint)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::UpdateTexture(IDirect3DBaseTexture9* pSourceTexture, IDirect3DBaseTexture9* pDestinationTexture)
+HRESULT D3DGLDevice::UpdateTexture(IDirect3DBaseTexture9* pSourceTexture, IDirect3DBaseTexture9* pDestinationTexture)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetRenderTargetData(IDirect3DSurface9* pRenderTarget, IDirect3DSurface9* pDestSurface)
+HRESULT D3DGLDevice::GetRenderTargetData(IDirect3DSurface9* pRenderTarget, IDirect3DSurface9* pDestSurface)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetFrontBufferData(UINT iSwapChain, IDirect3DSurface9* pDestSurface)
+HRESULT D3DGLDevice::GetFrontBufferData(UINT iSwapChain, IDirect3DSurface9* pDestSurface)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::StretchRect(IDirect3DSurface9* pSourceSurface, CONST RECT* pSourceRect, IDirect3DSurface9* pDestSurface, CONST RECT* pDestRect, D3DTEXTUREFILTERTYPE Filter)
+HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9* pSourceSurface, CONST RECT* pSourceRect, IDirect3DSurface9* pDestSurface, CONST RECT* pDestRect, D3DTEXTUREFILTERTYPE Filter)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::ColorFill(IDirect3DSurface9* pSurface, CONST RECT* pRect, D3DCOLOR color)
+HRESULT D3DGLDevice::ColorFill(IDirect3DSurface9* pSurface, CONST RECT* pRect, D3DCOLOR color)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::CreateOffscreenPlainSurface(UINT Width, UINT Height, D3DFORMAT Format, D3DPOOL Pool, IDirect3DSurface9** ppSurface, HANDLE* pSharedHandle)
+HRESULT D3DGLDevice::CreateOffscreenPlainSurface(UINT Width, UINT Height, D3DFORMAT Format, D3DPOOL Pool, IDirect3DSurface9** ppSurface, HANDLE* pSharedHandle)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetRenderTarget(DWORD RenderTargetIndex, IDirect3DSurface9* pRenderTarget)
+HRESULT D3DGLDevice::SetRenderTarget(DWORD RenderTargetIndex, IDirect3DSurface9* pRenderTarget)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetRenderTarget(DWORD RenderTargetIndex, IDirect3DSurface9** ppRenderTarget)
+HRESULT D3DGLDevice::GetRenderTarget(DWORD RenderTargetIndex, IDirect3DSurface9** ppRenderTarget)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
+HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
 {
     FIXME("iface %p, depthstencil %p : stub!\n", this, depthstencil);
     if(depthstencil) depthstencil->AddRef();
@@ -684,7 +684,7 @@ HRESULT Direct3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil
     return D3D_OK;
 }
 
-HRESULT Direct3DGLDevice::GetDepthStencilSurface(IDirect3DSurface9 **depthstencil)
+HRESULT D3DGLDevice::GetDepthStencilSurface(IDirect3DSurface9 **depthstencil)
 {
     TRACE("iface %p, depthstencil %p\n", this, depthstencil);
     *depthstencil = mDepthStencil.load();
@@ -693,55 +693,55 @@ HRESULT Direct3DGLDevice::GetDepthStencilSurface(IDirect3DSurface9 **depthstenci
     return D3D_OK;
 }
 
-HRESULT Direct3DGLDevice::BeginScene()
+HRESULT D3DGLDevice::BeginScene()
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::EndScene()
+HRESULT D3DGLDevice::EndScene()
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::Clear(DWORD Count, CONST D3DRECT* pRects, DWORD Flags, D3DCOLOR Color, float Z, DWORD Stencil)
+HRESULT D3DGLDevice::Clear(DWORD Count, CONST D3DRECT* pRects, DWORD Flags, D3DCOLOR Color, float Z, DWORD Stencil)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetTransform(D3DTRANSFORMSTATETYPE State, CONST D3DMATRIX* pMatrix)
+HRESULT D3DGLDevice::SetTransform(D3DTRANSFORMSTATETYPE State, CONST D3DMATRIX* pMatrix)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetTransform(D3DTRANSFORMSTATETYPE State, D3DMATRIX* pMatrix)
+HRESULT D3DGLDevice::GetTransform(D3DTRANSFORMSTATETYPE State, D3DMATRIX* pMatrix)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::MultiplyTransform(D3DTRANSFORMSTATETYPE, CONST D3DMATRIX*)
+HRESULT D3DGLDevice::MultiplyTransform(D3DTRANSFORMSTATETYPE, CONST D3DMATRIX*)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetViewport(CONST D3DVIEWPORT9* pViewport)
+HRESULT D3DGLDevice::SetViewport(CONST D3DVIEWPORT9* pViewport)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetViewport(D3DVIEWPORT9* pViewport)
+HRESULT D3DGLDevice::GetViewport(D3DVIEWPORT9* pViewport)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetMaterial(const D3DMATERIAL9 *material)
+HRESULT D3DGLDevice::SetMaterial(const D3DMATERIAL9 *material)
 {
     FIXME("iface %p, material %p : stub!\n", this, material);
     mQueue.lock();
@@ -750,7 +750,7 @@ HRESULT Direct3DGLDevice::SetMaterial(const D3DMATERIAL9 *material)
     return D3D_OK;
 }
 
-HRESULT Direct3DGLDevice::GetMaterial(D3DMATERIAL9 *material)
+HRESULT D3DGLDevice::GetMaterial(D3DMATERIAL9 *material)
 {
     FIXME("iface %p, material %p : stub!\n", this, material);
     mQueue.lock();
@@ -759,43 +759,43 @@ HRESULT Direct3DGLDevice::GetMaterial(D3DMATERIAL9 *material)
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetLight(DWORD Index, CONST D3DLIGHT9*)
+HRESULT D3DGLDevice::SetLight(DWORD Index, CONST D3DLIGHT9*)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetLight(DWORD Index, D3DLIGHT9*)
+HRESULT D3DGLDevice::GetLight(DWORD Index, D3DLIGHT9*)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::LightEnable(DWORD Index, WINBOOL Enable)
+HRESULT D3DGLDevice::LightEnable(DWORD Index, WINBOOL Enable)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetLightEnable(DWORD Index, WINBOOL* pEnable)
+HRESULT D3DGLDevice::GetLightEnable(DWORD Index, WINBOOL* pEnable)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetClipPlane(DWORD Index, CONST float* pPlane)
+HRESULT D3DGLDevice::SetClipPlane(DWORD Index, CONST float* pPlane)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetClipPlane(DWORD Index, float* pPlane)
+HRESULT D3DGLDevice::GetClipPlane(DWORD Index, float* pPlane)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
+HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
 {
     FIXME("iface %p, state %s, value 0x%lx : stub!\n", this, d3drs_to_str(state), value);
 
@@ -810,7 +810,7 @@ HRESULT Direct3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetRenderState(D3DRENDERSTATETYPE state, DWORD *value)
+HRESULT D3DGLDevice::GetRenderState(D3DRENDERSTATETYPE state, DWORD *value)
 {
     FIXME("iface %p, state %s, value %p : stub!\n", this, d3drs_to_str(state), value);
 
@@ -824,361 +824,361 @@ HRESULT Direct3DGLDevice::GetRenderState(D3DRENDERSTATETYPE state, DWORD *value)
     return D3D_OK;
 }
 
-HRESULT Direct3DGLDevice::CreateStateBlock(D3DSTATEBLOCKTYPE Type, IDirect3DStateBlock9** ppSB)
+HRESULT D3DGLDevice::CreateStateBlock(D3DSTATEBLOCKTYPE Type, IDirect3DStateBlock9** ppSB)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::BeginStateBlock()
+HRESULT D3DGLDevice::BeginStateBlock()
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::EndStateBlock(IDirect3DStateBlock9** ppSB)
+HRESULT D3DGLDevice::EndStateBlock(IDirect3DStateBlock9** ppSB)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetClipStatus(CONST D3DCLIPSTATUS9* pClipStatus)
+HRESULT D3DGLDevice::SetClipStatus(CONST D3DCLIPSTATUS9* pClipStatus)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetClipStatus(D3DCLIPSTATUS9* pClipStatus)
+HRESULT D3DGLDevice::GetClipStatus(D3DCLIPSTATUS9* pClipStatus)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetTexture(DWORD Stage, IDirect3DBaseTexture9** ppTexture)
+HRESULT D3DGLDevice::GetTexture(DWORD Stage, IDirect3DBaseTexture9** ppTexture)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetTexture(DWORD Stage, IDirect3DBaseTexture9* pTexture)
+HRESULT D3DGLDevice::SetTexture(DWORD Stage, IDirect3DBaseTexture9* pTexture)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetTextureStageState(DWORD stage, D3DTEXTURESTAGESTATETYPE type, DWORD *value)
+HRESULT D3DGLDevice::GetTextureStageState(DWORD stage, D3DTEXTURESTAGESTATETYPE type, DWORD *value)
 {
     FIXME("iface %p, stage %lu, type %s, value %p : stub!\n", this, stage, d3dtss_to_str(type), value);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetTextureStageState(DWORD stage, D3DTEXTURESTAGESTATETYPE type, DWORD value)
+HRESULT D3DGLDevice::SetTextureStageState(DWORD stage, D3DTEXTURESTAGESTATETYPE type, DWORD value)
 {
     FIXME("iface %p, stage %lu, type %s, value 0x%lx : stub!\n", this, stage, d3dtss_to_str(type), value);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DWORD *value)
+HRESULT D3DGLDevice::GetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DWORD *value)
 {
     FIXME("iface %p, sampler %lu, type %s, value %p : stub!\n", this, sampler, d3dsamp_to_str(type), value);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DWORD value)
+HRESULT D3DGLDevice::SetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DWORD value)
 {
     FIXME("iface %p, sampler %lu, type %s, value 0x%lx : stub!\n", this, sampler, d3dsamp_to_str(type), value);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::ValidateDevice(DWORD* pNumPasses)
+HRESULT D3DGLDevice::ValidateDevice(DWORD* pNumPasses)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetPaletteEntries(UINT PaletteNumber, CONST PALETTEENTRY* pEntries)
+HRESULT D3DGLDevice::SetPaletteEntries(UINT PaletteNumber, CONST PALETTEENTRY* pEntries)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetPaletteEntries(UINT PaletteNumber,PALETTEENTRY* pEntries)
+HRESULT D3DGLDevice::GetPaletteEntries(UINT PaletteNumber,PALETTEENTRY* pEntries)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetCurrentTexturePalette(UINT PaletteNumber)
+HRESULT D3DGLDevice::SetCurrentTexturePalette(UINT PaletteNumber)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetCurrentTexturePalette(UINT *PaletteNumber)
+HRESULT D3DGLDevice::GetCurrentTexturePalette(UINT *PaletteNumber)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetScissorRect(CONST RECT* pRect)
+HRESULT D3DGLDevice::SetScissorRect(CONST RECT* pRect)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetScissorRect(RECT* pRect)
+HRESULT D3DGLDevice::GetScissorRect(RECT* pRect)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetSoftwareVertexProcessing(WINBOOL bSoftware)
+HRESULT D3DGLDevice::SetSoftwareVertexProcessing(WINBOOL bSoftware)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-WINBOOL Direct3DGLDevice::GetSoftwareVertexProcessing()
+WINBOOL D3DGLDevice::GetSoftwareVertexProcessing()
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetNPatchMode(float nSegments)
+HRESULT D3DGLDevice::SetNPatchMode(float nSegments)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-float Direct3DGLDevice::GetNPatchMode()
+float D3DGLDevice::GetNPatchMode()
 {
     FIXME("iface %p : stub!\n", this);
     return 0.0f;
 }
 
-HRESULT Direct3DGLDevice::DrawPrimitive(D3DPRIMITIVETYPE PrimitiveType, UINT StartVertex, UINT PrimitiveCount)
+HRESULT D3DGLDevice::DrawPrimitive(D3DPRIMITIVETYPE PrimitiveType, UINT StartVertex, UINT PrimitiveCount)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE, INT BaseVertexIndex, UINT MinVertexIndex, UINT NumVertices, UINT startIndex, UINT primCount)
+HRESULT D3DGLDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE, INT BaseVertexIndex, UINT MinVertexIndex, UINT NumVertices, UINT startIndex, UINT primCount)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE PrimitiveType, UINT PrimitiveCount, CONST void* pVertexStreamZeroData, UINT VertexStreamZeroStride)
+HRESULT D3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE PrimitiveType, UINT PrimitiveCount, CONST void* pVertexStreamZeroData, UINT VertexStreamZeroStride)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::DrawIndexedPrimitiveUP(D3DPRIMITIVETYPE PrimitiveType, UINT MinVertexIndex, UINT NumVertices, UINT PrimitiveCount, CONST void* pIndexData, D3DFORMAT IndexDataFormat, CONST void* pVertexStreamZeroData, UINT VertexStreamZeroStride)
+HRESULT D3DGLDevice::DrawIndexedPrimitiveUP(D3DPRIMITIVETYPE PrimitiveType, UINT MinVertexIndex, UINT NumVertices, UINT PrimitiveCount, CONST void* pIndexData, D3DFORMAT IndexDataFormat, CONST void* pVertexStreamZeroData, UINT VertexStreamZeroStride)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::ProcessVertices(UINT SrcStartIndex, UINT DestIndex, UINT VertexCount, IDirect3DVertexBuffer9* pDestBuffer, IDirect3DVertexDeclaration9* pVertexDecl, DWORD Flags)
+HRESULT D3DGLDevice::ProcessVertices(UINT SrcStartIndex, UINT DestIndex, UINT VertexCount, IDirect3DVertexBuffer9* pDestBuffer, IDirect3DVertexDeclaration9* pVertexDecl, DWORD Flags)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::CreateVertexDeclaration(CONST D3DVERTEXELEMENT9* pVertexElements, IDirect3DVertexDeclaration9** ppDecl)
+HRESULT D3DGLDevice::CreateVertexDeclaration(CONST D3DVERTEXELEMENT9* pVertexElements, IDirect3DVertexDeclaration9** ppDecl)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9* pDecl)
+HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9* pDecl)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetVertexDeclaration(IDirect3DVertexDeclaration9** ppDecl)
+HRESULT D3DGLDevice::GetVertexDeclaration(IDirect3DVertexDeclaration9** ppDecl)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetFVF(DWORD FVF)
+HRESULT D3DGLDevice::SetFVF(DWORD FVF)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetFVF(DWORD* pFVF)
+HRESULT D3DGLDevice::GetFVF(DWORD* pFVF)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::CreateVertexShader(CONST DWORD* pFunction, IDirect3DVertexShader9** ppShader)
+HRESULT D3DGLDevice::CreateVertexShader(CONST DWORD* pFunction, IDirect3DVertexShader9** ppShader)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetVertexShader(IDirect3DVertexShader9* pShader)
+HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9* pShader)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetVertexShader(IDirect3DVertexShader9** ppShader)
+HRESULT D3DGLDevice::GetVertexShader(IDirect3DVertexShader9** ppShader)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetVertexShaderConstantF(UINT StartRegister, CONST float* pConstantData, UINT Vector4fCount)
+HRESULT D3DGLDevice::SetVertexShaderConstantF(UINT StartRegister, CONST float* pConstantData, UINT Vector4fCount)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetVertexShaderConstantF(UINT StartRegister, float* pConstantData, UINT Vector4fCount)
+HRESULT D3DGLDevice::GetVertexShaderConstantF(UINT StartRegister, float* pConstantData, UINT Vector4fCount)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetVertexShaderConstantI(UINT StartRegister, CONST int* pConstantData, UINT Vector4iCount)
+HRESULT D3DGLDevice::SetVertexShaderConstantI(UINT StartRegister, CONST int* pConstantData, UINT Vector4iCount)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetVertexShaderConstantI(UINT StartRegister, int* pConstantData, UINT Vector4iCount)
+HRESULT D3DGLDevice::GetVertexShaderConstantI(UINT StartRegister, int* pConstantData, UINT Vector4iCount)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetVertexShaderConstantB(UINT StartRegister, CONST WINBOOL* pConstantData, UINT  BoolCount)
+HRESULT D3DGLDevice::SetVertexShaderConstantB(UINT StartRegister, CONST WINBOOL* pConstantData, UINT  BoolCount)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetVertexShaderConstantB(UINT StartRegister, WINBOOL* pConstantData, UINT BoolCount)
+HRESULT D3DGLDevice::GetVertexShaderConstantB(UINT StartRegister, WINBOOL* pConstantData, UINT BoolCount)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetStreamSource(UINT StreamNumber, IDirect3DVertexBuffer9* pStreamData, UINT OffsetInBytes, UINT Stride)
+HRESULT D3DGLDevice::SetStreamSource(UINT StreamNumber, IDirect3DVertexBuffer9* pStreamData, UINT OffsetInBytes, UINT Stride)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetStreamSource(UINT StreamNumber, IDirect3DVertexBuffer9** ppStreamData, UINT* OffsetInBytes, UINT* pStride)
+HRESULT D3DGLDevice::GetStreamSource(UINT StreamNumber, IDirect3DVertexBuffer9** ppStreamData, UINT* OffsetInBytes, UINT* pStride)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetStreamSourceFreq(UINT StreamNumber, UINT Divider)
+HRESULT D3DGLDevice::SetStreamSourceFreq(UINT StreamNumber, UINT Divider)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetStreamSourceFreq(UINT StreamNumber, UINT* Divider)
+HRESULT D3DGLDevice::GetStreamSourceFreq(UINT StreamNumber, UINT* Divider)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetIndices(IDirect3DIndexBuffer9* pIndexData)
+HRESULT D3DGLDevice::SetIndices(IDirect3DIndexBuffer9* pIndexData)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetIndices(IDirect3DIndexBuffer9** ppIndexData)
+HRESULT D3DGLDevice::GetIndices(IDirect3DIndexBuffer9** ppIndexData)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::CreatePixelShader(CONST DWORD* pFunction, IDirect3DPixelShader9** ppShader)
+HRESULT D3DGLDevice::CreatePixelShader(CONST DWORD* pFunction, IDirect3DPixelShader9** ppShader)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetPixelShader(IDirect3DPixelShader9* pShader)
+HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9* pShader)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetPixelShader(IDirect3DPixelShader9** ppShader)
+HRESULT D3DGLDevice::GetPixelShader(IDirect3DPixelShader9** ppShader)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetPixelShaderConstantF(UINT StartRegister, CONST float* pConstantData, UINT Vector4fCount)
+HRESULT D3DGLDevice::SetPixelShaderConstantF(UINT StartRegister, CONST float* pConstantData, UINT Vector4fCount)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetPixelShaderConstantF(UINT StartRegister, float* pConstantData, UINT Vector4fCount)
+HRESULT D3DGLDevice::GetPixelShaderConstantF(UINT StartRegister, float* pConstantData, UINT Vector4fCount)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetPixelShaderConstantI(UINT StartRegister, CONST int* pConstantData, UINT Vector4iCount)
+HRESULT D3DGLDevice::SetPixelShaderConstantI(UINT StartRegister, CONST int* pConstantData, UINT Vector4iCount)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetPixelShaderConstantI(UINT StartRegister, int* pConstantData, UINT Vector4iCount)
+HRESULT D3DGLDevice::GetPixelShaderConstantI(UINT StartRegister, int* pConstantData, UINT Vector4iCount)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::SetPixelShaderConstantB(UINT StartRegister, CONST WINBOOL* pConstantData, UINT  BoolCount)
+HRESULT D3DGLDevice::SetPixelShaderConstantB(UINT StartRegister, CONST WINBOOL* pConstantData, UINT  BoolCount)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::GetPixelShaderConstantB(UINT StartRegister, WINBOOL* pConstantData, UINT BoolCount)
+HRESULT D3DGLDevice::GetPixelShaderConstantB(UINT StartRegister, WINBOOL* pConstantData, UINT BoolCount)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::DrawRectPatch(UINT Handle, CONST float* pNumSegs, CONST D3DRECTPATCH_INFO* pRectPatchInfo)
+HRESULT D3DGLDevice::DrawRectPatch(UINT Handle, CONST float* pNumSegs, CONST D3DRECTPATCH_INFO* pRectPatchInfo)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::DrawTriPatch(UINT Handle, CONST float* pNumSegs, CONST D3DTRIPATCH_INFO* pTriPatchInfo)
+HRESULT D3DGLDevice::DrawTriPatch(UINT Handle, CONST float* pNumSegs, CONST D3DTRIPATCH_INFO* pTriPatchInfo)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::DeletePatch(UINT Handle)
+HRESULT D3DGLDevice::DeletePatch(UINT Handle)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;
 }
 
-HRESULT Direct3DGLDevice::CreateQuery(D3DQUERYTYPE Type, IDirect3DQuery9** ppQuery)
+HRESULT D3DGLDevice::CreateQuery(D3DQUERYTYPE Type, IDirect3DQuery9** ppQuery)
 {
     FIXME("iface %p : stub!\n", this);
     return E_NOTIMPL;

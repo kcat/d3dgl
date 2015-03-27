@@ -11,10 +11,10 @@
 #include "commandqueue.hpp"
 
 
-class Direct3DGLSwapChain;
-class Direct3DGLRenderTarget;
+class D3DGLSwapChain;
+class D3DGLRenderTarget;
 
-class Direct3DGLDevice : public IDirect3DDevice9 {
+class D3DGLDevice : public IDirect3DDevice9 {
     std::atomic<ULONG> mRefCount;
 
     ref_ptr<Direct3DGL> mParent;
@@ -28,8 +28,8 @@ class Direct3DGLDevice : public IDirect3DDevice9 {
     const HWND mWindow;
     const DWORD mFlags;
 
-    Direct3DGLRenderTarget *mAutoDepthStencil;
-    std::vector<Direct3DGLSwapChain*> mSwapchains;
+    D3DGLRenderTarget *mAutoDepthStencil;
+    std::vector<D3DGLSwapChain*> mSwapchains;
 
     std::atomic<IDirect3DSurface9*> mDepthStencil;
 
@@ -37,8 +37,8 @@ class Direct3DGLDevice : public IDirect3DDevice9 {
     D3DMATERIAL9 mMaterial;
 
 public:
-    Direct3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags);
-    virtual ~Direct3DGLDevice();
+    D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags);
+    virtual ~D3DGLDevice();
 
     bool init(D3DPRESENT_PARAMETERS *params);
 

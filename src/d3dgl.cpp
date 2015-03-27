@@ -449,7 +449,7 @@ HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND window, 
         ERR("Unhandled flags: 0x%lx\n", UnknownFlags);
 
 
-    Direct3DGLDevice *device = new Direct3DGLDevice(this, gAdapterList[adapter], window, flags);
+    D3DGLDevice *device = new D3DGLDevice(this, gAdapterList[adapter], window, flags);
     if(!device->init(params))
     {
         delete device;

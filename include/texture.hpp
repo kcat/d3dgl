@@ -9,14 +9,14 @@
 
 
 struct GLFormatInfo;
-class Direct3DGLDevice;
+class D3DGLDevice;
 class D3DGLTextureSurface;
 
-class Direct3DGLTexture : public IDirect3DTexture9 {
+class D3DGLTexture : public IDirect3DTexture9 {
     std::atomic<ULONG> mRefCount;
     std::atomic<ULONG> mIfaceCount;
 
-    Direct3DGLDevice *mParent;
+    D3DGLDevice *mParent;
 
     const GLFormatInfo *mGLFormat;
     bool mIsCompressed;
@@ -38,8 +38,8 @@ class Direct3DGLTexture : public IDirect3DTexture9 {
     friend class D3DGLTextureSurface;
 
 public:
-    Direct3DGLTexture(Direct3DGLDevice *parent);
-    virtual ~Direct3DGLTexture();
+    D3DGLTexture(D3DGLDevice *parent);
+    virtual ~D3DGLTexture();
 
     bool init(const D3DSURFACE_DESC *desc, UINT levels);
     void updateTexture(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr);

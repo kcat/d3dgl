@@ -5,19 +5,19 @@
 #include <d3d9.h>
 
 
-class Direct3DGLDevice;
+class D3DGLDevice;
 
-class Direct3DGLRenderTarget : public IDirect3DSurface9 {
+class D3DGLRenderTarget : public IDirect3DSurface9 {
     std::atomic<ULONG> mRefCount;
 
-    Direct3DGLDevice *mParent;
+    D3DGLDevice *mParent;
 
     D3DSURFACE_DESC mDesc;
     bool mIsAuto;
 
 public:
-    Direct3DGLRenderTarget(Direct3DGLDevice *parent);
-    virtual ~Direct3DGLRenderTarget();
+    D3DGLRenderTarget(D3DGLDevice *parent);
+    virtual ~D3DGLRenderTarget();
 
     bool init(const D3DSURFACE_DESC *desc, bool isauto=false);
 
