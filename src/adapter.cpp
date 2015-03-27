@@ -1333,5 +1333,44 @@ UINT D3DAdapter::getModeCount(D3DFORMAT format) const
     return i;
 }
 
+HRESULT D3DAdapter::getModeInfo(D3DFORMAT format, UINT mode, D3DDISPLAYMODE *info) const
+{
+    DWORD bpp;
+    if(format == D3DFMT_X8R8G8B8) bpp = 32;
+    else if(format == D3DFMT_R5G6B5) bpp = 16;
+    else if(format == D3DFMT_X1R5G5B5) bpp = 15;
+    else
+    {
+        ERR("Unhandled format: %s\n", d3dfmt_to_str(format));
+        return D3DERR_INVALIDCALL;
+    }
+
+    DEVMODEW m;
+    memset(&m, 0, sizeof(m));
+    m.dmSize = sizeof(m);
+
+    UINT i = 0;
+    int j = 0;
+    while(i <= mode && EnumDisplaySettingsW(mDeviceName.c_str(), j++, &m))
+    {
+        if(m.dmBitsPerPel == bpp)
+        {
+            if(i++ == mode)
+            {
+                info->Width = m.dmPelsWidth;
+                info->Height = m.dmPelsHeight;
+                info->RefreshRate = 0;
+                if((m.dmFields&DM_DISPLAYFREQUENCY))
+                    info->RefreshRate = m.dmDisplayFrequency;
+                info->Format = format;
+                return D3D_OK;
+            }
+        }
+    }
+
+    WARN("Mode %u out of range for format %s (max: %u)\n", mode, d3dfmt_to_str(format), i);
+    return D3DERR_INVALIDCALL;
+}
+
 
 std::vector<D3DAdapter> gAdapterList;

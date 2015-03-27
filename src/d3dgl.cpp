@@ -251,8 +251,12 @@ UINT Direct3DGL::GetAdapterModeCount(UINT adapter, D3DFORMAT format)
 
 HRESULT Direct3DGL::EnumAdapterModes(UINT adapter, D3DFORMAT format, UINT mode, D3DDISPLAYMODE *displayMode)
 {
-    FIXME("iface %p, adapter %u, format 0x%x, mode %u, displayMode %p stub!\n", this, adapter, format, mode, displayMode);
-    return E_NOTIMPL;
+    TRACE("iface %p, adapter %u, format 0x%x, mode %u, displayMode %p\n", this, adapter, format, mode, displayMode);
+
+    if(adapter >= gAdapterList.size())
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, gAdapterList.size());
+
+    return gAdapterList[adapter].getModeInfo(format, mode, displayMode);
 }
 
 HRESULT Direct3DGL::GetAdapterDisplayMode(UINT adapter, D3DDISPLAYMODE *displayMode)

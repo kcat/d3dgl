@@ -83,6 +83,7 @@ public:
     DWORD getUsage(DWORD restype, D3DFORMAT format) const;
 
     UINT getModeCount(D3DFORMAT format) const;
+    HRESULT getModeInfo(D3DFORMAT format, UINT mode, D3DDISPLAYMODE *info) const;
 };
 extern std::vector<D3DAdapter> gAdapterList;
 
