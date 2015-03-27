@@ -608,16 +608,15 @@ HRESULT D3DGLDevice::CreateTexture(UINT width, UINT height, UINT levels, DWORD u
     return hr;
 }
 
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-HRESULT D3DGLDevice::CreateVolumeTexture(UINT Width, UINT Height, UINT Depth, UINT Levels, DWORD Usage, D3DFORMAT Format, D3DPOOL Pool, IDirect3DVolumeTexture9** ppVolumeTexture, HANDLE* pSharedHandle)
+HRESULT D3DGLDevice::CreateVolumeTexture(UINT width, UINT height, UINT depth, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DVolumeTexture9 **texture, HANDLE *handle)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, width %u, height %u, depth %u, levels %u, usage 0x%lx, format %s, pool 0x%x, texture %p, handle %p : stub!\n", this, width, height, depth, levels, usage, d3dfmt_to_str(format), pool, texture, handle);
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::CreateCubeTexture(UINT EdgeLength, UINT Levels, DWORD Usage, D3DFORMAT Format, D3DPOOL Pool, IDirect3DCubeTexture9** ppCubeTexture, HANDLE* pSharedHandle)
+HRESULT D3DGLDevice::CreateCubeTexture(UINT edgeLength, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DCubeTexture9 **texture, HANDLE *handle)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, edgeLength %u, levels %u, usage 0x%lx, format %s, pool 0x%x, texture %p, handle %p : stub!\n", this, edgeLength, levels, usage, d3dfmt_to_str(format), pool, texture, handle);
     return E_NOTIMPL;
 }
 
@@ -675,6 +674,7 @@ HRESULT D3DGLDevice::CreateIndexBuffer(UINT length, DWORD usage, D3DFORMAT forma
     return D3D_OK;
 }
 
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 HRESULT D3DGLDevice::CreateRenderTarget(UINT Width, UINT Height, D3DFORMAT Format, D3DMULTISAMPLE_TYPE MultiSample, DWORD MultisampleQuality, WINBOOL Lockable, IDirect3DSurface9** ppSurface, HANDLE* pSharedHandle)
 {
     FIXME("iface %p : stub!\n", this);
