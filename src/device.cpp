@@ -12,6 +12,7 @@
 #include "rendertarget.hpp"
 #include "adapter.hpp"
 #include "texture.hpp"
+#include "bufferobject.hpp"
 
 
 namespace
@@ -620,16 +621,58 @@ HRESULT D3DGLDevice::CreateCubeTexture(UINT EdgeLength, UINT Levels, DWORD Usage
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::CreateVertexBuffer(UINT Length, DWORD Usage, DWORD FVF, D3DPOOL Pool, IDirect3DVertexBuffer9** ppVertexBuffer, HANDLE* pSharedHandle)
+HRESULT D3DGLDevice::CreateVertexBuffer(UINT length, DWORD usage, DWORD fvf, D3DPOOL pool, IDirect3DVertexBuffer9 **vbuffer, HANDLE *handle)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, length %u, usage 0x%lx, fvf 0x%lx, pool 0x%x, vbuffer %p, handle %p\n", this, length, usage, fvf, pool, vbuffer, handle);
+
+    if(handle)
+    {
+        WARN("Non-NULL handle specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+    if(!vbuffer)
+    {
+        WARN("NULL vertex buffer storage specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    D3DGLBufferObject *vbuf = new D3DGLBufferObject(this, D3DGLBufferObject::VBO);
+    if(!vbuf->init_vbo(length, usage, fvf, pool))
+    {
+        delete vbuf;
+        return D3DERR_INVALIDCALL;
+    }
+
+    *vbuffer = vbuf;
+    (*vbuffer)->AddRef();
+    return D3D_OK;
 }
 
-HRESULT D3DGLDevice::CreateIndexBuffer(UINT Length, DWORD Usage, D3DFORMAT Format, D3DPOOL Pool, IDirect3DIndexBuffer9** ppIndexBuffer, HANDLE* pSharedHandle)
+HRESULT D3DGLDevice::CreateIndexBuffer(UINT length, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DIndexBuffer9 **ibuffer, HANDLE *handle)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, length %u, usage 0x%lx, format %s, pool 0x%x, vbuffer %p, handle %p\n", this, length, usage, d3dfmt_to_str(format), pool, ibuffer, handle);
+
+    if(handle)
+    {
+        WARN("Non-NULL handle specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+    if(!ibuffer)
+    {
+        WARN("NULL index buffer storage specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    D3DGLBufferObject *ibuf = new D3DGLBufferObject(this, D3DGLBufferObject::IBO);
+    if(!ibuf->init_ibo(length, usage, format, pool))
+    {
+        delete ibuf;
+        return D3DERR_INVALIDCALL;
+    }
+
+    *ibuffer = ibuf;
+    (*ibuffer)->AddRef();
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::CreateRenderTarget(UINT Width, UINT Height, D3DFORMAT Format, D3DMULTISAMPLE_TYPE MultiSample, DWORD MultisampleQuality, WINBOOL Lockable, IDirect3DSurface9** ppSurface, HANDLE* pSharedHandle)

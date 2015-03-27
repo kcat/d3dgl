@@ -47,6 +47,7 @@ endif()
 
 set(HDRS  include/swapchain.hpp
           include/rendertarget.hpp
+          include/bufferobject.hpp
           include/texture.hpp
           include/device.hpp
           include/adapter.hpp
@@ -58,6 +59,7 @@ set(HDRS  include/swapchain.hpp
 
 set(SRCS  src/swapchain.cpp
           src/rendertarget.cpp
+          src/bufferobject.cpp
           src/texture.cpp
           src/device.cpp
           src/adapter.cpp
