@@ -377,7 +377,7 @@ ULONG D3DGLDevice::Release(void)
 HRESULT D3DGLDevice::TestCooperativeLevel()
 {
     FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    return D3D_OK;
 }
 
 UINT D3DGLDevice::GetAvailableTextureMem()
@@ -479,7 +479,29 @@ UINT D3DGLDevice::GetNumberOfSwapChains()
 HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
 {
     FIXME("iface %p, params %p : stub!\n", this, params);
-    return E_NOTIMPL;
+
+    FIXME("Resetting device with parameters:\n"
+          "\tBackBufferWidth            = %u\n"
+          "\tBackBufferHeight           = %u\n"
+          "\tBackBufferFormat           = %s\n"
+          "\tBackBufferCount            = %u\n"
+          "\tMultiSampleType            = 0x%x\n"
+          "\tMultiSampleQuality         = %lu\n"
+          "\tSwapEffect                 = 0x%x\n"
+          "\thDeviceWindow              = %p\n"
+          "\tWindowed                   = %d\n"
+          "\tEnableAutoDepthStencil     = %d\n"
+          "\tAutoDepthStencilFormat     = %s\n"
+          "\tFlags                      = 0x%lx\n"
+          "\tFullScreen_RefreshRateInHz = %u\n"
+          "\tPresentationInterval       = 0x%x\n",
+          params->BackBufferWidth, params->BackBufferHeight, d3dfmt_to_str(params->BackBufferFormat),
+          params->BackBufferCount, params->MultiSampleType, params->MultiSampleQuality,
+          params->SwapEffect, params->hDeviceWindow, params->Windowed,
+          params->EnableAutoDepthStencil, d3dfmt_to_str(params->AutoDepthStencilFormat),
+          params->Flags, params->FullScreen_RefreshRateInHz, params->PresentationInterval);
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::Present(const RECT *srcRect, const RECT *dstRect, HWND dstWindowOverride, const RGNDATA *dirtyRegion)
