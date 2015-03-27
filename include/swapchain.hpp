@@ -18,6 +18,7 @@ class D3DGLSwapChain : public IDirect3DSwapChain9 {
     std::vector<D3DGLBackbufferSurface*> mBackbuffers;
     D3DPRESENT_PARAMETERS mParams;
     HWND mWindow;
+    HDC mDevCtx;
     bool mIsAuto;
 
     void addIface();
@@ -30,7 +31,8 @@ public:
     virtual ~D3DGLSwapChain();
 
     bool init(const D3DPRESENT_PARAMETERS *params, HWND window, bool isauto=false);
-    void checkDelete();
+
+    void swapBuffersGL();
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;

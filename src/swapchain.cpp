@@ -36,11 +36,31 @@ public:
 };
 
 
+void D3DGLSwapChain::swapBuffersGL()
+{
+    if(!SwapBuffers(mDevCtx))
+        ERR("Failed to swap buffers, error: 0x%lx\n", GetLastError());
+}
+class SwapchainSwapBuffers : public Command {
+    D3DGLSwapChain *mTarget;
+
+public:
+    SwapchainSwapBuffers(D3DGLSwapChain *target) : mTarget(target) { }
+
+    virtual ULONG execute()
+    {
+        mTarget->swapBuffersGL();
+        return sizeof(*this);
+    }
+};
+
+
 D3DGLSwapChain::D3DGLSwapChain(D3DGLDevice *parent)
   : mRefCount(0)
   , mIfaceCount(0)
   , mParent(parent)
   , mWindow(nullptr)
+  , mDevCtx(nullptr)
   , mIsAuto(false)
 {
 }
@@ -52,6 +72,9 @@ D3DGLSwapChain::~D3DGLSwapChain()
     for(auto surface : mBackbuffers)
         delete surface;
     mBackbuffers.clear();
+
+    if(mDevCtx)
+        ReleaseDC(mWindow, mDevCtx);
 }
 
 bool D3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window, bool isauto)
@@ -60,6 +83,13 @@ bool D3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window, bool
     mParams = *params;
     mWindow = window;
     mIsAuto = isauto;
+
+    mDevCtx = GetDC(mWindow);
+    if(!mDevCtx)
+    {
+        ERR("Failed to get DC for windows, error: 0x%lx\n", GetLastError());
+        return false;
+    }
 
     mBackbuffers.push_back(new D3DGLBackbufferSurface(this));
 
@@ -123,8 +153,24 @@ ULONG D3DGLSwapChain::Release()
 
 HRESULT D3DGLSwapChain::Present(const RECT *srcRect, const RECT *dstRect, HWND dstWindowOverride, const RGNDATA *dirtyRegion, DWORD flags)
 {
-    FIXME("iface %p, srcRect %p, dstRect %p, dstWindowOverride %p, dirtyRegion %p, flags 0x%lx : stub!\n", this, srcRect, dstRect, dstWindowOverride, dirtyRegion, flags);
-    return E_NOTIMPL;
+    TRACE("iface %p, srcRect %p, dstRect %p, dstWindowOverride %p, dirtyRegion %p, flags 0x%lx\n", this, srcRect, dstRect, dstWindowOverride, dirtyRegion, flags);
+
+    if(srcRect || dstRect)
+        ERR("Rectangled present not handled\n");
+
+    if(dstWindowOverride)
+    {
+        ERR("Destination window override not handled\n");
+        return D3D_OK;
+    }
+    if(dirtyRegion)
+        WARN("Dirty region ignored\n");
+    if(flags)
+        ERR("Ignoring flags 0x%lx\n", flags);
+
+    CommandQueue &queue = mParent->getQueue();
+    queue.send<SwapchainSwapBuffers>(this);
+    return D3D_OK;
 }
 
 HRESULT D3DGLSwapChain::GetFrontBufferData(IDirect3DSurface9 *dstSurface)
