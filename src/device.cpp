@@ -215,6 +215,7 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mFlags(flags)
   , mAutoDepthStencil(nullptr)
   , mDepthStencil(nullptr)
+  , mInScene(false)
 {
     std::copy(DefaultRSValues.begin(), DefaultRSValues.end(), mRenderState.begin());
     mRenderState[D3DRS_POINTSIZE_MAX] = float_to_dword(mAdapter.getLimits().pointsize_max);
@@ -717,14 +718,31 @@ HRESULT D3DGLDevice::GetDepthStencilSurface(IDirect3DSurface9 **depthstencil)
 
 HRESULT D3DGLDevice::BeginScene()
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p : semi-stub\n", this);
+
+    if(mInScene.exchange(true))
+    {
+        ERR("Already in scene\n");
+        return D3DERR_INVALIDCALL;
+    }
+    // TODO: Prepare any GL state? Depends on what's allowed or not to be
+    // called within a 'scene'.
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::EndScene()
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p : semi-stub\n", this);
+
+    if(!mInScene.exchange(false))
+    {
+        ERR("Not in scene\n");
+        return D3DERR_INVALIDCALL;
+    }
+    // TODO: Flush GL?
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::Clear(DWORD Count, CONST D3DRECT* pRects, DWORD Flags, D3DCOLOR Color, float Z, DWORD Stencil)

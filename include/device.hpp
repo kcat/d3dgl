@@ -35,6 +35,7 @@ class D3DGLDevice : public IDirect3DDevice9 {
 
     std::array<std::atomic<DWORD>,210> mRenderState;
     D3DMATERIAL9 mMaterial;
+    std::atomic<bool> mInScene;
 
 public:
     D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags);
