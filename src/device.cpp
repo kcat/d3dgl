@@ -391,12 +391,9 @@ HRESULT D3DGLDevice::QueryInterface(const IID &riid, void **obj)
 {
     TRACE("iface %p, riid %s, obj %p.\n", this, debugstr_guid(riid), obj);
 
-    if(riid == IID_IDirect3DDevice9 || riid == IID_IUnknown)
-    {
-        AddRef();
-        *obj = static_cast<IDirect3DDevice9*>(this);
-        return S_OK;
-    }
+    *obj = NULL;
+    RETURN_IF_IID_TYPE(obj, riid, IDirect3DDevice9);
+    RETURN_IF_IID_TYPE(obj, riid, IUnknown);
 
     if(riid == IID_IDirect3DDevice9Ex)
     {
@@ -405,8 +402,6 @@ HRESULT D3DGLDevice::QueryInterface(const IID &riid, void **obj)
         return E_NOINTERFACE;
     }
 
-    WARN("%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(riid));
-    *obj = NULL;
     return E_NOINTERFACE;
 }
 

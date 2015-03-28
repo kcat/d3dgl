@@ -161,12 +161,10 @@ HRESULT Direct3DGL::QueryInterface(REFIID riid, void **obj)
 {
     TRACE("iface %p, riid %s, obj %p\n", this, debugstr_guid(riid), obj);
 
-    if(riid == IID_IDirect3D9 || riid == IID_IUnknown)
-    {
-        AddRef();
-        *obj = static_cast<IDirect3D9*>(this);
-        return S_OK;
-    }
+    *obj = nullptr;
+    RETURN_IF_IID_TYPE(obj, riid, IDirect3D9);
+    RETURN_IF_IID_TYPE(obj, riid, IUnknown);
+
     if(riid == IID_IDirect3D9Ex)
     {
         FIXME("Application asks for IDirect3D9Ex, but this instance wasn't created with Direct3DCreate9Ex.\n");
@@ -174,9 +172,6 @@ HRESULT Direct3DGL::QueryInterface(REFIID riid, void **obj)
         return E_NOINTERFACE;
     }
 
-    WARN("%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid(riid));
-
-    *obj = nullptr;
     return E_NOINTERFACE;
 }
 
@@ -318,8 +313,23 @@ HRESULT Direct3DGL::CheckDeviceFormat(UINT adapter, D3DDEVTYPE devType, D3DFORMA
 
 HRESULT Direct3DGL::CheckDeviceMultiSampleType(UINT adapter, D3DDEVTYPE devType, D3DFORMAT surfaceFormat, WINBOOL windowed, D3DMULTISAMPLE_TYPE multiSampleType, DWORD *qualityLevels)
 {
-    FIXME("iface %p, adapter %u, devType 0x%x, surfaceFormat 0x%x, windowed %u, multiSampleType 0x%x, qualityLevels %p stub!\n", this, adapter, devType, surfaceFormat, windowed, multiSampleType, qualityLevels);
-    return E_NOTIMPL;
+    TRACE("iface %p, adapter %u, devType 0x%x, surfaceFormat 0x%x, windowed %u, multiSampleType 0x%x, qualityLevels %p : semi-stub\n", this, adapter, devType, surfaceFormat, windowed, multiSampleType, qualityLevels);
+
+    if(adapter >= gAdapterList.size())
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, gAdapterList.size());
+    if(devType != D3DDEVTYPE_HAL)
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Non-HAL type 0x%x not supported\n", devType);
+
+    if(multiSampleType != D3DMULTISAMPLE_NONE)
+    {
+        ERR("Multisampling not currently supported\n");
+        if(qualityLevels) *qualityLevels = 0;
+        return D3DERR_NOTAVAILABLE;
+    }
+
+    if(qualityLevels)
+        *qualityLevels = 0;
+    return D3D_OK;
 }
 
 HRESULT Direct3DGL::CheckDepthStencilMatch(UINT adapter, D3DDEVTYPE devType, D3DFORMAT adapterFormat, D3DFORMAT renderTargetFormat, D3DFORMAT depthStencilFormat)
