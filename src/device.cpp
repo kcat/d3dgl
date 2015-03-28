@@ -254,6 +254,12 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
         return false;
     }
 
+    if(!(mAdapter.getUsage(D3DRTYPE_SURFACE, params->BackBufferFormat)&D3DUSAGE_RENDERTARGET))
+    {
+        WARN("Format %s is not a valid rendertarget format\n", d3dfmt_to_str(params->BackBufferFormat));
+        return false;
+    }
+
     std::vector<std::array<int,2>> glattrs;
     glattrs.reserve(16);
     glattrs.push_back({WGL_DRAW_TO_WINDOW_ARB, GL_TRUE});
@@ -264,6 +270,12 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
         return false;
     if(params->EnableAutoDepthStencil)
     {
+        if(!(mAdapter.getUsage(D3DRTYPE_SURFACE, params->AutoDepthStencilFormat)&D3DUSAGE_DEPTHSTENCIL))
+        {
+            WARN("Format %s is not a valid depthstencil format\n", d3dfmt_to_str(params->AutoDepthStencilFormat));
+            return false;
+        }
+
         if(!fmt_to_glattrs(params->AutoDepthStencilFormat, std::back_inserter(glattrs)))
             return false;
     }
@@ -317,10 +329,10 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
     mSwapchains.push_back(schain);
 
     // Set the default backbuffer and depth-stencil surface. Note that they do
-    // not start with any reference counts, which means that their refcounts
-    // will wrap if the targets are changed without the app getting a reference
-    // to them. This is generally okay, since they won't be deleted until the
-    // device is anyway.
+    // not start with any reference count, which means that their refcounts
+    // will underflow if the targets are changed without the app getting a
+    // reference to them. This is generally okay, since they won't be deleted
+    // until the device is anyway.
     IDirect3DSurface9 *surface;
     HRESULT hr = schain->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &surface);
     if(FAILED(hr)) return false;
