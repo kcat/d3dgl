@@ -13,6 +13,7 @@
 
 class D3DGLSwapChain;
 class D3DGLRenderTarget;
+class D3DGLBufferObject;
 
 class D3DGLDevice : public IDirect3DDevice9 {
     std::atomic<ULONG> mRefCount;
@@ -37,6 +38,15 @@ class D3DGLDevice : public IDirect3DDevice9 {
     std::array<std::atomic<DWORD>,210> mRenderState;
     D3DMATERIAL9 mMaterial;
     std::atomic<bool> mInScene;
+
+    struct StreamSource {
+        D3DGLBufferObject *mBuffer;
+        UINT mOffset;
+        UINT mStride;
+        StreamSource() : mBuffer(0), mOffset(0), mStride(0) { }
+    };
+    std::array<StreamSource,MAX_STREAMS> mStreams;
+    std::atomic<D3DGLBufferObject*> mIndexBuffer;
 
 public:
     D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags);

@@ -30,9 +30,11 @@ public:
     D3DGLSwapChain(D3DGLDevice *parent);
     virtual ~D3DGLSwapChain();
 
+    void swapBuffersGL();
+
     bool init(const D3DPRESENT_PARAMETERS *params, HWND window, bool isauto=false);
 
-    void swapBuffersGL();
+    D3DGLBackbufferSurface *getBackbuffer() { return mBackbuffers[0]; }
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;

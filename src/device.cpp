@@ -13,6 +13,7 @@
 #include "adapter.hpp"
 #include "texture.hpp"
 #include "bufferobject.hpp"
+#include "private_iids.hpp"
 
 
 namespace
@@ -218,6 +219,7 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mSwapchains{nullptr}
   , mDepthStencil(nullptr)
   , mInScene(false)
+  , mIndexBuffer(nullptr)
 {
     for(auto &rt : mRenderTargets) rt = nullptr;
     std::copy(DefaultRSValues.begin(), DefaultRSValues.end(), mRenderState.begin());
@@ -336,12 +338,7 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
     // will underflow if the targets are changed without the app getting a
     // reference to them. This is generally okay, since they won't be deleted
     // until the device is anyway.
-    IDirect3DSurface9 *surface;
-    HRESULT hr = schain->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &surface);
-    if(FAILED(hr)) return false;
-    mRenderTargets[0] = surface;
-    surface->Release();
-    surface = nullptr;
+    mRenderTargets[0] = schain->getBackbuffer();
 
     if(params->EnableAutoDepthStencil)
     {
@@ -1241,37 +1238,86 @@ HRESULT D3DGLDevice::GetVertexShaderConstantB(UINT StartRegister, WINBOOL* pCons
 HRESULT D3DGLDevice::SetStreamSource(UINT index, IDirect3DVertexBuffer9 *stream, UINT offset, UINT stride)
 {
     FIXME("iface %p, index %u, stream %p, offset %u, stride %u : stub!\n", this, index, stream, offset, stride);
-    return E_NOTIMPL;
+
+    if(index >= mStreams.size())
+    {
+        WARN("Stream index out of range (%u >= %u)\n", index, mStreams.size());
+        return D3DERR_INVALIDCALL;
+    }
+
+    D3DGLBufferObject *buffer = nullptr;
+    if(stream)
+    {
+        HRESULT hr;
+        hr = stream->QueryInterface(IID_D3DGLBufferObject, (void**)&buffer);
+        if(FAILED(hr)) return D3DERR_INVALIDCALL;
+    }
+
+    if(mStreams[index].mBuffer)
+        mStreams[index].mBuffer->Release();
+    mStreams[index].mBuffer = buffer;
+    mStreams[index].mOffset = offset;
+    mStreams[index].mStride = stride;
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::GetStreamSource(UINT index, IDirect3DVertexBuffer9 **stream, UINT *offset, UINT *stride)
 {
     FIXME("iface %p, index %u, stream %p, offset %p, stride %p : stub!\n", this, index, stream, offset, stride);
+
+    if(index >= mStreams.size())
+    {
+        WARN("Stream index out of range (%u >= %u)\n", index, mStreams.size());
+        return D3DERR_INVALIDCALL;
+    }
+
+    *stream = mStreams[index].mBuffer;
+    if(*stream) (*stream)->AddRef();
+    *offset = mStreams[index].mOffset;
+    *stride = mStreams[index].mStride;
+
+    return D3D_OK;
+}
+
+HRESULT D3DGLDevice::SetStreamSourceFreq(UINT index, UINT divisor)
+{
+    FIXME("iface %p, index %u, divisor %u : stub!\n", this, index, divisor);
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::SetStreamSourceFreq(UINT StreamNumber, UINT Divider)
+HRESULT D3DGLDevice::GetStreamSourceFreq(UINT index, UINT *divisor)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, index %u, divisor %p : stub!\n", this, index, divisor);
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::GetStreamSourceFreq(UINT StreamNumber, UINT* Divider)
+HRESULT D3DGLDevice::SetIndices(IDirect3DIndexBuffer9 *index)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    FIXME("iface %p, index %p : stub!\n", this, index);
+
+    D3DGLBufferObject *buffer = nullptr;
+    if(index)
+    {
+        HRESULT hr;
+        hr = index->QueryInterface(IID_D3DGLBufferObject, (void**)&buffer);
+        if(FAILED(hr)) return D3DERR_INVALIDCALL;
+    }
+
+    buffer = mIndexBuffer.exchange(buffer);
+    if(buffer) buffer->Release();
+
+    return D3D_OK;
 }
 
-HRESULT D3DGLDevice::SetIndices(IDirect3DIndexBuffer9* pIndexData)
+HRESULT D3DGLDevice::GetIndices(IDirect3DIndexBuffer9 **index)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
-}
+    FIXME("iface %p, index %p : stub!\n", this, index);
 
-HRESULT D3DGLDevice::GetIndices(IDirect3DIndexBuffer9** ppIndexData)
-{
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    *index = mIndexBuffer.load();
+    if(*index) (*index)->AddRef();
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::CreatePixelShader(CONST DWORD* pFunction, IDirect3DPixelShader9** ppShader)
