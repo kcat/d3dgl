@@ -47,25 +47,24 @@ public:
     bool init();
 
     /*** IUnknown methods ***/
-    virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj);
-    virtual ULONG WINAPI AddRef(void);
-    virtual ULONG WINAPI Release(void);
-
+    virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;
+    virtual ULONG WINAPI AddRef() final;
+    virtual ULONG WINAPI Release() final;
     /*** IDirect3D9 methods ***/
-    virtual HRESULT WINAPI RegisterSoftwareDevice(void *initFunction);
-    virtual UINT WINAPI GetAdapterCount(void);
-    virtual HRESULT WINAPI GetAdapterIdentifier(UINT adapter, DWORD flags, D3DADAPTER_IDENTIFIER9 *identifier);
-    virtual UINT WINAPI GetAdapterModeCount(UINT adapter, D3DFORMAT format);
-    virtual HRESULT WINAPI EnumAdapterModes(UINT adapter, D3DFORMAT format, UINT mode, D3DDISPLAYMODE *displayMode);
-    virtual HRESULT WINAPI GetAdapterDisplayMode(UINT adapter, D3DDISPLAYMODE *displayMode);
-    virtual HRESULT WINAPI CheckDeviceType(UINT adapter, D3DDEVTYPE devType, D3DFORMAT displayFormat, D3DFORMAT backBufferFormat, WINBOOL windowed);
-    virtual HRESULT WINAPI CheckDeviceFormat(UINT adapter, D3DDEVTYPE devType, D3DFORMAT adapterFormat, DWORD usage, D3DRESOURCETYPE resType, D3DFORMAT checkFormat);
-    virtual HRESULT WINAPI CheckDeviceMultiSampleType(UINT adapter, D3DDEVTYPE devType, D3DFORMAT surfaceFormat, WINBOOL windowed, D3DMULTISAMPLE_TYPE multiSampleType, DWORD *qualityLevels);
-    virtual HRESULT WINAPI CheckDepthStencilMatch(UINT adapter, D3DDEVTYPE devType, D3DFORMAT adapterFormat, D3DFORMAT renderTargetFormat, D3DFORMAT depthStencilFormat);
-    virtual HRESULT WINAPI CheckDeviceFormatConversion(UINT adapter, D3DDEVTYPE devType, D3DFORMAT srcFormat, D3DFORMAT dstFormat);
-    virtual HRESULT WINAPI GetDeviceCaps(UINT adapter, D3DDEVTYPE devType, D3DCAPS9 *caps);
-    virtual HMONITOR WINAPI GetAdapterMonitor(UINT adapter);
-    virtual HRESULT WINAPI CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND focusWindow, DWORD behaviorFlags, D3DPRESENT_PARAMETERS *presentParams, struct IDirect3DDevice9 **iface);
+    virtual HRESULT WINAPI RegisterSoftwareDevice(void *initFunction) final;
+    virtual UINT WINAPI GetAdapterCount(void) final;
+    virtual HRESULT WINAPI GetAdapterIdentifier(UINT adapter, DWORD flags, D3DADAPTER_IDENTIFIER9 *identifier) final;
+    virtual UINT WINAPI GetAdapterModeCount(UINT adapter, D3DFORMAT format) final;
+    virtual HRESULT WINAPI EnumAdapterModes(UINT adapter, D3DFORMAT format, UINT mode, D3DDISPLAYMODE *displayMode) final;
+    virtual HRESULT WINAPI GetAdapterDisplayMode(UINT adapter, D3DDISPLAYMODE *displayMode) final;
+    virtual HRESULT WINAPI CheckDeviceType(UINT adapter, D3DDEVTYPE devType, D3DFORMAT displayFormat, D3DFORMAT backBufferFormat, WINBOOL windowed) final;
+    virtual HRESULT WINAPI CheckDeviceFormat(UINT adapter, D3DDEVTYPE devType, D3DFORMAT adapterFormat, DWORD usage, D3DRESOURCETYPE resType, D3DFORMAT checkFormat) final;
+    virtual HRESULT WINAPI CheckDeviceMultiSampleType(UINT adapter, D3DDEVTYPE devType, D3DFORMAT surfaceFormat, WINBOOL windowed, D3DMULTISAMPLE_TYPE multiSampleType, DWORD *qualityLevels) final;
+    virtual HRESULT WINAPI CheckDepthStencilMatch(UINT adapter, D3DDEVTYPE devType, D3DFORMAT adapterFormat, D3DFORMAT renderTargetFormat, D3DFORMAT depthStencilFormat) final;
+    virtual HRESULT WINAPI CheckDeviceFormatConversion(UINT adapter, D3DDEVTYPE devType, D3DFORMAT srcFormat, D3DFORMAT dstFormat) final;
+    virtual HRESULT WINAPI GetDeviceCaps(UINT adapter, D3DDEVTYPE devType, D3DCAPS9 *caps) final;
+    virtual HMONITOR WINAPI GetAdapterMonitor(UINT adapter) final;
+    virtual HRESULT WINAPI CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND focusWindow, DWORD behaviorFlags, D3DPRESENT_PARAMETERS *presentParams, struct IDirect3DDevice9 **iface) final;
 };
 
 #endif /* D3DGL_HPP */

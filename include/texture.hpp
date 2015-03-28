@@ -52,31 +52,31 @@ public:
     void loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr);
 
     /*** IUnknown methods ***/
-    virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj);
-    virtual ULONG WINAPI AddRef();
-    virtual ULONG WINAPI Release();
+    virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;
+    virtual ULONG WINAPI AddRef() final;
+    virtual ULONG WINAPI Release() final;
     /*** IDirect3DResource9 methods ***/
-    virtual HRESULT WINAPI GetDevice(IDirect3DDevice9 **device);
-    virtual HRESULT WINAPI SetPrivateData(REFGUID refguid, const void *data, DWORD size, DWORD flags);
-    virtual HRESULT WINAPI GetPrivateData(REFGUID refguid, void *data, DWORD *size);
-    virtual HRESULT WINAPI FreePrivateData(REFGUID refguid);
-    virtual DWORD WINAPI SetPriority(DWORD priority);
-    virtual DWORD WINAPI GetPriority();
-    virtual void WINAPI PreLoad();
-    virtual D3DRESOURCETYPE WINAPI GetType();
+    virtual HRESULT WINAPI GetDevice(IDirect3DDevice9 **device) final;
+    virtual HRESULT WINAPI SetPrivateData(REFGUID refguid, const void *data, DWORD size, DWORD flags) final;
+    virtual HRESULT WINAPI GetPrivateData(REFGUID refguid, void *data, DWORD *size) final;
+    virtual HRESULT WINAPI FreePrivateData(REFGUID refguid) final;
+    virtual DWORD WINAPI SetPriority(DWORD priority) final;
+    virtual DWORD WINAPI GetPriority() final;
+    virtual void WINAPI PreLoad() final;
+    virtual D3DRESOURCETYPE WINAPI GetType() final;
     /*** IDirect3DBaseTexture9 methods ***/
-    virtual DWORD WINAPI SetLOD(DWORD lod);
-    virtual DWORD WINAPI GetLOD();
-    virtual DWORD WINAPI GetLevelCount();
-    virtual HRESULT WINAPI SetAutoGenFilterType(D3DTEXTUREFILTERTYPE type);
-    virtual D3DTEXTUREFILTERTYPE WINAPI GetAutoGenFilterType();
-    virtual void WINAPI GenerateMipSubLevels();
+    virtual DWORD WINAPI SetLOD(DWORD lod) final;
+    virtual DWORD WINAPI GetLOD() final;
+    virtual DWORD WINAPI GetLevelCount() final;
+    virtual HRESULT WINAPI SetAutoGenFilterType(D3DTEXTUREFILTERTYPE type) final;
+    virtual D3DTEXTUREFILTERTYPE WINAPI GetAutoGenFilterType() final;
+    virtual void WINAPI GenerateMipSubLevels() final;
     /*** IDirect3DTexture9 methods ***/
-    virtual HRESULT WINAPI GetLevelDesc(UINT level, D3DSURFACE_DESC *desc);
-    virtual HRESULT WINAPI GetSurfaceLevel(UINT level, IDirect3DSurface9 **surface);
-    virtual HRESULT WINAPI LockRect(UINT level, D3DLOCKED_RECT *lockedRect, const RECT *rect, DWORD flags);
-    virtual HRESULT WINAPI UnlockRect(UINT level);
-    virtual HRESULT WINAPI AddDirtyRect(const RECT *rect);
+    virtual HRESULT WINAPI GetLevelDesc(UINT level, D3DSURFACE_DESC *desc) final;
+    virtual HRESULT WINAPI GetSurfaceLevel(UINT level, IDirect3DSurface9 **surface) final;
+    virtual HRESULT WINAPI LockRect(UINT level, D3DLOCKED_RECT *lockedRect, const RECT *rect, DWORD flags) final;
+    virtual HRESULT WINAPI UnlockRect(UINT level) final;
+    virtual HRESULT WINAPI AddDirtyRect(const RECT *rect) final;
 };
 
 
@@ -107,25 +107,25 @@ public:
     UINT getDataLength() const { return mDataLength; }
 
     /*** IUnknown methods ***/
-    virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj);
-    virtual ULONG WINAPI AddRef();
-    virtual ULONG WINAPI Release();
+    virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;
+    virtual ULONG WINAPI AddRef() final;
+    virtual ULONG WINAPI Release() final;
     /*** IDirect3DResource9 methods ***/
-    virtual HRESULT WINAPI GetDevice(IDirect3DDevice9 **device);
-    virtual HRESULT WINAPI SetPrivateData(REFGUID refguid, const void *data, DWORD size, DWORD flags);
-    virtual HRESULT WINAPI GetPrivateData(REFGUID refguid, void *data, DWORD *size);
-    virtual HRESULT WINAPI FreePrivateData(REFGUID refguid);
-    virtual DWORD WINAPI SetPriority(DWORD priority);
-    virtual DWORD WINAPI GetPriority();
-    virtual void WINAPI PreLoad();
-    virtual D3DRESOURCETYPE WINAPI GetType();
+    virtual HRESULT WINAPI GetDevice(IDirect3DDevice9 **device) final;
+    virtual HRESULT WINAPI SetPrivateData(REFGUID refguid, const void *data, DWORD size, DWORD flags) final;
+    virtual HRESULT WINAPI GetPrivateData(REFGUID refguid, void *data, DWORD *size) final;
+    virtual HRESULT WINAPI FreePrivateData(REFGUID refguid) final;
+    virtual DWORD WINAPI SetPriority(DWORD priority) final;
+    virtual DWORD WINAPI GetPriority() final;
+    virtual void WINAPI PreLoad() final;
+    virtual D3DRESOURCETYPE WINAPI GetType() final;
     /*** IDirect3DSurface9 methods ***/
-    virtual HRESULT WINAPI GetContainer(REFIID riid, void **container);
-    virtual HRESULT WINAPI GetDesc(D3DSURFACE_DESC *desc);
-    virtual HRESULT WINAPI LockRect(D3DLOCKED_RECT *lockedRect, const RECT *rect, DWORD flags);
-    virtual HRESULT WINAPI UnlockRect();
-    virtual HRESULT WINAPI GetDC(HDC *hdc);
-    virtual HRESULT WINAPI ReleaseDC(HDC hdc);
+    virtual HRESULT WINAPI GetContainer(REFIID riid, void **container) final;
+    virtual HRESULT WINAPI GetDesc(D3DSURFACE_DESC *desc) final;
+    virtual HRESULT WINAPI LockRect(D3DLOCKED_RECT *lockedRect, const RECT *rect, DWORD flags) final;
+    virtual HRESULT WINAPI UnlockRect() final;
+    virtual HRESULT WINAPI GetDC(HDC *hdc) final;
+    virtual HRESULT WINAPI ReleaseDC(HDC hdc) final;
 };
 
 #endif /* TEXTURE_HPP */

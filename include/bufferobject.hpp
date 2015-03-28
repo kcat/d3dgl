@@ -49,25 +49,25 @@ public:
     bool init_ibo(UINT length, DWORD usage, D3DFORMAT format, D3DPOOL pool);
 
     /*** IUnknown methods ***/
-    virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj);
-    virtual ULONG WINAPI AddRef();
-    virtual ULONG WINAPI Release();
+    virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;
+    virtual ULONG WINAPI AddRef() final;
+    virtual ULONG WINAPI Release() final;
     /*** IDirect3DResource9 methods ***/
-    virtual HRESULT WINAPI GetDevice(IDirect3DDevice9 **device);
-    virtual HRESULT WINAPI SetPrivateData(REFGUID refguid, const void *data, DWORD size, DWORD flags);
-    virtual HRESULT WINAPI GetPrivateData(REFGUID refguid, void *data, DWORD *size);
-    virtual HRESULT WINAPI FreePrivateData(REFGUID refguid);
-    virtual DWORD WINAPI SetPriority(DWORD priority);
-    virtual DWORD WINAPI GetPriority();
-    virtual void WINAPI PreLoad();
-    virtual D3DRESOURCETYPE WINAPI GetType();
+    virtual HRESULT WINAPI GetDevice(IDirect3DDevice9 **device) final;
+    virtual HRESULT WINAPI SetPrivateData(REFGUID refguid, const void *data, DWORD size, DWORD flags) final;
+    virtual HRESULT WINAPI GetPrivateData(REFGUID refguid, void *data, DWORD *size) final;
+    virtual HRESULT WINAPI FreePrivateData(REFGUID refguid) final;
+    virtual DWORD WINAPI SetPriority(DWORD priority) final;
+    virtual DWORD WINAPI GetPriority() final;
+    virtual void WINAPI PreLoad() final;
+    virtual D3DRESOURCETYPE WINAPI GetType() final;
     /*** IDirect3DVertexBuffer9/IDirect3DIndexBuffer9 methods ***/
-    virtual HRESULT WINAPI Lock(UINT offset, UINT length, void **data, DWORD flags);
-    virtual HRESULT WINAPI Unlock();
+    virtual HRESULT WINAPI Lock(UINT offset, UINT length, void **data, DWORD flags) final;
+    virtual HRESULT WINAPI Unlock() final;
     /*** IDirect3DVertexBuffer9 methods ***/
-    virtual HRESULT WINAPI GetDesc(D3DVERTEXBUFFER_DESC *desc);
+    virtual HRESULT WINAPI GetDesc(D3DVERTEXBUFFER_DESC *desc) final;
     /*** IDirect3DIndexBuffer9 methods ***/
-    virtual HRESULT WINAPI GetDesc(D3DINDEXBUFFER_DESC *desc);
+    virtual HRESULT WINAPI GetDesc(D3DINDEXBUFFER_DESC *desc) final;
 };
 
 #endif /* BUFFEROBJECT_HPP */
