@@ -5,6 +5,7 @@
 #include <d3d9.h>
 
 
+struct GLFormatInfo;
 class D3DGLDevice;
 
 class D3DGLRenderTarget : public IDirect3DSurface9 {
@@ -12,6 +13,7 @@ class D3DGLRenderTarget : public IDirect3DSurface9 {
 
     D3DGLDevice *mParent;
 
+    const GLFormatInfo *mGLFormat;
     D3DSURFACE_DESC mDesc;
     bool mIsAuto;
 

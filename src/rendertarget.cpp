@@ -8,6 +8,7 @@
 D3DGLRenderTarget::D3DGLRenderTarget(D3DGLDevice *parent)
   : mRefCount(0)
   , mParent(parent)
+  , mGLFormat(nullptr)
   , mIsAuto(false)
 {
 }
@@ -20,6 +21,18 @@ bool D3DGLRenderTarget::init(const D3DSURFACE_DESC *desc, bool isauto)
 {
     mDesc = *desc;
     mIsAuto = isauto;
+
+    auto fmtinfo = gFormatList.find(mDesc.Format);
+    if(fmtinfo == gFormatList.end())
+    {
+        ERR("Failed to find info for format %s\n", d3dfmt_to_str(mDesc.Format));
+        return false;
+    }
+    mGLFormat = &fmtinfo->second;
+
+    // TODO: For non-auto rendertargets, create a Renderbuffer and add to the
+    // device's list of render surfaces.
+
     return true;
 }
 
