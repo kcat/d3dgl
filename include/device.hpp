@@ -31,6 +31,7 @@ class D3DGLDevice : public IDirect3DDevice9 {
     D3DGLRenderTarget *mAutoDepthStencil;
     std::vector<D3DGLSwapChain*> mSwapchains;
 
+    std::array<std::atomic<IDirect3DSurface9*>,D3D_MAX_SIMULTANEOUS_RENDERTARGETS> mRenderTargets;
     std::atomic<IDirect3DSurface9*> mDepthStencil;
 
     std::array<std::atomic<DWORD>,210> mRenderState;

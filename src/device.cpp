@@ -218,6 +218,7 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mDepthStencil(nullptr)
   , mInScene(false)
 {
+    for(auto &rt : mRenderTargets) rt = nullptr;
     std::copy(DefaultRSValues.begin(), DefaultRSValues.end(), mRenderState.begin());
     mRenderState[D3DRS_POINTSIZE_MAX] = float_to_dword(mAdapter.getLimits().pointsize_max);
 }
@@ -314,6 +315,18 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
         return false;
     }
     mSwapchains.push_back(schain);
+
+    // Set the default backbuffer and depth-stencil surface. Note that they do
+    // not start with any reference counts, which means that their refcounts
+    // will wrap if the targets are changed without the app getting a reference
+    // to them. This is generally okay, since they won't be deleted until the
+    // device is anyway.
+    IDirect3DSurface9 *surface;
+    HRESULT hr = schain->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &surface);
+    if(FAILED(hr)) return false;
+    mRenderTargets[0] = surface;
+    surface->Release();
+    surface = nullptr;
 
     if(params->EnableAutoDepthStencil)
     {
@@ -729,16 +742,45 @@ HRESULT D3DGLDevice::CreateOffscreenPlainSurface(UINT Width, UINT Height, D3DFOR
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::SetRenderTarget(DWORD RenderTargetIndex, IDirect3DSurface9* pRenderTarget)
+HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rendertarget)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    FIXME("iface %p, index %lu, rendertarget %p : semi-stub\n", this, index, rendertarget);
+
+    if(index >= mRenderTargets.size() || index >= mAdapter.getLimits().buffers)
+    {
+        WARN("Index out of range: %lu >= %u\n", index, std::min(mRenderTargets.size(), mAdapter.getLimits().buffers));
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(index == 0 && !rendertarget)
+    {
+        WARN("Cannot set render target #0 to null\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(rendertarget)
+        rendertarget->AddRef();
+    rendertarget = mRenderTargets[index].exchange(rendertarget);
+    if(rendertarget)
+        rendertarget->Release();
+
+    return D3D_OK;
 }
 
-HRESULT D3DGLDevice::GetRenderTarget(DWORD RenderTargetIndex, IDirect3DSurface9** ppRenderTarget)
+HRESULT D3DGLDevice::GetRenderTarget(DWORD index, IDirect3DSurface9 **rendertarget)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    FIXME("iface %p, index %lu, rendertarget %p\n", this, index, rendertarget);
+
+    if(index >= mRenderTargets.size() || index >= mAdapter.getLimits().buffers)
+    {
+        WARN("Index out of range: %lu >= %u\n", index, std::min(mRenderTargets.size(), mAdapter.getLimits().buffers));
+        return D3DERR_INVALIDCALL;
+    }
+
+    *rendertarget = mRenderTargets[index].load();
+    if(*rendertarget) (*rendertarget)->AddRef();
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
