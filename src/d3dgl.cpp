@@ -7,6 +7,7 @@
 #include "trace.hpp"
 #include "device.hpp"
 #include "adapter.hpp"
+#include "private_iids.hpp"
 
 
 #define WARN_AND_RETURN(val, ...) do { \
@@ -17,10 +18,6 @@
 
 namespace
 {
-
-/* The d3d device ID */
-static const GUID IID_D3DDEVICE_D3DUID = GUID{ 0xaeb2cdd4, 0x6e41, 0x43ea, { 0x94,0x1c,0x83,0x61,0xcc,0x76,0x07,0x81 } };
-
 
 void init_adapters(void)
 {

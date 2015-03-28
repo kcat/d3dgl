@@ -1,3 +1,4 @@
+#define INITGUID
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -10,6 +11,7 @@
 #include "glew.h"
 #include "trace.hpp"
 #include "d3dgl.hpp"
+#include "private_iids.hpp"
 
 
 #define DECLSPEC_HOTPATCH __attribute__((__ms_hook_prologue__))

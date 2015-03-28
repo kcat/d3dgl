@@ -55,6 +55,7 @@ set(HDRS  include/swapchain.hpp
           include/trace.hpp
           include/commandqueue.hpp
           include/misc.hpp
+          include/private_iids.hpp
 )
 
 set(SRCS  src/swapchain.cpp
