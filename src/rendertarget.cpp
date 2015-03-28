@@ -3,6 +3,7 @@
 
 #include "trace.hpp"
 #include "device.hpp"
+#include "private_iids.hpp"
 
 
 D3DGLRenderTarget::D3DGLRenderTarget(D3DGLDevice *parent)
@@ -42,18 +43,10 @@ HRESULT D3DGLRenderTarget::QueryInterface(REFIID riid, void **obj)
     TRACE("iface %p, riid %s, obj %p\n", this, debugstr_guid(riid), obj);
 
     *obj = NULL;
-    if(riid == IID_IUnknown || riid == IID_IDirect3DSurface9)
-    {
-        AddRef();
-        *obj = static_cast<IDirect3DSurface9*>(this);
-        return D3D_OK;
-    }
-    if(riid == IID_IDirect3DResource9)
-    {
-        AddRef();
-        *obj = static_cast<IDirect3DResource9*>(this);
-        return D3D_OK;
-    }
+    RETURN_IF_IID_TYPE(obj, riid, D3DGLRenderTarget);
+    RETURN_IF_IID_TYPE(obj, riid, IDirect3DSurface9);
+    RETURN_IF_IID_TYPE(obj, riid, IDirect3DResource9);
+    RETURN_IF_IID_TYPE(obj, riid, IUnknown);
 
     return E_NOINTERFACE;
 }

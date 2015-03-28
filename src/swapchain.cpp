@@ -2,38 +2,7 @@
 #include "swapchain.hpp"
 #include "device.hpp"
 #include "trace.hpp"
-
-
-class D3DGLBackbufferSurface : public IDirect3DSurface9 {
-    std::atomic<ULONG> mRefCount;
-
-    D3DGLSwapChain *mParent;
-
-public:
-    D3DGLBackbufferSurface(D3DGLSwapChain *parent);
-    virtual ~D3DGLBackbufferSurface();
-
-    /*** IUnknown methods ***/
-    virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj);
-    virtual ULONG WINAPI AddRef();
-    virtual ULONG WINAPI Release();
-    /*** IDirect3DResource9 methods ***/
-    virtual HRESULT WINAPI GetDevice(IDirect3DDevice9 **device);
-    virtual HRESULT WINAPI SetPrivateData(REFGUID refguid, const void *data, DWORD size, DWORD flags);
-    virtual HRESULT WINAPI GetPrivateData(REFGUID refguid, void *data, DWORD *size);
-    virtual HRESULT WINAPI FreePrivateData(REFGUID refguid);
-    virtual DWORD WINAPI SetPriority(DWORD priority);
-    virtual DWORD WINAPI GetPriority();
-    virtual void WINAPI PreLoad();
-    virtual D3DRESOURCETYPE WINAPI GetType();
-    /*** IDirect3DSurface9 methods ***/
-    virtual HRESULT WINAPI GetContainer(REFIID riid, void **container);
-    virtual HRESULT WINAPI GetDesc(D3DSURFACE_DESC *desc);
-    virtual HRESULT WINAPI LockRect(D3DLOCKED_RECT *lockedRect, const RECT *rect, DWORD flags);
-    virtual HRESULT WINAPI UnlockRect();
-    virtual HRESULT WINAPI GetDC(HDC *hdc);
-    virtual HRESULT WINAPI ReleaseDC(HDC hdc);
-};
+#include "private_iids.hpp"
 
 
 void D3DGLSwapChain::swapBuffersGL()
@@ -124,12 +93,9 @@ HRESULT D3DGLSwapChain::QueryInterface(REFIID riid, void **obj)
     TRACE("iface %p, riid %s, obj %p\n", this, debugstr_guid(riid), obj);
 
     *obj = NULL;
-    if(riid == IID_IUnknown || riid == IID_IDirect3DSwapChain9)
-    {
-        AddRef();
-        *obj = static_cast<IDirect3DSwapChain9*>(this);
-        return D3D_OK;
-    }
+    RETURN_IF_IID_TYPE(obj, riid, D3DGLSwapChain);
+    RETURN_IF_IID_TYPE(obj, riid, IDirect3DSwapChain9);
+    RETURN_IF_IID_TYPE(obj, riid, IUnknown);
 
     return E_NOINTERFACE;
 }
@@ -256,18 +222,10 @@ HRESULT D3DGLBackbufferSurface::QueryInterface(REFIID riid, void **obj)
     TRACE("iface %p, riid %s, obj %p\n", this, debugstr_guid(riid), obj);
 
     *obj = NULL;
-#define RETURN_IF_IID_TYPE(obj, riid, TYPE) do { \
-    if((riid) == IID_##TYPE)                     \
-    {                                            \
-        AddRef();                                \
-        *(obj) = static_cast<TYPE*>(this);       \
-        return D3D_OK;                           \
-    }                                            \
-} while (0)
+    RETURN_IF_IID_TYPE(obj, riid, D3DGLBackbufferSurface);
     RETURN_IF_IID_TYPE(obj, riid, IDirect3DSurface9);
     RETURN_IF_IID_TYPE(obj, riid, IDirect3DResource9);
     RETURN_IF_IID_TYPE(obj, riid, IUnknown);
-#undef RETURN_IF_IID_TYPE
 
     return E_NOINTERFACE;
 }

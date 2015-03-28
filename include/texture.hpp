@@ -79,4 +79,53 @@ public:
     virtual HRESULT WINAPI AddDirtyRect(const RECT *rect);
 };
 
+
+class D3DGLTextureSurface : public IDirect3DSurface9 {
+    std::atomic<ULONG> mRefCount;
+
+    D3DGLTexture *mParent;
+    UINT mLevel;
+
+    enum LockType {
+        LT_Unlocked,
+        LT_ReadOnly,
+        LT_Full
+    };
+    std::atomic<LockType> mLock;
+    RECT mLockRegion;
+
+    UINT mDataOffset;
+    UINT mDataLength;
+
+    GLubyte *mScratchMem;
+
+public:
+    D3DGLTextureSurface(D3DGLTexture *parent, UINT level);
+    virtual ~D3DGLTextureSurface();
+
+    void init(UINT offset, UINT length);
+    UINT getDataLength() const { return mDataLength; }
+
+    /*** IUnknown methods ***/
+    virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj);
+    virtual ULONG WINAPI AddRef();
+    virtual ULONG WINAPI Release();
+    /*** IDirect3DResource9 methods ***/
+    virtual HRESULT WINAPI GetDevice(IDirect3DDevice9 **device);
+    virtual HRESULT WINAPI SetPrivateData(REFGUID refguid, const void *data, DWORD size, DWORD flags);
+    virtual HRESULT WINAPI GetPrivateData(REFGUID refguid, void *data, DWORD *size);
+    virtual HRESULT WINAPI FreePrivateData(REFGUID refguid);
+    virtual DWORD WINAPI SetPriority(DWORD priority);
+    virtual DWORD WINAPI GetPriority();
+    virtual void WINAPI PreLoad();
+    virtual D3DRESOURCETYPE WINAPI GetType();
+    /*** IDirect3DSurface9 methods ***/
+    virtual HRESULT WINAPI GetContainer(REFIID riid, void **container);
+    virtual HRESULT WINAPI GetDesc(D3DSURFACE_DESC *desc);
+    virtual HRESULT WINAPI LockRect(D3DLOCKED_RECT *lockedRect, const RECT *rect, DWORD flags);
+    virtual HRESULT WINAPI UnlockRect();
+    virtual HRESULT WINAPI GetDC(HDC *hdc);
+    virtual HRESULT WINAPI ReleaseDC(HDC hdc);
+};
+
 #endif /* TEXTURE_HPP */

@@ -2,6 +2,7 @@
 #include "bufferobject.hpp"
 
 #include "device.hpp"
+#include "private_iids.hpp"
 
 
 D3DGLBufferObject::D3DGLBufferObject(D3DGLDevice *parent, BufferType type)
@@ -19,12 +20,10 @@ D3DGLBufferObject::D3DGLBufferObject(D3DGLDevice *parent, BufferType type)
   , mLockedLength(0)
   , mTarget(type)
 {
-    mParent->AddRef();
 }
 
 D3DGLBufferObject::~D3DGLBufferObject()
 {
-    mParent->Release();
 }
 
 bool D3DGLBufferObject::init_common(UINT length, DWORD usage, D3DPOOL pool)
@@ -115,27 +114,19 @@ HRESULT D3DGLBufferObject::QueryInterface(REFIID riid, void **obj)
     TRACE("iface %p, riid %s, obj %p\n", this, debugstr_guid(riid), obj);
 
     *obj = NULL;
-#define RETURN_IF_IID_TYPE(obj, riid, TYPE1, TYPE2) do {         \
-    if((riid) == IID_##TYPE2)                                    \
-    {                                                            \
-        AddRef();                                                \
-        *(obj) = static_cast<TYPE2*>(static_cast<TYPE1*>(this)); \
-        return D3D_OK;                                           \
-    }                                                            \
-} while (0)
+    RETURN_IF_IID_TYPE(obj, riid, D3DGLBufferObject);
     if(mFormat == D3DFMT_VERTEXDATA)
     {
-        RETURN_IF_IID_TYPE(obj, riid, IDirect3DVertexBuffer9, IDirect3DVertexBuffer9);
-        RETURN_IF_IID_TYPE(obj, riid, IDirect3DVertexBuffer9, IDirect3DResource9);
-        RETURN_IF_IID_TYPE(obj, riid, IDirect3DVertexBuffer9, IUnknown);
+        RETURN_IF_IID_TYPE2(obj, riid, IDirect3DVertexBuffer9, IDirect3DVertexBuffer9);
+        RETURN_IF_IID_TYPE2(obj, riid, IDirect3DVertexBuffer9, IDirect3DResource9);
+        RETURN_IF_IID_TYPE2(obj, riid, IDirect3DVertexBuffer9, IUnknown);
     }
     else
     {
-        RETURN_IF_IID_TYPE(obj, riid, IDirect3DIndexBuffer9, IDirect3DIndexBuffer9);
-        RETURN_IF_IID_TYPE(obj, riid, IDirect3DIndexBuffer9, IDirect3DResource9);
-        RETURN_IF_IID_TYPE(obj, riid, IDirect3DIndexBuffer9, IUnknown);
+        RETURN_IF_IID_TYPE2(obj, riid, IDirect3DIndexBuffer9, IDirect3DIndexBuffer9);
+        RETURN_IF_IID_TYPE2(obj, riid, IDirect3DIndexBuffer9, IDirect3DResource9);
+        RETURN_IF_IID_TYPE2(obj, riid, IDirect3DIndexBuffer9, IUnknown);
     }
-#undef RETURN_IF_IID_TYPE
 
     return E_NOINTERFACE;
 }

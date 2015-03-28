@@ -6,6 +6,7 @@
 #include <d3d9.h>
 
 #include "glew.h"
+#include "misc.hpp"
 
 
 class D3DGLDevice;
@@ -13,7 +14,7 @@ class D3DGLDevice;
 class D3DGLBufferObject : public IDirect3DVertexBuffer9, public IDirect3DIndexBuffer9 {
     std::atomic<ULONG> mRefCount;
 
-    D3DGLDevice *mParent;
+    ref_ptr<D3DGLDevice> mParent;
 
     UINT mLength;
     DWORD mUsage;
