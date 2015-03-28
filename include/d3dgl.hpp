@@ -9,6 +9,15 @@
 #include "glew.h"
 
 
+#define MAX_TEXTURES                8
+#define MAX_STREAMS                 16
+#define MAX_VERTEX_SAMPLERS         4
+#define MAX_FRAGMENT_SAMPLERS       16
+#define MAX_COMBINED_SAMPLERS       (MAX_FRAGMENT_SAMPLERS + MAX_VERTEX_SAMPLERS)
+
+#define D3DGL_MAX_CBS               15
+
+
 bool CreateFakeContext(HINSTANCE hInstance, HWND &hWnd, HDC &dc, HGLRC &glrc);
 
 

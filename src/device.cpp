@@ -1238,15 +1238,15 @@ HRESULT D3DGLDevice::GetVertexShaderConstantB(UINT StartRegister, WINBOOL* pCons
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::SetStreamSource(UINT StreamNumber, IDirect3DVertexBuffer9* pStreamData, UINT OffsetInBytes, UINT Stride)
+HRESULT D3DGLDevice::SetStreamSource(UINT index, IDirect3DVertexBuffer9 *stream, UINT offset, UINT stride)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, index %u, stream %p, offset %u, stride %u : stub!\n", this, index, stream, offset, stride);
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::GetStreamSource(UINT StreamNumber, IDirect3DVertexBuffer9** ppStreamData, UINT* OffsetInBytes, UINT* pStride)
+HRESULT D3DGLDevice::GetStreamSource(UINT index, IDirect3DVertexBuffer9 **stream, UINT *offset, UINT *stride)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, index %u, stream %p, offset %p, stride %p : stub!\n", this, index, stream, offset, stride);
     return E_NOTIMPL;
 }
 
