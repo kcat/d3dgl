@@ -215,6 +215,7 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mWindow(window)
   , mFlags(flags)
   , mAutoDepthStencil(nullptr)
+  , mSwapchains{nullptr}
   , mDepthStencil(nullptr)
   , mInScene(false)
 {
@@ -225,9 +226,11 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
 
 D3DGLDevice::~D3DGLDevice()
 {
-    for(auto schain : mSwapchains)
+    for(auto &schain : mSwapchains)
+    {
         delete schain;
-    mSwapchains.clear();
+        schain = nullptr;
+    }
     delete mAutoDepthStencil;
     mAutoDepthStencil = nullptr;
 
@@ -326,7 +329,7 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
         delete schain;
         return false;
     }
-    mSwapchains.push_back(schain);
+    mSwapchains[0] = schain;
 
     // Set the default backbuffer and depth-stencil surface. Note that they do
     // not start with any reference count, which means that their refcounts
@@ -527,6 +530,34 @@ HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
           params->SwapEffect, params->hDeviceWindow, params->Windowed,
           params->EnableAutoDepthStencil, d3dfmt_to_str(params->AutoDepthStencilFormat),
           params->Flags, params->FullScreen_RefreshRateInHz, params->PresentationInterval);
+
+    if(params->BackBufferCount > 1)
+    {
+        WARN("Too many backbuffers requested (%u)\n", params->BackBufferCount);
+        params->BackBufferCount = 1;
+        return D3DERR_INVALIDCALL;
+    }
+
+    if((params->Flags&D3DPRESENTFLAG_LOCKABLE_BACKBUFFER))
+    {
+        FIXME("Lockable backbuffer not currently supported\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(!(mAdapter.getUsage(D3DRTYPE_SURFACE, params->BackBufferFormat)&D3DUSAGE_RENDERTARGET))
+    {
+        WARN("Format %s is not a valid rendertarget format\n", d3dfmt_to_str(params->BackBufferFormat));
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(params->EnableAutoDepthStencil)
+    {
+        if(!(mAdapter.getUsage(D3DRTYPE_SURFACE, params->AutoDepthStencilFormat)&D3DUSAGE_DEPTHSTENCIL))
+        {
+            WARN("Format %s is not a valid depthstencil format\n", d3dfmt_to_str(params->AutoDepthStencilFormat));
+            return D3DERR_INVALIDCALL;
+        }
+    }
 
     return D3D_OK;
 }

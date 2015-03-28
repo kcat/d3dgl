@@ -303,7 +303,6 @@ D3DGLTexture::D3DGLTexture(D3DGLDevice *parent)
   , mUpdateInProgress(1)
   , mLodLevel(0)
 {
-    mParent->AddRef();
 }
 
 D3DGLTexture::~D3DGLTexture()
@@ -316,9 +315,6 @@ D3DGLTexture::~D3DGLTexture()
     for(auto surface : mSurfaces)
         delete surface;
     mSurfaces.clear();
-
-    mParent->Release();
-    mParent = nullptr;
 }
 
 

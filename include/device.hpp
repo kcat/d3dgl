@@ -29,7 +29,7 @@ class D3DGLDevice : public IDirect3DDevice9 {
     const DWORD mFlags;
 
     D3DGLRenderTarget *mAutoDepthStencil;
-    std::vector<D3DGLSwapChain*> mSwapchains;
+    std::array<D3DGLSwapChain*,1> mSwapchains;
 
     std::array<std::atomic<IDirect3DSurface9*>,D3D_MAX_SIMULTANEOUS_RENDERTARGETS> mRenderTargets;
     std::atomic<IDirect3DSurface9*> mDepthStencil;
@@ -45,7 +45,6 @@ public:
     bool init(D3DPRESENT_PARAMETERS *params);
 
     const D3DAdapter &getAdapter() const { return mAdapter; }
-
     CommandQueue &getQueue() { return mQueue; }
 
     /*** IUnknown methods ***/

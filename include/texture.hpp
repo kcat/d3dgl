@@ -6,6 +6,7 @@
 #include <d3d9.h>
 
 #include "glew.h"
+#include "misc.hpp"
 
 
 struct GLFormatInfo;
@@ -16,7 +17,7 @@ class D3DGLTexture : public IDirect3DTexture9 {
     std::atomic<ULONG> mRefCount;
     std::atomic<ULONG> mIfaceCount;
 
-    D3DGLDevice *mParent;
+    ref_ptr<D3DGLDevice> mParent;
 
     const GLFormatInfo *mGLFormat;
     bool mIsCompressed;
