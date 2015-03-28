@@ -916,7 +916,7 @@ HRESULT D3DGLDevice::MultiplyTransform(D3DTRANSFORMSTATETYPE, CONST D3DMATRIX*)
 
 HRESULT D3DGLDevice::SetViewport(const D3DVIEWPORT9 *viewport)
 {
-    FIXME("iface %p, viewport %p : stub!\n", this, viewport);
+    TRACE("iface %p, viewport %p\n", this, viewport);
 
     if(viewport->MinZ < 0.0f || viewport->MinZ > 1.0f ||
        viewport->MaxZ < 0.0f || viewport->MaxZ > 1.0f)
@@ -959,13 +959,15 @@ HRESULT D3DGLDevice::SetViewport(const D3DVIEWPORT9 *viewport)
 HRESULT D3DGLDevice::GetViewport(D3DVIEWPORT9 *viewport)
 {
     TRACE("iface %p, viewport %p\n", this, viewport);
+    mQueue.lock();
     *viewport = mViewport;
+    mQueue.unlock();
     return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetMaterial(const D3DMATERIAL9 *material)
 {
-    FIXME("iface %p, material %p : stub!\n", this, material);
+    TRACE("iface %p, material %p\n", this, material);
     mQueue.lock();
     mMaterial = *material;
     mQueue.sendAndUnlock<MaterialSet>(mMaterial);
@@ -974,7 +976,7 @@ HRESULT D3DGLDevice::SetMaterial(const D3DMATERIAL9 *material)
 
 HRESULT D3DGLDevice::GetMaterial(D3DMATERIAL9 *material)
 {
-    FIXME("iface %p, material %p : stub!\n", this, material);
+    TRACE("iface %p, material %p\n", this, material);
     mQueue.lock();
     *material = mMaterial;
     mQueue.unlock();
