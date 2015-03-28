@@ -35,6 +35,7 @@ class D3DGLDevice : public IDirect3DDevice9 {
     std::array<std::atomic<IDirect3DSurface9*>,D3D_MAX_SIMULTANEOUS_RENDERTARGETS> mRenderTargets;
     std::atomic<IDirect3DSurface9*> mDepthStencil;
 
+    D3DVIEWPORT9 mViewport;
     std::array<std::atomic<DWORD>,210> mRenderState;
     D3DMATERIAL9 mMaterial;
     std::atomic<bool> mInScene;

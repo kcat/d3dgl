@@ -205,6 +205,24 @@ public:
     }
 };
 
+class ViewportSet : public Command {
+    GLint mX, mY;
+    GLsizei mWidth, mHeight;
+    GLfloat mMinZ, mMaxZ;
+
+public:
+    ViewportSet(GLint x, GLint y, GLsizei width, GLsizei height, GLfloat minz, GLfloat maxz)
+      : mX(x), mY(y), mWidth(width), mHeight(height), mMinZ(minz), mMaxZ(maxz)
+    { }
+
+    virtual ULONG execute()
+    {
+        glViewport(mX, mY, mWidth, mHeight);
+        glDepthRange(mMinZ, mMaxZ);
+        return sizeof(*this);
+    }
+};
+
 } // namespace
 
 
@@ -357,6 +375,13 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
             return false;
         mDepthStencil = mAutoDepthStencil;
     }
+
+    mViewport.X = 0;
+    mViewport.Y = 0;
+    mViewport.Width = params->BackBufferWidth;
+    mViewport.Height = params->BackBufferHeight;
+    mViewport.MinZ = 0.0f;
+    mViewport.MaxZ = 1.0f;
 
     return true;
 }
@@ -894,16 +919,53 @@ HRESULT D3DGLDevice::MultiplyTransform(D3DTRANSFORMSTATETYPE, CONST D3DMATRIX*)
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::SetViewport(CONST D3DVIEWPORT9* pViewport)
+HRESULT D3DGLDevice::SetViewport(const D3DVIEWPORT9 *viewport)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    FIXME("iface %p, viewport %p : stub!\n", this, viewport);
+
+    if(viewport->MinZ < 0.0f || viewport->MinZ > 1.0f ||
+       viewport->MaxZ < 0.0f || viewport->MaxZ > 1.0f)
+    {
+        WARN("Invalid viewport Z range (%f -> %f)\n", viewport->MinZ, viewport->MaxZ);
+        return D3DERR_INVALIDCALL;
+    }
+
+    HRESULT hr;
+    D3DGLBackbufferSurface *surface;
+    mQueue.lock();
+    mViewport = *viewport;
+    // For on-screen rendering the viewport needs to be realigned vertically,
+    // since 0,0 is the window's lower-left in OpenGL. So it needs to set
+    // Y = WindowHeight - (vp->Y + vp->Height).
+    // The render target being a D3DGLBackbufferSurface indicates on-screen
+    // remdering, which we can then immediately query for its size. If it's
+    // not, it's an off-screen target.
+    hr = mRenderTargets[0].load()->QueryInterface(IID_D3DGLBackbufferSurface, (void**)&surface);
+    if(FAILED(hr))
+        mQueue.sendAndUnlock<ViewportSet>(mViewport.X, mViewport.Y,
+                                          std::min(mViewport.Width, 0x7ffffffful),
+                                          std::min(mViewport.Height, 0x7ffffffful),
+                                          mViewport.MinZ, mViewport.MaxZ);
+    else
+    {
+        D3DSURFACE_DESC desc;
+        surface->GetDesc(&desc);
+        mQueue.sendAndUnlock<ViewportSet>(mViewport.X,
+                                          desc.Height - (mViewport.Y+mViewport.Height),
+                                          std::min(mViewport.Width, 0x7ffffffful),
+                                          std::min(mViewport.Height, 0x7ffffffful),
+                                          mViewport.MinZ, mViewport.MaxZ);
+        surface->Release();
+    }
+
+    return D3D_OK;
 }
 
-HRESULT D3DGLDevice::GetViewport(D3DVIEWPORT9* pViewport)
+HRESULT D3DGLDevice::GetViewport(D3DVIEWPORT9 *viewport)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, viewport %p\n", this, viewport);
+    *viewport = mViewport;
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetMaterial(const D3DMATERIAL9 *material)
