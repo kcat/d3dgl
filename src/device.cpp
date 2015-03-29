@@ -160,6 +160,22 @@ std::array<DWORD,210> GenerateDefaultRSValues()
 }
 static const std::array<DWORD,210> DefaultRSValues = GenerateDefaultRSValues();
 
+static const std::array<DWORD,14> DefaultSSValues{
+    0,
+    D3DTADDRESS_WRAP,
+    D3DTADDRESS_WRAP,
+    D3DTADDRESS_WRAP,
+    0,
+    D3DTEXF_POINT,
+    D3DTEXF_POINT,
+    D3DTEXF_NONE,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0
+};
 
 class StateEnable : public Command {
     GLenum mState;
@@ -226,6 +242,41 @@ public:
 } // namespace
 
 
+void D3DGLDevice::initGL()
+{
+    glGenSamplers(mGLSamplers.size(), mGLSamplers.data());
+    checkGLError();
+
+    for(size_t i = 0;i < mGLSamplers.size();++i)
+    {
+        GLint color[4]{0, 0, 0, 0};
+        glBindSampler(i, mGLSamplers[i]);
+        glSamplerParameteri(mGLSamplers[i], GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glSamplerParameteri(mGLSamplers[i], GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glSamplerParameteri(mGLSamplers[i], GL_TEXTURE_WRAP_R, GL_REPEAT);
+        glSamplerParameteriv(mGLSamplers[i], GL_TEXTURE_BORDER_COLOR, color);
+        glSamplerParameteri(mGLSamplers[i], GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glSamplerParameteri(mGLSamplers[i], GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        if(GLEW_EXT_texture_filter_anisotropic)
+            glSamplerParameteri(mGLSamplers[i], GL_TEXTURE_MAX_ANISOTROPY_EXT, 1);
+        if(GLEW_EXT_texture_sRGB_decode)
+            glSamplerParameteri(mGLSamplers[i], GL_TEXTURE_SRGB_DECODE_EXT, GL_SKIP_DECODE_EXT);
+        checkGLError();
+    }
+}
+class InitGLDeviceCmd : public Command {
+    D3DGLDevice *mTarget;
+
+public:
+    InitGLDeviceCmd(D3DGLDevice *target) : mTarget(target) { }
+    virtual ULONG execute()
+    {
+        mTarget->initGL();
+        return sizeof(*this);
+    }
+};
+
+
 D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags)
   : mRefCount(0)
   , mParent(parent)
@@ -240,6 +291,8 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mIndexBuffer(nullptr)
 {
     for(auto &rt : mRenderTargets) rt = nullptr;
+    for(auto &ss : mSamplerState)
+        std::copy(DefaultSSValues.begin(), DefaultSSValues.end(), ss.begin());
     std::copy(DefaultRSValues.begin(), DefaultRSValues.end(), mRenderState.begin());
     mRenderState[D3DRS_POINTSIZE_MAX] = float_to_dword(mAdapter.getLimits().pointsize_max);
 }
@@ -382,6 +435,9 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
     mViewport.Height = params->BackBufferHeight;
     mViewport.MinZ = 0.0f;
     mViewport.MaxZ = 1.0f;
+
+
+    mQueue.sendSync<InitGLDeviceCmd>(this);
 
     return true;
 }

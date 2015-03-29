@@ -24,6 +24,8 @@ class D3DGLDevice : public IDirect3DDevice9 {
 
     HGLRC mGLContext;
 
+    std::array<GLuint,MAX_COMBINED_SAMPLERS> mGLSamplers;
+
     CommandQueue mQueue;
 
     const HWND mWindow;
@@ -35,8 +37,11 @@ class D3DGLDevice : public IDirect3DDevice9 {
     std::array<std::atomic<IDirect3DSurface9*>,D3D_MAX_SIMULTANEOUS_RENDERTARGETS> mRenderTargets;
     std::atomic<IDirect3DSurface9*> mDepthStencil;
 
-    D3DVIEWPORT9 mViewport;
+    typedef std::array<std::atomic<DWORD>,14> SamplerStates;
+
+    std::array<SamplerStates,MAX_COMBINED_SAMPLERS> mSamplerState;
     std::array<std::atomic<DWORD>,210> mRenderState;
+    D3DVIEWPORT9 mViewport;
     D3DMATERIAL9 mMaterial;
     std::atomic<bool> mInScene;
 
@@ -57,6 +62,8 @@ public:
 
     const D3DAdapter &getAdapter() const { return mAdapter; }
     CommandQueue &getQueue() { return mQueue; }
+
+    void initGL();
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;

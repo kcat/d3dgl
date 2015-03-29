@@ -13,6 +13,7 @@
 class Command {
 protected:
     virtual ~Command() { }
+    friend class CommandEvent;
     friend class CommandQueue;
 
 public:
@@ -31,6 +32,24 @@ public:
     CommandSkip(ULONG amt) : mSkipAmt(amt) { }
 
     virtual ULONG execute() { return mSkipAmt; }
+};
+
+class CommandEvent : public Command {
+    Command *mCommand;
+    HANDLE mHandle;
+
+public:
+    CommandEvent(Command *command, HANDLE handle)
+      : mCommand(command), mHandle(handle)
+    { }
+
+    virtual ULONG execute()
+    {
+        mCommand->execute();
+        delete mCommand;
+        SetEvent(mHandle);
+        return sizeof(*this);
+    }
 };
 
 
@@ -107,6 +126,30 @@ public:
     {
         lock();
         sendAndUnlock<T,Args...>(args...);
+    }
+
+    template<typename T, typename ...Args>
+    void sendSync(Args...args)
+    {
+        HANDLE event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+
+        send<CommandEvent>(new T(args...), event);
+
+        if(WaitForSingleObject(event, INFINITE) != WAIT_OBJECT_0)
+            ERR("Failed to wait for sync event! Error: 0x%lx\n", GetLastError());
+        CloseHandle(event);
+    }
+
+    template<typename T, typename ...Args>
+    void sendAndUnlockSync(Args...args)
+    {
+        HANDLE event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+
+        sendAndUnlock<CommandEvent>(new T(args...), event);
+
+        if(WaitForSingleObject(event, INFINITE) != WAIT_OBJECT_0)
+            ERR("Failed to wait for sync event! Error: 0x%lx\n", GetLastError());
+        CloseHandle(event);
     }
 };
 
