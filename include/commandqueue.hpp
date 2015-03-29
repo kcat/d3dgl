@@ -70,6 +70,42 @@ class CommandQueue {
     static DWORD CALLBACK thread_func(void *arg)
     { return reinterpret_cast<CommandQueue*>(arg)->run(); }
 
+    template<typename T, typename ...Args>
+    void doSend(size_t size, Args...args)
+    {
+        ULONG head = mHead.load();
+        while(1)
+        {
+            ULONG rem_size = sQueueSize - head;
+            if(rem_size < size)
+            {
+                if(rem_size >= sizeof(CommandSkip))
+                {
+                    doSend<CommandSkip>(rem_size, rem_size);
+                    head = mHead.load();
+                    rem_size = sQueueSize - head;
+                }
+                else do {
+                    doSend<CommandNoOp>(sizeof(CommandNoOp));
+                    head = mHead.load();
+                    rem_size = sQueueSize - head;
+                } while(rem_size < size);
+            }
+            if(((mTail-head-1)&sQueueMask) >= size)
+                break;
+
+            ERR("CommandQueue is full!\n");
+            SleepConditionVariableCS(&mCondVar, &mLock, INFINITE);
+            head = mHead.load();
+        }
+
+        Command *cmd = new(&mQueueData[head]) T(args...);
+        (void)cmd;
+
+        head += size;
+        mHead.store(head&sQueueMask);
+    }
+
 public:
     CommandQueue();
     ~CommandQueue();
@@ -86,37 +122,7 @@ public:
         static_assert((sizeof(T)%sizeof(Command)) == 0, "Type is not a multiple of Command!");
         static_assert(sizeof(T) < sQueueSize, "Type size is way too large!");
 
-        ULONG head = mHead.load();
-        while(1)
-        {
-            ULONG rem_size = sQueueSize - head;
-            if(rem_size < sizeof(T))
-            {
-                if(rem_size >= sizeof(CommandSkip))
-                {
-                    send<CommandSkip>(rem_size);
-                    head = mHead.load();
-                    rem_size = sQueueSize - head;
-                }
-                else do {
-                    send<CommandNoOp>();
-                    head = mHead.load();
-                    rem_size = sQueueSize - head;
-                } while(rem_size < sizeof(T));
-            }
-            if(((mTail-head-1)&sQueueMask) >= sizeof(T))
-                break;
-
-            ERR("CommandQueue is full!\n");
-            SleepConditionVariableCS(&mCondVar, &mLock, INFINITE);
-            head = mHead.load();
-        }
-
-        Command *cmd = new(&mQueueData[head]) T(args...);
-        (void)cmd;
-
-        head += sizeof(T);
-        mHead.store(head&sQueueMask);
+        doSend<T,Args...>(sizeof(T), args...);
         LeaveCriticalSection(&mLock);
         WakeAllConditionVariable(&mCondVar);
     }
