@@ -123,7 +123,7 @@ public:
         static_assert(sizeof(T) < sQueueSize, "Type size is way too large!");
 
         doSend<T,Args...>(sizeof(T), args...);
-        LeaveCriticalSection(&mLock);
+        unlock();
         WakeAllConditionVariable(&mCondVar);
     }
 
