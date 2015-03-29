@@ -100,15 +100,13 @@ void D3DGLTexture::deinitGL()
 }
 class TextureDeinitCmd : public Command {
     D3DGLTexture *mTarget;
-    HANDLE mFinished;
 
 public:
-    TextureDeinitCmd(D3DGLTexture *target, HANDLE finished) : mTarget(target), mFinished(finished) { }
+    TextureDeinitCmd(D3DGLTexture *target) : mTarget(target) { }
 
     virtual ULONG execute()
     {
         mTarget->deinitGL();
-        SetEvent(mFinished);
         return sizeof(*this);
     }
 };
@@ -259,10 +257,7 @@ D3DGLTexture::D3DGLTexture(D3DGLDevice *parent)
 
 D3DGLTexture::~D3DGLTexture()
 {
-    HANDLE finished = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-    mParent->getQueue().send<TextureDeinitCmd>(this, finished);
-    WaitForSingleObject(finished, INFINITE);
-    CloseHandle(finished);
+    mParent->getQueue().sendSync<TextureDeinitCmd>(this);
 
     for(auto surface : mSurfaces)
         delete surface;
