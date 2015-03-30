@@ -1087,12 +1087,15 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
         return D3D_OK;
     }
 
-    return E_NOTIMPL;
+    if(state < mRenderState.size())
+        mRenderState[state] = value;
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::GetRenderState(D3DRENDERSTATETYPE state, DWORD *value)
 {
-    FIXME("iface %p, state %s, value %p : stub!\n", this, d3drs_to_str(state), value);
+    TRACE("iface %p, state %s, value %p\n", this, d3drs_to_str(state), value);
 
     if(state >= mRenderState.size())
     {
@@ -1160,14 +1163,37 @@ HRESULT D3DGLDevice::SetTextureStageState(DWORD stage, D3DTEXTURESTAGESTATETYPE 
 
 HRESULT D3DGLDevice::GetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DWORD *value)
 {
-    FIXME("iface %p, sampler %lu, type %s, value %p : stub!\n", this, sampler, d3dsamp_to_str(type), value);
-    return E_NOTIMPL;
+    TRACE("iface %p, sampler %lu, type %s, value %p : stub!\n", this, sampler, d3dsamp_to_str(type), value);
+
+    if(sampler >= mSamplerState.size() || sampler >= mAdapter.getLimits().fragment_samplers)
+    {
+        WARN("Sampler index out of range (%lu >= %u)\n", sampler, std::min(mSamplerState.size(), mAdapter.getLimits().fragment_samplers));
+        return D3DERR_INVALIDCALL;
+    }
+    if(type >= mSamplerState[sampler].size())
+    {
+        WARN("Type out of range (%u >= %u)\n", type, mSamplerState[sampler].size());
+        return D3DERR_INVALIDCALL;
+    }
+
+    *value = mSamplerState[sampler][type];
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DWORD value)
 {
     FIXME("iface %p, sampler %lu, type %s, value 0x%lx : stub!\n", this, sampler, d3dsamp_to_str(type), value);
-    return E_NOTIMPL;
+
+    if(sampler >= mSamplerState.size() || sampler >= mAdapter.getLimits().fragment_samplers)
+    {
+        WARN("Sampler index out of range (%lu >= %u)\n", sampler, std::min(mSamplerState.size(), mAdapter.getLimits().fragment_samplers));
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(type < mSamplerState[sampler].size())
+        mSamplerState[sampler][type] = value;
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::ValidateDevice(DWORD* pNumPasses)
