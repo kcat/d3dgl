@@ -177,6 +177,32 @@ static const std::array<DWORD,14> DefaultSSValues{
     0
 };
 
+std::array<DWORD,33> GenerateDefaultTSSValues()
+{
+    std::array<DWORD,33> ret;
+    ret[D3DTSS_COLOROP] = D3DTOP_DISABLE;
+    ret[D3DTSS_COLORARG1] = D3DTA_TEXTURE;
+    ret[D3DTSS_COLORARG2] = D3DTA_CURRENT;
+    ret[D3DTSS_ALPHAOP] = D3DTOP_DISABLE;
+    ret[D3DTSS_ALPHAARG1] = D3DTA_TEXTURE;
+    ret[D3DTSS_ALPHAARG2] = D3DTA_CURRENT;
+    ret[D3DTSS_BUMPENVMAT00] = 0;
+    ret[D3DTSS_BUMPENVMAT01] = 0;
+    ret[D3DTSS_BUMPENVMAT10] = 0;
+    ret[D3DTSS_BUMPENVMAT11] = 0;
+    ret[D3DTSS_TEXCOORDINDEX] = 0;
+    ret[D3DTSS_BUMPENVLSCALE] = 0;
+    ret[D3DTSS_BUMPENVLOFFSET] = 0;
+    ret[D3DTSS_TEXTURETRANSFORMFLAGS] = D3DTTFF_DISABLE;
+    ret[D3DTSS_COLORARG0] = D3DTA_CURRENT;
+    ret[D3DTSS_ALPHAARG0] = D3DTA_CURRENT;
+    ret[D3DTSS_RESULTARG] = D3DTA_CURRENT;
+    ret[D3DTSS_CONSTANT] = 0;
+    return ret;
+}
+static const std::array<DWORD,33> DefaultTSSValues = GenerateDefaultTSSValues();
+
+
 class StateEnable : public Command {
     GLenum mState;
     bool mEnable;
@@ -291,6 +317,14 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mIndexBuffer(nullptr)
 {
     for(auto &rt : mRenderTargets) rt = nullptr;
+    for(size_t i = 0;i < mTexStageState.size();++i)
+    {
+        auto &tss = mTexStageState[i];
+        std::copy(DefaultTSSValues.begin(), DefaultTSSValues.end(), tss.begin());
+        tss[D3DTSS_COLOROP] = i ? D3DTOP_DISABLE : D3DTOP_MODULATE;
+        tss[D3DTSS_ALPHAOP] = i ? D3DTOP_DISABLE : D3DTOP_SELECTARG1;
+        tss[D3DTSS_TEXCOORDINDEX] = i;
+    }
     for(auto &ss : mSamplerState)
         std::copy(DefaultSSValues.begin(), DefaultSSValues.end(), ss.begin());
     std::copy(DefaultRSValues.begin(), DefaultRSValues.end(), mRenderState.begin());
@@ -1151,19 +1185,41 @@ HRESULT D3DGLDevice::SetTexture(DWORD Stage, IDirect3DBaseTexture9* pTexture)
 
 HRESULT D3DGLDevice::GetTextureStageState(DWORD stage, D3DTEXTURESTAGESTATETYPE type, DWORD *value)
 {
-    FIXME("iface %p, stage %lu, type %s, value %p : stub!\n", this, stage, d3dtss_to_str(type), value);
-    return E_NOTIMPL;
+    TRACE("iface %p, stage %lu, type %s, value %p\n", this, stage, d3dtss_to_str(type), value);
+
+    if(stage >= mTexStageState.size() || stage >= mAdapter.getLimits().fragment_samplers)
+    {
+        WARN("Texture stage out of range (%lu >= %u)\n", stage, std::min(mTexStageState.size(), mAdapter.getLimits().fragment_samplers));
+        return D3DERR_INVALIDCALL;
+    }
+    if(type >= mTexStageState[stage].size())
+    {
+        WARN("Type out of range (%u >= %u)\n", type, mTexStageState[stage].size());
+        return D3DERR_INVALIDCALL;
+    }
+
+    *value = mTexStageState[stage][type];
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetTextureStageState(DWORD stage, D3DTEXTURESTAGESTATETYPE type, DWORD value)
 {
     FIXME("iface %p, stage %lu, type %s, value 0x%lx : stub!\n", this, stage, d3dtss_to_str(type), value);
-    return E_NOTIMPL;
+
+    if(stage >= mTexStageState.size() || stage >= mAdapter.getLimits().fragment_samplers)
+    {
+        WARN("Texture stage out of range (%lu >= %u)\n", stage, std::min(mTexStageState.size(), mAdapter.getLimits().fragment_samplers));
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(type < mTexStageState[stage].size())
+        mTexStageState[stage][type] = value;
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::GetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DWORD *value)
 {
-    TRACE("iface %p, sampler %lu, type %s, value %p : stub!\n", this, sampler, d3dsamp_to_str(type), value);
+    TRACE("iface %p, sampler %lu, type %s, value %p\n", this, sampler, d3dsamp_to_str(type), value);
 
     if(sampler >= mSamplerState.size() || sampler >= mAdapter.getLimits().fragment_samplers)
     {
