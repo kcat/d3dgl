@@ -382,6 +382,7 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mInScene(false)
   , mVertexShader(nullptr)
   , mPixelShader(nullptr)
+  , mVertexDecl(nullptr)
   , mIndexBuffer(nullptr)
 {
     for(auto &rt : mRenderTargets) rt = nullptr;
@@ -1492,16 +1493,31 @@ HRESULT D3DGLDevice::CreateVertexDeclaration(const D3DVERTEXELEMENT9 *elems, IDi
     return D3D_OK;
 }
 
-HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9* pDecl)
+HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9 *decl)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, decl %p\n", this, decl);
+
+    D3DGLVertexDeclaration *vtxdecl = nullptr;
+    if(decl)
+    {
+        HRESULT hr;
+        hr = decl->QueryInterface(IID_D3DGLVertexDeclaration, (void**)&vtxdecl);
+        if(FAILED(hr)) return D3DERR_INVALIDCALL;
+    }
+
+    vtxdecl = mVertexDecl.exchange(vtxdecl);
+    if(vtxdecl) vtxdecl->Release();
+
+    return D3D_OK;
 }
 
-HRESULT D3DGLDevice::GetVertexDeclaration(IDirect3DVertexDeclaration9** ppDecl)
+HRESULT D3DGLDevice::GetVertexDeclaration(IDirect3DVertexDeclaration9 **decl)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, decl %p\n", this, decl);
+
+    *decl = mVertexDecl.load();
+    if(*decl) (*decl)->AddRef();
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetFVF(DWORD FVF)
