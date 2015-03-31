@@ -1338,9 +1338,12 @@ HRESULT D3DGLDevice::GetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DW
 {
     TRACE("iface %p, sampler %lu, type %s, value %p\n", this, sampler, d3dsamp_to_str(type), value);
 
-    if(sampler >= mSamplerState.size() || sampler >= mAdapter.getLimits().fragment_samplers)
+    if(sampler >= D3DVERTEXTEXTURESAMPLER0 && sampler <= D3DVERTEXTEXTURESAMPLER3)
+        sampler = sampler - D3DVERTEXTEXTURESAMPLER0 + MAX_FRAGMENT_SAMPLERS;
+
+    if(sampler >= mSamplerState.size())
     {
-        WARN("Sampler index out of range (%lu >= %u)\n", sampler, std::min(mSamplerState.size(), mAdapter.getLimits().fragment_samplers));
+        WARN("Sampler index out of range (%lu >= %u)\n", sampler, mSamplerState.size());
         return D3DERR_INVALIDCALL;
     }
     if(type >= mSamplerState[sampler].size())
@@ -1357,9 +1360,12 @@ HRESULT D3DGLDevice::SetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DW
 {
     FIXME("iface %p, sampler %lu, type %s, value 0x%lx : stub!\n", this, sampler, d3dsamp_to_str(type), value);
 
-    if(sampler >= mSamplerState.size() || sampler >= mAdapter.getLimits().fragment_samplers)
+    if(sampler >= D3DVERTEXTEXTURESAMPLER0 && sampler <= D3DVERTEXTEXTURESAMPLER3)
+        sampler = sampler - D3DVERTEXTEXTURESAMPLER0 + MAX_FRAGMENT_SAMPLERS;
+
+    if(sampler >= mSamplerState.size())
     {
-        WARN("Sampler index out of range (%lu >= %u)\n", sampler, std::min(mSamplerState.size(), mAdapter.getLimits().fragment_samplers));
+        WARN("Sampler index out of range (%lu >= %u)\n", sampler, mSamplerState.size());
         return D3DERR_INVALIDCALL;
     }
 
