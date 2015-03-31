@@ -19,6 +19,26 @@ class D3DGLPixelShader;
 class D3DGLVertexDeclaration;
 
 class D3DGLDevice : public IDirect3DDevice9 {
+public:
+    struct GLStreamData {
+        D3DGLBufferObject *mBuffer;
+        GLubyte *mPointer;
+        GLenum mGLType;
+        GLint mGLCount;
+        GLenum mNormalize;
+        GLsizei mStride;
+        GLint mTarget;
+        GLsizei mIndex;
+    };
+    struct GLIndexData {
+        D3DGLBufferObject *mBuffer;
+        GLubyte *mPointer;
+        GLenum mMode;
+        GLenum mType;
+        GLint mCount;
+    };
+
+private:
     std::atomic<ULONG> mRefCount;
 
     ref_ptr<Direct3DGL> mParent;
@@ -87,9 +107,12 @@ public:
     const D3DAdapter &getAdapter() const { return mAdapter; }
     CommandQueue &getQueue() { return mQueue; }
 
+    HRESULT drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT startidx, UINT count);
+
     void initGL();
     void setTextureGL(GLuint stage, GLuint maxffpstage, GLenum type, GLuint binding);
     void setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord);
+    void drawGL(const GLIndexData &idxdata, const GLStreamData *streams, GLuint numstreams);
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;

@@ -44,6 +44,9 @@ public:
     bool hasSpecular() const { return mHasSpecular; }
     UINT hasTexCoord() const { return mHasTexCoord; }
 
+    const std::vector<D3DGLVERTEXELEMENT> &getVtxElements() const
+    { return mElements; }
+
     static bool isEnd(const D3DVERTEXELEMENT9 &elem)
     { return elem.Stream==0xff; }
 

@@ -387,6 +387,63 @@ public:
 };
 
 
+void D3DGLDevice::drawGL(const GLIndexData &idxdata, const GLStreamData *streams, GLuint numstreams)
+{
+    for(GLuint i = 0;i < numstreams;++i)
+    {
+        if(streams[i].mTarget == GL_VERTEX_ARRAY)
+            glVertexPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
+        else if(streams[i].mTarget == GL_TEXTURE_COORD_ARRAY)
+        {
+            UINT numcoords = std::min(mAdapter.getLimits().texture_coords, 32u);
+            for(UINT t = 0;t < numcoords;++t)
+            {
+                if((streams[i].mIndex&(1<<t)))
+                {
+                    glClientActiveTexture(GL_TEXTURE0 + t);
+                    glTexCoordPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
+                }
+            }
+        }
+        else if(streams[i].mTarget == GL_NORMAL_ARRAY)
+            glNormalPointer(streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
+        else if(streams[i].mTarget == GL_COLOR_ARRAY)
+            glColorPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
+        else if(streams[i].mTarget == GL_SECONDARY_COLOR_ARRAY)
+            glSecondaryColorPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
+    }
+
+    glDrawElements(idxdata.mMode, idxdata.mCount, idxdata.mType, idxdata.mPointer);
+
+    idxdata.mBuffer->finishedDraw();
+    for(GLuint i = 0;i < numstreams;++i)
+        streams[i].mBuffer->finishedDraw();
+
+    checkGLError();
+}
+class DrawGLCmd : public Command {
+    D3DGLDevice *mTarget;
+    D3DGLDevice::GLIndexData mIdxData;
+    D3DGLDevice::GLStreamData mStreams[16];
+    GLuint mNumStreams;
+
+public:
+    DrawGLCmd(D3DGLDevice *target, const D3DGLDevice::GLIndexData &idxdata, const D3DGLDevice::GLStreamData *streams, GLuint numstream)
+      : mTarget(target), mIdxData(idxdata)
+    {
+        for(GLuint i = 0;i < numstream;++i)
+            mStreams[i] = streams[i];
+        mNumStreams = numstream;
+    }
+
+    virtual ULONG execute()
+    {
+        mTarget->drawGL(mIdxData, mStreams, mNumStreams);
+        return sizeof(*this);
+    }
+};
+
+
 void D3DGLDevice::initGL()
 {
     glGenSamplers(mGLState.samplers.size(), mGLState.samplers.data());
@@ -612,6 +669,144 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
     mQueue.sendSync<InitGLDeviceCmd>(this);
 
     return true;
+}
+
+
+HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT startidx, UINT count)
+{
+    GLenum mode;
+
+    if(type == D3DPT_POINTLIST)
+        mode = GL_POINTS;
+    else if(type == D3DPT_LINELIST)
+    {
+        mode = GL_LINES;
+        count *= 2;
+    }
+    else if(type == D3DPT_LINESTRIP)
+    {
+        mode = GL_LINE_STRIP;
+        count += 1;
+    }
+    else if(type == D3DPT_TRIANGLELIST)
+    {
+        mode = GL_TRIANGLES;
+        count *= 3;
+    }
+    else if(type == D3DPT_TRIANGLESTRIP)
+    {
+        mode = GL_TRIANGLE_STRIP;
+        count += 2;
+    }
+    else if(type == D3DPT_TRIANGLEFAN)
+    {
+        mode = GL_TRIANGLE_FAN;
+        count += 2;
+    }
+    else
+    {
+        WARN("Invalid primitive type: 0x%x\n", type);
+        return D3DERR_INVALIDCALL;
+    }
+
+    mQueue.lock();
+    if(!mVertexDecl)
+    {
+        WARN("No vertex declaration set\n");
+        mQueue.unlock();
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(!mIndexBuffer)
+    {
+        WARN("No index buffer set\n");
+        mQueue.unlock();
+        return D3DERR_INVALIDCALL;
+    }
+
+    GLStreamData streams[16];
+    GLuint cur = 0;
+
+    const std::vector<D3DGLVERTEXELEMENT> &elements = mVertexDecl.load()->getVtxElements();
+    for(const D3DGLVERTEXELEMENT &elem : elements)
+    {
+        if(cur >= 16)
+        {
+            ERR("Too many vertex elements!\n");
+            mQueue.unlock();
+            return D3DERR_INVALIDCALL;
+        }
+
+        const StreamSource &stream = mStreams[elem.Stream];
+        D3DGLBufferObject *buffer = stream.mBuffer;
+
+        GLint offset = elem.Offset + stream.mOffset + stream.mStride*startvtx;
+        streams[cur].mBuffer = buffer;
+        streams[cur].mPointer = buffer->getDataPtr() + offset;
+        streams[cur].mGLCount = elem.mGLCount;
+        streams[cur].mGLType = elem.mGLType;
+        streams[cur].mNormalize = elem.mNormalize;
+        streams[cur].mStride = stream.mStride;
+
+        if(elem.Usage == D3DDECLUSAGE_POSITION || elem.Usage == D3DDECLUSAGE_POSITIONT)
+        {
+            streams[cur].mTarget = GL_VERTEX_ARRAY;
+            streams[cur].mIndex = 0;
+        }
+        else if(elem.Usage == D3DDECLUSAGE_TEXCOORD)
+        {
+            streams[cur].mTarget = GL_TEXTURE_COORD_ARRAY;
+            streams[cur].mIndex = 0;
+            // Apply this element data to whatever stages are using this index
+            for(UINT i = 0;i < mTexStageState.size();i++)
+            {
+                if((mTexStageState[i][D3DTSS_TEXCOORDINDEX]&0xFFFF) == elem.UsageIndex)
+                    streams[cur].mIndex |= 1<<i;
+            }
+        }
+        else if(elem.Usage == D3DDECLUSAGE_NORMAL)
+        {
+            streams[cur].mTarget = GL_NORMAL_ARRAY;
+            streams[cur].mIndex = 0;
+        }
+        else if(elem.Usage == D3DDECLUSAGE_COLOR)
+        {
+            if(elem.UsageIndex == 0)
+                streams[cur].mTarget = GL_COLOR_ARRAY;
+            else if(elem.UsageIndex == 1)
+                streams[cur].mTarget = GL_SECONDARY_COLOR_ARRAY;
+            streams[cur].mIndex = 0;
+        }
+        ++cur;
+    }
+
+    GLIndexData idxdata;
+    idxdata.mBuffer = mIndexBuffer;
+    idxdata.mMode = mode;
+    idxdata.mCount = count;
+    if(idxdata.mBuffer->getFormat() == D3DFMT_INDEX16)
+    {
+        idxdata.mType = GL_UNSIGNED_SHORT;
+        idxdata.mPointer = idxdata.mBuffer->getDataPtr() + startidx*2;
+    }
+    else if(idxdata.mBuffer->getFormat() == D3DFMT_INDEX32)
+    {
+        idxdata.mType = GL_UNSIGNED_INT;
+        idxdata.mPointer = idxdata.mBuffer->getDataPtr() + startidx*4;
+    }
+    else
+    {
+        // Should not happen!
+        idxdata.mType = GL_UNSIGNED_BYTE;
+        idxdata.mPointer = idxdata.mBuffer->getDataPtr();
+    }
+
+    idxdata.mBuffer->queueDraw();
+    for(GLuint i = 0;i < cur;++i)
+        streams[i].mBuffer->queueDraw();
+    mQueue.sendAndUnlock<DrawGLCmd>(this, idxdata, streams, cur);
+
+    return D3D_OK;
 }
 
 
@@ -1521,10 +1716,17 @@ HRESULT D3DGLDevice::DrawPrimitive(D3DPRIMITIVETYPE PrimitiveType, UINT StartVer
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE, INT BaseVertexIndex, UINT MinVertexIndex, UINT NumVertices, UINT startIndex, UINT primCount)
+HRESULT D3DGLDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE type, INT startVtx, UINT minVtx, UINT numVtx, UINT startIdx, UINT count)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, type 0x%x, startVtx %d, minVtx %u, numVtx %u, startIdx %u, count %u\n", this, type, startVtx, minVtx, numVtx, startIdx, count);
+
+    if(type == D3DPT_POINTLIST)
+    {
+        WARN("Pointlist not allowed for indexed rendering\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    return drawVtxDecl(type, startVtx, startIdx, count);
 }
 
 HRESULT D3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE PrimitiveType, UINT PrimitiveCount, CONST void* pVertexStreamZeroData, UINT VertexStreamZeroStride)
@@ -1578,7 +1780,7 @@ HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9 *decl)
     {
         vtxdecl = mVertexDecl.exchange(vtxdecl);
         // FIXME: Set according to FVF
-        mQueue.sendAndUnlock<SetVertexArrayStateCmd>(this, false, false, false, false, 0);
+        mQueue.unlock();
     }
     else
     {

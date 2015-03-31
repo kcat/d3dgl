@@ -48,6 +48,14 @@ public:
     bool init_vbo(UINT length, DWORD usage, DWORD fvf, D3DPOOL pool);
     bool init_ibo(UINT length, DWORD usage, D3DFORMAT format, D3DPOOL pool);
 
+    void queueDraw() { ++mPendingDraws; }
+    void finishedDraw() { --mPendingDraws; }
+
+    // TODO: For VBO/IBO, should be nullptr
+    GLubyte *getDataPtr() const { return mUserPtr; }
+
+    D3DFORMAT getFormat() const { return mFormat; }
+
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;
     virtual ULONG WINAPI AddRef() final;
