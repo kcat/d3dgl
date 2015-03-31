@@ -15,6 +15,7 @@
 #include "bufferobject.hpp"
 #include "vertexshader.hpp"
 #include "pixelshader.hpp"
+#include "vertexdeclaration.hpp"
 #include "private_iids.hpp"
 
 
@@ -1475,10 +1476,20 @@ HRESULT D3DGLDevice::ProcessVertices(UINT SrcStartIndex, UINT DestIndex, UINT Ve
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::CreateVertexDeclaration(CONST D3DVERTEXELEMENT9* pVertexElements, IDirect3DVertexDeclaration9** ppDecl)
+HRESULT D3DGLDevice::CreateVertexDeclaration(const D3DVERTEXELEMENT9 *elems, IDirect3DVertexDeclaration9 **decl)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    FIXME("iface %p, elems %p, decl %p\n", this, elems, decl);
+
+    D3DGLVertexDeclaration *vtxdecl = new D3DGLVertexDeclaration(this);
+    if(!vtxdecl->init(elems))
+    {
+        delete vtxdecl;
+        return D3DERR_INVALIDCALL;
+    }
+
+    *decl = vtxdecl;
+    (*decl)->AddRef();
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9* pDecl)
@@ -1511,7 +1522,10 @@ HRESULT D3DGLDevice::CreateVertexShader(const DWORD *function, IDirect3DVertexSh
 
     D3DGLVertexShader *vtxshader = new D3DGLVertexShader(this);
     if(!vtxshader->init(function))
+    {
+        delete vtxshader;
         return D3DERR_INVALIDCALL;
+    }
 
     *shader = vtxshader;
     (*shader)->AddRef();
@@ -1697,7 +1711,10 @@ HRESULT D3DGLDevice::CreatePixelShader(const DWORD *function, IDirect3DPixelShad
 
     D3DGLPixelShader *fragshader = new D3DGLPixelShader(this);
     if(!fragshader->init(function))
+    {
+        delete fragshader;
         return D3DERR_INVALIDCALL;
+    }
 
     *shader = fragshader;
     (*shader)->AddRef();

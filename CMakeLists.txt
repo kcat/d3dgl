@@ -50,6 +50,7 @@ set(HDRS  include/swapchain.hpp
           include/bufferobject.hpp
           include/vertexshader.hpp
           include/pixelshader.hpp
+          include/vertexdeclaration.hpp
           include/texture.hpp
           include/device.hpp
           include/adapter.hpp
@@ -65,6 +66,7 @@ set(SRCS  src/swapchain.cpp
           src/bufferobject.cpp
           src/vertexshader.cpp
           src/pixelshader.cpp
+          src/vertexdeclaration.cpp
           src/texture.cpp
           src/device.cpp
           src/adapter.cpp
