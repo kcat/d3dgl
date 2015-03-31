@@ -22,12 +22,27 @@ class D3DGLVertexDeclaration : public IDirect3DVertexDeclaration9 {
     D3DGLDevice *mParent;
 
     std::vector<D3DGLVERTEXELEMENT> mElements;
+    bool mHasPositionT;
+    bool mHasNormal;
+    bool mHasBinormal;
+    bool mHasTangent;
+    bool mHasColor;
+    bool mHasSpecular;
+    UINT mHasTexCoord;
 
 public:
     D3DGLVertexDeclaration(D3DGLDevice *parent);
     virtual ~D3DGLVertexDeclaration();
 
     bool init(const D3DVERTEXELEMENT9 *elems);
+
+    bool hasPosT() const { return mHasPositionT; }
+    bool hasNormal() const { return mHasNormal; }
+    bool hasBinormal() const { return mHasBinormal; }
+    bool hasTangent() const { return mHasTangent; }
+    bool hasColor() const { return mHasColor; }
+    bool hasSpecular() const { return mHasSpecular; }
+    UINT hasTexCoord() const { return mHasTexCoord; }
 
     static bool isEnd(const D3DVERTEXELEMENT9 &elem)
     { return elem.Stream==0xff; }

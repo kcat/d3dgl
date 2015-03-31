@@ -9,6 +9,13 @@
 D3DGLVertexDeclaration::D3DGLVertexDeclaration(D3DGLDevice *parent)
   : mRefCount(0)
   , mParent(parent)
+  , mHasPositionT(false)
+  , mHasNormal(false)
+  , mHasBinormal(false)
+  , mHasTangent(false)
+  , mHasColor(false)
+  , mHasSpecular(false)
+  , mHasTexCoord(0)
 {
     mParent->AddRef();
 }
@@ -20,23 +27,43 @@ D3DGLVertexDeclaration::~D3DGLVertexDeclaration()
 
 bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems)
 {
-    bool haspos=false, haspost=false;
+    bool haspos=false;
     size_t size = 0;
     while(!isEnd(elems[size]))
     {
         if(elems[size].Usage == D3DDECLUSAGE_POSITION)
             haspos = true;
         else if(elems[size].Usage == D3DDECLUSAGE_POSITIONT)
-            haspost = true;
+            mHasPositionT = true;
+        else if(elems[size].Usage == D3DDECLUSAGE_NORMAL)
+            mHasNormal = true;
+        else if(elems[size].Usage == D3DDECLUSAGE_BINORMAL)
+            mHasBinormal = true;
+        else if(elems[size].Usage == D3DDECLUSAGE_TANGENT)
+            mHasTangent = true;
+        else if(elems[size].Usage == D3DDECLUSAGE_COLOR)
+        {
+            if(elems[size].UsageIndex == 0)
+                mHasColor = true;
+            else if(elems[size].UsageIndex == 1)
+                mHasSpecular = true;
+        }
+        else if(elems[size].Usage == D3DDECLUSAGE_TEXCOORD)
+        {
+            if(elems[size].UsageIndex < 32)
+                mHasTexCoord = 1<<elems[size].UsageIndex;
+        }
+        else
+            FIXME("Unhandled element usage type: 0x%x\n", elems[size].Usage);
         ++size;
     }
 
-    if(haspos && haspost)
+    if(haspos && mHasPositionT)
     {
         WARN("Position and PositionT specified in declaration\n");
         return false;
     }
-    if(!haspos && !haspost)
+    if(!haspos && !mHasPositionT)
     {
         WARN("Neither Position or PositionT specified in declaration\n");
         return false;

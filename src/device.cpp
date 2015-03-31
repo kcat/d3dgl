@@ -325,6 +325,68 @@ public:
     }
 };
 
+
+void D3DGLDevice::setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord)
+{
+#define SET_CLIENT_STATE(f, e) do { \
+    if(f) glEnableClientState(e);   \
+    else glDisableClientState(e);   \
+} while(0)
+    if(vertex != mGLState.vertex_array_enabled)
+    {
+        mGLState.vertex_array_enabled = vertex;
+        SET_CLIENT_STATE(vertex, GL_VERTEX_ARRAY);
+    }
+    if(normal != mGLState.normal_array_enabled)
+    {
+        mGLState.normal_array_enabled = normal;
+        SET_CLIENT_STATE(normal, GL_NORMAL_ARRAY);
+    }
+    if(color != mGLState.color_array_enabled)
+    {
+        mGLState.color_array_enabled = color;
+        SET_CLIENT_STATE(color, GL_COLOR_ARRAY);
+    }
+    if(specular != mGLState.specular_array_enabled)
+    {
+        mGLState.specular_array_enabled = specular;
+        SET_CLIENT_STATE(specular, GL_SECONDARY_COLOR_ARRAY);
+    }
+    if(texcoord != mGLState.texcoord_array_enabled)
+    {
+        UINT numcoords = std::min(mAdapter.getLimits().texture_coords, 32u);
+        for(UINT i = 0;i < numcoords;++i)
+        {
+            UINT t = 1<<i;
+            if((texcoord&t) != (mGLState.texcoord_array_enabled&t))
+            {
+                glClientActiveTexture(GL_TEXTURE0 + i);
+                SET_CLIENT_STATE((texcoord&t), GL_TEXTURE_COORD_ARRAY);
+            }
+        }
+        mGLState.texcoord_array_enabled = texcoord;
+    }
+#undef SET_CLIENT_STATE
+    checkGLError();
+}
+class SetVertexArrayStateCmd : public Command {
+    D3DGLDevice *mTarget;
+    bool mVertex, mNormal, mColor, mSpecular;
+    UINT mTexcoord;
+
+public:
+    SetVertexArrayStateCmd(D3DGLDevice *target, bool vertex, bool normal, bool color, bool specular, UINT texcoord)
+      : mTarget(target), mVertex(vertex), mNormal(normal), mColor(color), mSpecular(specular), mTexcoord(texcoord)
+    { }
+
+    virtual ULONG execute()
+    {
+        mTarget->setVertexArrayStateGL(mVertex, mNormal, mColor, mSpecular, mTexcoord);
+        return sizeof(*this);
+    }
+};
+
+
 void D3DGLDevice::initGL()
 {
     glGenSamplers(mGLState.samplers.size(), mGLState.samplers.data());
@@ -355,6 +417,12 @@ void D3DGLDevice::initGL()
         mGLState.sampler_binding[i] = 0;
     glActiveTexture(GL_TEXTURE0);
     mGLState.active_stage = 0;
+
+    mGLState.vertex_array_enabled = false;
+    mGLState.normal_array_enabled = false;
+    mGLState.color_array_enabled = false;
+    mGLState.specular_array_enabled = false;
+    mGLState.texcoord_array_enabled = 0;
 }
 class InitGLDeviceCmd : public Command {
     D3DGLDevice *mTarget;
@@ -1505,7 +1573,23 @@ HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9 *decl)
         if(FAILED(hr)) return D3DERR_INVALIDCALL;
     }
 
-    vtxdecl = mVertexDecl.exchange(vtxdecl);
+    mQueue.lock();
+    if(!vtxdecl)
+    {
+        vtxdecl = mVertexDecl.exchange(vtxdecl);
+        // FIXME: Set according to FVF
+        mQueue.sendAndUnlock<SetVertexArrayStateCmd>(this, false, false, false, false, 0);
+    }
+    else
+    {
+        // NOTE: We'll always have vertices
+        bool normal = vtxdecl->hasNormal();
+        bool color = vtxdecl->hasColor();
+        bool specular = vtxdecl->hasSpecular();
+        UINT texcoord = vtxdecl->hasTexCoord();
+        vtxdecl = mVertexDecl.exchange(vtxdecl);
+        mQueue.sendAndUnlock<SetVertexArrayStateCmd>(this, true, normal, color, specular, texcoord);
+    }
     if(vtxdecl) vtxdecl->Release();
 
     return D3D_OK;

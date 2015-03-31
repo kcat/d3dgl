@@ -32,6 +32,12 @@ class D3DGLDevice : public IDirect3DDevice9 {
         GLenum active_stage;
         std::array<GLenum,MAX_COMBINED_SAMPLERS> sampler_type;
         std::array<GLuint,MAX_COMBINED_SAMPLERS> sampler_binding;
+
+        bool vertex_array_enabled;
+        bool normal_array_enabled;
+        bool color_array_enabled;
+        bool specular_array_enabled;
+        UINT texcoord_array_enabled; // Bitmask, 1<<texture_stage
     } mGLState;
 
     CommandQueue mQueue;
@@ -83,6 +89,7 @@ public:
 
     void initGL();
     void setTextureGL(GLuint stage, GLuint maxffpstage, GLenum type, GLuint binding);
+    void setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord);
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;
