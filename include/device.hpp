@@ -37,6 +37,8 @@ class D3DGLDevice : public IDirect3DDevice9 {
     std::array<std::atomic<IDirect3DSurface9*>,D3D_MAX_SIMULTANEOUS_RENDERTARGETS> mRenderTargets;
     std::atomic<IDirect3DSurface9*> mDepthStencil;
 
+    std::array<std::atomic<IDirect3DBaseTexture9*>,MAX_COMBINED_SAMPLERS> mTextures;
+
     typedef std::array<std::atomic<DWORD>,33> TexStageStates;
     typedef std::array<std::atomic<DWORD>,14> SamplerStates;
 

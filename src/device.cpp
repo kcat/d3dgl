@@ -317,6 +317,7 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mIndexBuffer(nullptr)
 {
     for(auto &rt : mRenderTargets) rt = nullptr;
+    for(auto &tex : mTextures) tex = nullptr;
     for(size_t i = 0;i < mTexStageState.size();++i)
     {
         auto &tss = mTexStageState[i];
@@ -1171,16 +1172,36 @@ HRESULT D3DGLDevice::GetClipStatus(D3DCLIPSTATUS9* pClipStatus)
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::GetTexture(DWORD Stage, IDirect3DBaseTexture9** ppTexture)
+HRESULT D3DGLDevice::GetTexture(DWORD stage, IDirect3DBaseTexture9 **texture)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, stage %lu, texture %p\n", this, stage, texture);
+
+    if(stage >= mTextures.size() || stage >= mAdapter.getLimits().fragment_samplers)
+    {
+        WARN("Texture stage out of range (%lu >= %u)\n", stage, std::min(mTextures.size(), mAdapter.getLimits().fragment_samplers));
+        return D3DERR_INVALIDCALL;
+    }
+
+    *texture = mTextures[stage];
+    if(*texture) (*texture)->AddRef();
+    return D3D_OK;
 }
 
-HRESULT D3DGLDevice::SetTexture(DWORD Stage, IDirect3DBaseTexture9* pTexture)
+HRESULT D3DGLDevice::SetTexture(DWORD stage, IDirect3DBaseTexture9 *texture)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    FIXME("iface %p, stage %lu, texture %p : stub!\n", this, stage, texture);
+
+    if(stage >= mTextures.size() || stage >= mAdapter.getLimits().fragment_samplers)
+    {
+        WARN("Texture stage out of range (%lu >= %u)\n", stage, std::min(mTextures.size(), mAdapter.getLimits().fragment_samplers));
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(texture) texture->AddRef();
+    texture = mTextures[stage].exchange(texture);
+    if(texture) texture->Release();
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::GetTextureStageState(DWORD stage, D3DTEXTURESTAGESTATETYPE type, DWORD *value)
