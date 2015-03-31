@@ -208,7 +208,7 @@ UINT Direct3DGL::GetAdapterCount(void)
 
 HRESULT Direct3DGL::GetAdapterIdentifier(UINT adapter, DWORD flags, D3DADAPTER_IDENTIFIER9 *identifier)
 {
-    FIXME("iface %p, adapter %u, flags 0x%lx, identifier %p semi-stub\n", this, adapter, flags, identifier);
+    WARN("iface %p, adapter %u, flags 0x%lx, identifier %p semi-stub\n", this, adapter, flags, identifier);
 
     if(adapter >= gAdapterList.size())
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, gAdapterList.size());
@@ -302,7 +302,7 @@ HRESULT Direct3DGL::CheckDeviceFormat(UINT adapter, D3DDEVTYPE devType, D3DFORMA
         DWORD nomipusage = usage & ~D3DUSAGE_AUTOGENMIPMAP;
         if((nomipusage&realusage) != nomipusage)
         {
-            ERR("Usage query 0x%lx does not match real usage 0x%lx\n", usage, realusage);
+            ERR("Usage query 0x%lx does not match real usage 0x%lx, for resource 0x%x, %s\n", usage, realusage, resType, d3dfmt_to_str(checkFormat));
             return D3DERR_NOTAVAILABLE;
         }
         return D3DOK_NOAUTOGEN;
