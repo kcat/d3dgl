@@ -268,27 +268,90 @@ public:
 } // namespace
 
 
+void D3DGLDevice::setTextureGL(GLuint stage, GLuint maxffpstage, GLenum type, GLuint binding)
+{
+    if(stage != mGLState.active_stage)
+    {
+        mGLState.active_stage = stage;
+        glActiveTexture(GL_TEXTURE0 + stage);
+    }
+
+    // Stupid nVidia. Their drivers only report 4 fixed-function texture
+    // stages regardless of the number of fragment samplers and texture coords
+    // provided by the hardware. This means that glEnable/Disable with the
+    // various GL_TEXTURE_ types on stages at/above GL_MAX_TEXTURE_UNITS is
+    // invalid. This also effectively means only 4 blending stages will work.
+    // Fixing this requires manual FFP emulation with shaders.
+    if(stage >= maxffpstage)
+        mGLState.sampler_type[stage] = type;
+    else if(type != mGLState.sampler_type[stage])
+    {
+        if(mGLState.sampler_type[stage] != GL_NONE)
+            glDisable(mGLState.sampler_type[stage]);
+        mGLState.sampler_type[stage] = type;
+        if(type != GL_NONE)
+            glEnable(type);
+    }
+
+    if(binding != mGLState.sampler_binding[stage])
+    {
+        mGLState.sampler_binding[stage] = binding;
+        if(type)
+            glBindTexture(type, binding);
+        else
+            glBindTexture(GL_TEXTURE_2D, 0);
+    }
+    checkGLError();
+}
+class SetTextureCmd : public Command {
+    D3DGLDevice *mTarget;
+    GLuint mStage;
+    GLenum mType;
+    GLuint mBinding;
+
+public:
+    SetTextureCmd(D3DGLDevice *target, GLuint stage, GLenum type, GLuint binding)
+      : mTarget(target), mStage(stage), mType(type), mBinding(binding)
+    { }
+
+    virtual ULONG execute()
+    {
+        mTarget->setTextureGL(mStage, mTarget->getAdapter().getLimits().textures,
+                              mType, mBinding);
+        return sizeof(*this);
+    }
+};
+
 void D3DGLDevice::initGL()
 {
-    glGenSamplers(mGLSamplers.size(), mGLSamplers.data());
+    glGenSamplers(mGLState.samplers.size(), mGLState.samplers.data());
     checkGLError();
 
-    for(size_t i = 0;i < mGLSamplers.size();++i)
+    for(size_t i = 0;i < mGLState.samplers.size();++i)
     {
+        auto &sampler = mGLState.samplers[i];
+
         GLint color[4]{0, 0, 0, 0};
-        glBindSampler(i, mGLSamplers[i]);
-        glSamplerParameteri(mGLSamplers[i], GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glSamplerParameteri(mGLSamplers[i], GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glSamplerParameteri(mGLSamplers[i], GL_TEXTURE_WRAP_R, GL_REPEAT);
-        glSamplerParameteriv(mGLSamplers[i], GL_TEXTURE_BORDER_COLOR, color);
-        glSamplerParameteri(mGLSamplers[i], GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glSamplerParameteri(mGLSamplers[i], GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glBindSampler(i, sampler);
+        glSamplerParameteri(sampler, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glSamplerParameteri(sampler, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glSamplerParameteri(sampler, GL_TEXTURE_WRAP_R, GL_REPEAT);
+        glSamplerParameteriv(sampler, GL_TEXTURE_BORDER_COLOR, color);
+        glSamplerParameteri(sampler, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glSamplerParameteri(sampler, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         if(GLEW_EXT_texture_filter_anisotropic)
-            glSamplerParameteri(mGLSamplers[i], GL_TEXTURE_MAX_ANISOTROPY_EXT, 1);
+            glSamplerParameteri(sampler, GL_TEXTURE_MAX_ANISOTROPY_EXT, 1);
         if(GLEW_EXT_texture_sRGB_decode)
-            glSamplerParameteri(mGLSamplers[i], GL_TEXTURE_SRGB_DECODE_EXT, GL_SKIP_DECODE_EXT);
+            glSamplerParameteri(sampler, GL_TEXTURE_SRGB_DECODE_EXT, GL_SKIP_DECODE_EXT);
         checkGLError();
     }
+
+    for(size_t i = 0;i < mGLState.sampler_type.size();++i)
+        mGLState.sampler_type[i] = GL_NONE;
+    for(size_t i = 0;i < mGLState.sampler_binding.size();++i)
+        mGLState.sampler_binding[i] = 0;
+    glActiveTexture(GL_TEXTURE0);
+    mGLState.active_stage = 0;
 }
 class InitGLDeviceCmd : public Command {
     D3DGLDevice *mTarget;
@@ -1176,9 +1239,12 @@ HRESULT D3DGLDevice::GetTexture(DWORD stage, IDirect3DBaseTexture9 **texture)
 {
     TRACE("iface %p, stage %lu, texture %p\n", this, stage, texture);
 
-    if(stage >= mTextures.size() || stage >= mAdapter.getLimits().fragment_samplers)
+    if(stage >= D3DVERTEXTEXTURESAMPLER0 && stage <= D3DVERTEXTEXTURESAMPLER3)
+        stage = stage - D3DVERTEXTEXTURESAMPLER0 + MAX_FRAGMENT_SAMPLERS;
+
+    if(stage >= mTextures.size())
     {
-        WARN("Texture stage out of range (%lu >= %u)\n", stage, std::min(mTextures.size(), mAdapter.getLimits().fragment_samplers));
+        WARN("Texture stage out of range (%lu >= %u)\n", stage, mTextures.size());
         return D3DERR_INVALIDCALL;
     }
 
@@ -1189,17 +1255,47 @@ HRESULT D3DGLDevice::GetTexture(DWORD stage, IDirect3DBaseTexture9 **texture)
 
 HRESULT D3DGLDevice::SetTexture(DWORD stage, IDirect3DBaseTexture9 *texture)
 {
-    FIXME("iface %p, stage %lu, texture %p : stub!\n", this, stage, texture);
+    TRACE("iface %p, stage %lu, texture %p\n", this, stage, texture);
 
-    if(stage >= mTextures.size() || stage >= mAdapter.getLimits().fragment_samplers)
+    if(stage >= D3DVERTEXTEXTURESAMPLER0 && stage <= D3DVERTEXTEXTURESAMPLER3)
+        stage = stage - D3DVERTEXTEXTURESAMPLER0 + MAX_FRAGMENT_SAMPLERS;
+
+    if(stage >= mTextures.size())
     {
-        WARN("Texture stage out of range (%lu >= %u)\n", stage, std::min(mTextures.size(), mAdapter.getLimits().fragment_samplers));
+        WARN("Texture stage out of range (%lu >= %u)\n", stage, mTextures.size());
         return D3DERR_INVALIDCALL;
     }
 
-    if(texture) texture->AddRef();
-    texture = mTextures[stage].exchange(texture);
-    if(texture) texture->Release();
+    if(!texture)
+    {
+        mQueue.lock();
+        texture = mTextures[stage].exchange(texture);
+        mQueue.sendAndUnlock<SetTextureCmd>(this, stage, GL_NONE, 0);
+        if(texture) texture->Release();
+    }
+    else
+    {
+        HRESULT hr;
+        GLenum type = GL_NONE;
+        GLuint binding = 0;
+        D3DGLTexture *tex2d;
+        hr = texture->QueryInterface(IID_D3DGLTexture, (void**)&tex2d);
+        if(SUCCEEDED(hr))
+        {
+            type = GL_TEXTURE_2D;
+            binding = tex2d->getTextureId();
+        }
+        else
+        {
+            ERR("Unhandled texture type from iface %p\n", texture);
+            if(texture) texture->AddRef();
+        }
+        mQueue.lock();
+        // Texture being set already has an added reference
+        texture = mTextures[stage].exchange(texture);
+        mQueue.sendAndUnlock<SetTextureCmd>(this, stage, type, binding);
+        if(texture) texture->Release();
+    }
 
     return D3D_OK;
 }

@@ -44,6 +44,7 @@ public:
 
     bool init(const D3DSURFACE_DESC *desc, UINT levels);
     void updateTexture(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr);
+    GLuint getTextureId() const { return mTexId; }
 
     void initGL();
     void deinitGL();

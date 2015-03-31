@@ -23,8 +23,13 @@ class D3DGLDevice : public IDirect3DDevice9 {
     const D3DAdapter &mAdapter;
 
     HGLRC mGLContext;
+    struct {
+        std::array<GLuint,MAX_COMBINED_SAMPLERS> samplers;
 
-    std::array<GLuint,MAX_COMBINED_SAMPLERS> mGLSamplers;
+        GLenum active_stage;
+        std::array<GLenum,MAX_COMBINED_SAMPLERS> sampler_type;
+        std::array<GLuint,MAX_COMBINED_SAMPLERS> sampler_binding;
+    } mGLState;
 
     CommandQueue mQueue;
 
@@ -68,6 +73,7 @@ public:
     CommandQueue &getQueue() { return mQueue; }
 
     void initGL();
+    void setTextureGL(GLuint stage, GLuint maxffpstage, GLenum type, GLuint binding);
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;
