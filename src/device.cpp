@@ -13,6 +13,8 @@
 #include "adapter.hpp"
 #include "texture.hpp"
 #include "bufferobject.hpp"
+#include "vertexshader.hpp"
+#include "pixelshader.hpp"
 #include "private_iids.hpp"
 
 
@@ -1501,10 +1503,17 @@ HRESULT D3DGLDevice::GetFVF(DWORD* pFVF)
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::CreateVertexShader(CONST DWORD* pFunction, IDirect3DVertexShader9** ppShader)
+HRESULT D3DGLDevice::CreateVertexShader(const DWORD *function, IDirect3DVertexShader9 **shader)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, function %p, shader %p!\n", this, function, shader);
+
+    D3DGLVertexShader *vtxshader = new D3DGLVertexShader(this);
+    if(!vtxshader->init(function))
+        return D3DERR_INVALIDCALL;
+
+    *shader = vtxshader;
+    (*shader)->AddRef();
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9* pShader)
@@ -1665,10 +1674,17 @@ HRESULT D3DGLDevice::GetIndices(IDirect3DIndexBuffer9 **index)
     return D3D_OK;
 }
 
-HRESULT D3DGLDevice::CreatePixelShader(CONST DWORD* pFunction, IDirect3DPixelShader9** ppShader)
+HRESULT D3DGLDevice::CreatePixelShader(const DWORD *function, IDirect3DPixelShader9 **shader)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, function %p, shader %p\n", this, function, shader);
+
+    D3DGLPixelShader *fragshader = new D3DGLPixelShader(this);
+    if(!fragshader->init(function))
+        return D3DERR_INVALIDCALL;
+
+    *shader = fragshader;
+    (*shader)->AddRef();
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9* pShader)
