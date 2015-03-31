@@ -14,6 +14,8 @@
 class D3DGLSwapChain;
 class D3DGLRenderTarget;
 class D3DGLBufferObject;
+class D3DGLVertexShader;
+class D3DGLPixelShader;
 
 class D3DGLDevice : public IDirect3DDevice9 {
     std::atomic<ULONG> mRefCount;
@@ -53,6 +55,9 @@ class D3DGLDevice : public IDirect3DDevice9 {
     D3DVIEWPORT9 mViewport;
     D3DMATERIAL9 mMaterial;
     std::atomic<bool> mInScene;
+
+    std::atomic<D3DGLVertexShader*> mVertexShader;
+    std::atomic<D3DGLPixelShader*> mPixelShader;
 
     struct StreamSource {
         D3DGLBufferObject *mBuffer;

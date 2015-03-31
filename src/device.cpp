@@ -379,6 +379,8 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mSwapchains{nullptr}
   , mDepthStencil(nullptr)
   , mInScene(false)
+  , mVertexShader(nullptr)
+  , mPixelShader(nullptr)
   , mIndexBuffer(nullptr)
 {
     for(auto &rt : mRenderTargets) rt = nullptr;
@@ -1516,16 +1518,31 @@ HRESULT D3DGLDevice::CreateVertexShader(const DWORD *function, IDirect3DVertexSh
     return D3D_OK;
 }
 
-HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9* pShader)
+HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    FIXME("iface %p, shader %p : semi-stub\n", this, shader);
+
+    D3DGLVertexShader *vshader = nullptr;
+    if(shader)
+    {
+        HRESULT hr;
+        hr = shader->QueryInterface(IID_D3DGLVertexShader, (void**)&vshader);
+        if(FAILED(hr)) return D3DERR_INVALIDCALL;
+    }
+
+    vshader = mVertexShader.exchange(vshader);
+    if(vshader) vshader->Release();
+
+    return D3D_OK;
 }
 
-HRESULT D3DGLDevice::GetVertexShader(IDirect3DVertexShader9** ppShader)
+HRESULT D3DGLDevice::GetVertexShader(IDirect3DVertexShader9 **shader)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, shader %p\n", this, shader);
+
+    *shader = mVertexShader.load();
+    if(*shader) (*shader)->AddRef();
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetVertexShaderConstantF(UINT StartRegister, CONST float* pConstantData, UINT Vector4fCount)
@@ -1687,16 +1704,31 @@ HRESULT D3DGLDevice::CreatePixelShader(const DWORD *function, IDirect3DPixelShad
     return D3D_OK;
 }
 
-HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9* pShader)
+HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9 *shader)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    FIXME("iface %p, shader %p : semi-stub\n", this, shader);
+
+    D3DGLPixelShader *pshader = nullptr;
+    if(shader)
+    {
+        HRESULT hr;
+        hr = shader->QueryInterface(IID_D3DGLPixelShader, (void**)&pshader);
+        if(FAILED(hr)) return D3DERR_INVALIDCALL;
+    }
+
+    pshader = mPixelShader.exchange(pshader);
+    if(pshader) pshader->Release();
+
+    return D3D_OK;
 }
 
-HRESULT D3DGLDevice::GetPixelShader(IDirect3DPixelShader9** ppShader)
+HRESULT D3DGLDevice::GetPixelShader(IDirect3DPixelShader9 **shader)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, shader %p\n", this, shader);
+
+    *shader = mPixelShader.load();
+    if(*shader) (*shader)->AddRef();
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetPixelShaderConstantF(UINT StartRegister, CONST float* pConstantData, UINT Vector4fCount)
