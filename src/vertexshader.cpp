@@ -21,7 +21,7 @@ D3DGLVertexShader::~D3DGLVertexShader()
 bool D3DGLVertexShader::init(const DWORD *data)
 {
     ERR("Failing\n");
-    return false;
+    return true;
 }
 
 

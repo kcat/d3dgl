@@ -21,7 +21,7 @@ D3DGLPixelShader::~D3DGLPixelShader()
 bool D3DGLPixelShader::init(const DWORD *data)
 {
     ERR("Failing\n");
-    return false;
+    return true;
 }
 
 
