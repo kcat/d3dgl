@@ -1602,14 +1602,39 @@ HRESULT D3DGLDevice::GetStreamSource(UINT index, IDirect3DVertexBuffer9 **stream
 
 HRESULT D3DGLDevice::SetStreamSourceFreq(UINT index, UINT divisor)
 {
-    FIXME("iface %p, index %u, divisor %u : stub!\n", this, index, divisor);
-    return E_NOTIMPL;
+    TRACE("iface %p, index %u, divisor %u\n", this, index, divisor);
+
+    if(index >= mStreams.size())
+    {
+        WARN("Stream index out of range (%u >= %u)\n", index, mStreams.size());
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(index == 0 && (divisor&D3DSTREAMSOURCE_INSTANCEDATA))
+    {
+        WARN("Instance data not allowed on stream 0\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(!(divisor&D3DSTREAMSOURCE_INDEXEDDATA) && divisor != 1)
+        FIXME("Unexpected divisor value: 0x%x\n", divisor);
+
+    mStreams[index].mFreq = divisor;
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::GetStreamSourceFreq(UINT index, UINT *divisor)
 {
-    FIXME("iface %p, index %u, divisor %p : stub!\n", this, index, divisor);
-    return E_NOTIMPL;
+    TRACE("iface %p, index %u, divisor %p\n", this, index, divisor);
+
+    if(index >= mStreams.size())
+    {
+        WARN("Stream index out of range (%u >= %u)\n", index, mStreams.size());
+        return D3DERR_INVALIDCALL;
+    }
+
+    *divisor = mStreams[index].mFreq;
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetIndices(IDirect3DIndexBuffer9 *index)

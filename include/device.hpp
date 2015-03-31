@@ -58,7 +58,8 @@ class D3DGLDevice : public IDirect3DDevice9 {
         D3DGLBufferObject *mBuffer;
         UINT mOffset;
         UINT mStride;
-        StreamSource() : mBuffer(0), mOffset(0), mStride(0) { }
+        UINT mFreq;
+        StreamSource() : mBuffer(0), mOffset(0), mStride(0), mFreq(1) { }
     };
     std::array<StreamSource,MAX_STREAMS> mStreams;
     std::atomic<D3DGLBufferObject*> mIndexBuffer;
