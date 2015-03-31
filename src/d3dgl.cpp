@@ -233,7 +233,7 @@ HRESULT Direct3DGL::GetAdapterIdentifier(UINT adapter, DWORD flags, D3DADAPTER_I
 
 UINT Direct3DGL::GetAdapterModeCount(UINT adapter, D3DFORMAT format)
 {
-    TRACE("iface %p, adapter %u, format %s : semi-stub\n", this, adapter, d3dfmt_to_str(format));
+    TRACE("iface %p, adapter %u, format %s\n", this, adapter, d3dfmt_to_str(format));
 
     if(adapter >= gAdapterList.size())
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, gAdapterList.size());
