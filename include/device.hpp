@@ -83,6 +83,9 @@ private:
     D3DMATERIAL9 mMaterial;
     std::atomic<bool> mInScene;
 
+    std::array<float,256*4> mVertexConstantsF;
+    std::array<float,256*4> mPixelConstantsF;
+
     std::atomic<D3DGLVertexShader*> mVertexShader;
     std::atomic<D3DGLPixelShader*> mPixelShader;
 

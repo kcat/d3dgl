@@ -505,6 +505,8 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mSwapchains{nullptr}
   , mDepthStencil(nullptr)
   , mInScene(false)
+  , mVertexConstantsF{0.0f}
+  , mPixelConstantsF{0.0f}
   , mVertexShader(nullptr)
   , mPixelShader(nullptr)
   , mVertexDecl(nullptr)
