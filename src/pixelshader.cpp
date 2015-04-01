@@ -20,7 +20,9 @@ D3DGLPixelShader::~D3DGLPixelShader()
 
 bool D3DGLPixelShader::init(const DWORD *data)
 {
-    ERR("Failing\n");
+    ERR("Pretending to load %s shader %lu.%lu\n", (((*data>>16)==0xfffe) ? "vertex" :
+                                                   ((*data>>16)==0xffff) ? "pixel" : "unknown"),
+                                                  (*data>>8)&0xff, *data&0xff);
     return true;
 }
 

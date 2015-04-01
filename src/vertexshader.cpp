@@ -20,7 +20,9 @@ D3DGLVertexShader::~D3DGLVertexShader()
 
 bool D3DGLVertexShader::init(const DWORD *data)
 {
-    ERR("Failing\n");
+    ERR("Pretending to load %s shader %lu.%lu\n", (((*data>>16)==0xfffe) ? "vertex" :
+                                                   ((*data>>16)==0xffff) ? "pixel" : "unknown"),
+                                                  (*data>>8)&0xff, *data&0xff);
     return true;
 }
 
