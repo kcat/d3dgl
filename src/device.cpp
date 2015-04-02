@@ -2198,7 +2198,7 @@ HRESULT D3DGLDevice::GetFVF(DWORD* pFVF)
 
 HRESULT D3DGLDevice::CreateVertexShader(const DWORD *function, IDirect3DVertexShader9 **shader)
 {
-    TRACE("iface %p, function %p, shader %p!\n", this, function, shader);
+    TRACE("iface %p, function %p, shader %p\n", this, function, shader);
 
     D3DGLVertexShader *vtxshader = new D3DGLVertexShader(this);
     if(!vtxshader->init(function))
@@ -2214,7 +2214,7 @@ HRESULT D3DGLDevice::CreateVertexShader(const DWORD *function, IDirect3DVertexSh
 
 HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
 {
-    FIXME("iface %p, shader %p : semi-stub\n", this, shader);
+    WARN("iface %p, shader %p : semi-stub\n", this, shader);
 
     D3DGLVertexShader *vshader = nullptr;
     if(shader)
@@ -2300,7 +2300,7 @@ HRESULT D3DGLDevice::GetVertexShaderConstantB(UINT StartRegister, WINBOOL* pCons
 
 HRESULT D3DGLDevice::SetStreamSource(UINT index, IDirect3DVertexBuffer9 *stream, UINT offset, UINT stride)
 {
-    FIXME("iface %p, index %u, stream %p, offset %u, stride %u : stub!\n", this, index, stream, offset, stride);
+    TRACE("iface %p, index %u, stream %p, offset %u, stride %u\n", this, index, stream, offset, stride);
 
     if(index >= mStreams.size())
     {
@@ -2327,7 +2327,7 @@ HRESULT D3DGLDevice::SetStreamSource(UINT index, IDirect3DVertexBuffer9 *stream,
 
 HRESULT D3DGLDevice::GetStreamSource(UINT index, IDirect3DVertexBuffer9 **stream, UINT *offset, UINT *stride)
 {
-    FIXME("iface %p, index %u, stream %p, offset %p, stride %p : stub!\n", this, index, stream, offset, stride);
+    TRACE("iface %p, index %u, stream %p, offset %p, stride %p\n", this, index, stream, offset, stride);
 
     if(index >= mStreams.size())
     {
@@ -2382,7 +2382,7 @@ HRESULT D3DGLDevice::GetStreamSourceFreq(UINT index, UINT *divisor)
 
 HRESULT D3DGLDevice::SetIndices(IDirect3DIndexBuffer9 *index)
 {
-    FIXME("iface %p, index %p : stub!\n", this, index);
+    TRACE("iface %p, index %p\n", this, index);
 
     D3DGLBufferObject *buffer = nullptr;
     if(index)
@@ -2400,7 +2400,7 @@ HRESULT D3DGLDevice::SetIndices(IDirect3DIndexBuffer9 *index)
 
 HRESULT D3DGLDevice::GetIndices(IDirect3DIndexBuffer9 **index)
 {
-    FIXME("iface %p, index %p : stub!\n", this, index);
+    TRACE("iface %p, index %p\n", this, index);
 
     *index = mIndexBuffer.load();
     if(*index) (*index)->AddRef();
@@ -2426,7 +2426,7 @@ HRESULT D3DGLDevice::CreatePixelShader(const DWORD *function, IDirect3DPixelShad
 
 HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9 *shader)
 {
-    FIXME("iface %p, shader %p : semi-stub\n", this, shader);
+    WARN("iface %p, shader %p : semi-stub\n", this, shader);
 
     D3DGLPixelShader *pshader = nullptr;
     if(shader)
