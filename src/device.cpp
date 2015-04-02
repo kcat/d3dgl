@@ -251,6 +251,42 @@ GLenum GetGLBlendFunc(DWORD mode)
     return GL_ONE;
 }
 
+GLenum GetGLStencilOp(D3DSTENCILOP op)
+{
+    switch(op)
+    {
+        case D3DSTENCILOP_KEEP: return GL_KEEP;
+        case D3DSTENCILOP_ZERO: return GL_ZERO;
+        case D3DSTENCILOP_REPLACE: return GL_REPLACE;
+        case D3DSTENCILOP_INCRSAT: return GL_INCR;
+        case D3DSTENCILOP_DECRSAT: return GL_DECR;
+        case D3DSTENCILOP_INVERT: return GL_INVERT;
+        case D3DSTENCILOP_INCR: return GL_INCR_WRAP;
+        case D3DSTENCILOP_DECR: return GL_DECR_WRAP;
+        case D3DSTENCILOP_FORCE_DWORD: break;
+    }
+    FIXME("Unhandled D3DSTENCILOP: 0x%x\n", op);
+    return GL_KEEP;
+}
+
+GLenum GetGLCompFunc(D3DCMPFUNC func)
+{
+    switch(func)
+    {
+        case D3DCMP_NEVER: return GL_NEVER;
+        case D3DCMP_LESS: return GL_LESS;
+        case D3DCMP_EQUAL: return GL_EQUAL;
+        case D3DCMP_LESSEQUAL: return GL_LEQUAL;
+        case D3DCMP_GREATER: return GL_GREATER;
+        case D3DCMP_NOTEQUAL: return GL_NOTEQUAL;
+        case D3DCMP_GREATEREQUAL: return GL_GEQUAL;
+        case D3DCMP_ALWAYS: return GL_ALWAYS;
+        case D3DCMP_FORCE_DWORD: break;
+    }
+    FIXME("Unhandled D3DCMPFUNC: 0x%x\n", func);
+    return GL_ALWAYS;
+}
+
 
 class StateEnable : public Command {
     GLenum mState;
@@ -336,6 +372,53 @@ public:
     virtual ULONG execute()
     {
         glBlendFunc(mSrc, mDst);
+        return sizeof(*this);
+    }
+};
+
+class StencilFuncSet : public Command {
+    GLenum mFace;
+    GLenum mFunc;
+    GLuint mRef;
+    GLuint mMask;
+
+public:
+    StencilFuncSet(GLenum face, GLenum func, GLuint ref, GLuint mask) : mFace(face), mFunc(func), mRef(ref), mMask(mask) { }
+
+    virtual ULONG execute()
+    {
+        glStencilFuncSeparate(mFace, mFunc, mRef, mMask);
+        return sizeof(*this);
+    }
+};
+
+class StencilOpSet : public Command {
+    GLenum mFace;
+    GLenum mFail;
+    GLenum mZFail;
+    GLenum mZPass;
+
+public:
+    StencilOpSet(GLenum face, GLenum fail, GLenum zfail, GLenum zpass)
+      : mFace(face), mFail(fail), mZFail(zfail), mZPass(zpass)
+    { }
+
+    virtual ULONG execute()
+    {
+        glStencilOpSeparate(mFace, mFail, mZFail, mZPass);
+        return sizeof(*this);
+    }
+};
+
+class StencilMaskSet : public Command {
+    GLuint mMask;
+
+public:
+    StencilMaskSet(GLuint mask) : mMask(mask) { }
+
+    virtual ULONG execute()
+    {
+        glStencilMask(mMask);
         return sizeof(*this);
     }
 };
@@ -1556,6 +1639,71 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
             mRenderState[state] = value;
             mQueue.sendAndUnlock<BlendFuncSet>(GetGLBlendFunc(mRenderState[D3DRS_SRCBLEND]),
                                                GetGLBlendFunc(mRenderState[D3DRS_DESTBLEND]));
+            break;
+
+        case D3DRS_STENCILWRITEMASK:
+            mQueue.lock();
+            mRenderState[state] = value;
+            mQueue.sendAndUnlock<StencilMaskSet>(value);
+            break;
+
+        case D3DRS_STENCILFUNC:
+        case D3DRS_STENCILREF:
+        case D3DRS_STENCILMASK:
+            {
+                mQueue.lock();
+                GLenum face = mRenderState[D3DRS_TWOSIDEDSTENCILMODE] ? GL_FRONT : GL_FRONT_AND_BACK;
+                mRenderState[state] = value;
+                mQueue.sendAndUnlock<StencilFuncSet>(face,
+                    GetGLCompFunc((D3DCMPFUNC)mRenderState[D3DRS_STENCILFUNC].load()),
+                    mRenderState[D3DRS_STENCILREF].load(), mRenderState[D3DRS_STENCILMASK].load()
+                );
+            }
+            break;
+
+        case D3DRS_STENCILFAIL:
+        case D3DRS_STENCILZFAIL:
+        case D3DRS_STENCILPASS:
+            {
+                mQueue.lock();
+                GLenum face = mRenderState[D3DRS_TWOSIDEDSTENCILMODE] ? GL_FRONT : GL_FRONT_AND_BACK;
+                mRenderState[state] = value;
+                mQueue.sendAndUnlock<StencilOpSet>(face,
+                    GetGLStencilOp((D3DSTENCILOP)mRenderState[D3DRS_STENCILFAIL].load()),
+                    GetGLStencilOp((D3DSTENCILOP)mRenderState[D3DRS_STENCILZFAIL].load()),
+                    GetGLStencilOp((D3DSTENCILOP)mRenderState[D3DRS_STENCILPASS].load())
+                );
+            }
+            break;
+
+        // FIXME: These probably shouldn't set OpenGL state while
+        // D3DRS_TWOSIDEDSTENCILMODE is false.
+        case D3DRS_CCW_STENCILFUNC:
+            mQueue.lock();
+            mRenderState[state] = value;
+            mQueue.sendAndUnlock<StencilFuncSet>(GL_BACK,
+                GetGLCompFunc((D3DCMPFUNC)mRenderState[D3DRS_CCW_STENCILFUNC].load()),
+                mRenderState[D3DRS_STENCILREF].load(), mRenderState[D3DRS_STENCILMASK].load()
+            );
+            break;
+
+        case D3DRS_CCW_STENCILFAIL:
+        case D3DRS_CCW_STENCILZFAIL:
+        case D3DRS_CCW_STENCILPASS:
+            mQueue.lock();
+            mRenderState[state] = value;
+            mQueue.sendAndUnlock<StencilOpSet>(GL_BACK,
+                GetGLStencilOp((D3DSTENCILOP)mRenderState[D3DRS_CCW_STENCILFAIL].load()),
+                GetGLStencilOp((D3DSTENCILOP)mRenderState[D3DRS_CCW_STENCILZFAIL].load()),
+                GetGLStencilOp((D3DSTENCILOP)mRenderState[D3DRS_CCW_STENCILPASS].load())
+            );
+            break;
+
+        // FIXME: This should probably set the GL_BACK stencil func/ops from
+        // CCW state when enabled, or set GL_FRONT_AND_BACK from CW state when
+        // disabled.
+        case D3DRS_TWOSIDEDSTENCILMODE:
+            mRenderState[state] = value;
             break;
 
         default:
