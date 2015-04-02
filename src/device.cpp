@@ -712,6 +712,9 @@ void D3DGLDevice::initGL()
     mGLState.color_array_enabled = false;
     mGLState.specular_array_enabled = false;
     mGLState.texcoord_array_enabled = 0;
+
+    glFrontFace(GL_CW);
+    checkGLError();
 }
 class InitGLDeviceCmd : public Command {
     D3DGLDevice *mTarget;
