@@ -53,14 +53,6 @@ DWORD float_to_dword(float f)
     } tmp = { f };
     return tmp.d;
 }
-float dword_to_float(DWORD d)
-{
-    union {
-        DWORD d;
-        float f;
-    } tmp = { d };
-    return tmp.f;
-}
 static_assert(sizeof(DWORD)==sizeof(float), "Sizeof DWORD does not match float");
 
 std::array<DWORD,210> GenerateDefaultRSValues()
@@ -369,6 +361,67 @@ public:
     virtual ULONG execute()
     {
         glPolygonMode(GL_FRONT_AND_BACK, mMode);
+        return sizeof(*this);
+    }
+};
+
+class CullFaceSet : public Command {
+    GLenum mFace;
+
+public:
+    CullFaceSet(GLenum face) : mFace(face) { }
+
+    virtual ULONG execute()
+    {
+        if(!mFace)
+            glDisable(GL_CULL_FACE);
+        else
+        {
+            glEnable(GL_CULL_FACE);
+            glCullFace(mFace);
+        }
+        return sizeof(*this);
+    }
+};
+
+class ColorMaskSet : public Command {
+    UINT mEnable;
+
+public:
+    ColorMaskSet(UINT enable) : mEnable(enable) { }
+
+    virtual ULONG execute()
+    {
+        glColorMask(!!(mEnable&D3DCOLORWRITEENABLE_RED),
+                    !!(mEnable&D3DCOLORWRITEENABLE_GREEN),
+                    !!(mEnable&D3DCOLORWRITEENABLE_BLUE),
+                    !!(mEnable&D3DCOLORWRITEENABLE_ALPHA));
+        return sizeof(*this);
+    }
+};
+
+class DepthMaskSet : public Command {
+    bool mEnable;
+
+public:
+    DepthMaskSet(bool enable) : mEnable(enable) { }
+
+    virtual ULONG execute()
+    {
+        glDepthMask(mEnable);
+        return sizeof(*this);
+    }
+};
+
+class DepthFuncSet : public Command {
+    GLenum mFunc;
+
+public:
+    DepthFuncSet(GLenum func) : mFunc(func) { }
+
+    virtual ULONG execute()
+    {
+        glDepthFunc(mFunc);
         return sizeof(*this);
     }
 };
@@ -1656,6 +1709,40 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
             mQueue.sendAndUnlock<PolygonModeSet>(mode);
             break;
         }
+
+        case D3DRS_CULLMODE:
+        {
+            GLenum face = GL_NONE;
+            if(value == D3DCULL_CW)
+                face = GL_FRONT;
+            else if(value == D3DCULL_CCW)
+                face = GL_BACK;
+            else if(value != D3DCULL_NONE)
+                WARN("Unhandled cull mode: 0x%lx\n", value);
+
+            mQueue.lock();
+            mRenderState[state] = value;
+            mQueue.sendAndUnlock<CullFaceSet>(face);
+            break;
+        }
+
+        case D3DRS_COLORWRITEENABLE:
+            mQueue.lock();
+            mRenderState[state] = value;
+            mQueue.sendAndUnlock<ColorMaskSet>(mRenderState[D3DRS_COLORWRITEENABLE].load());
+            break;
+
+        case D3DRS_ZWRITEENABLE:
+            mQueue.lock();
+            mRenderState[state] = value;
+            mQueue.sendAndUnlock<DepthMaskSet>(mRenderState[D3DRS_ZWRITEENABLE].load());
+            break;
+
+        case D3DRS_ZFUNC:
+            mQueue.lock();
+            mRenderState[state] = value;
+            mQueue.sendAndUnlock<DepthFuncSet>(GetGLCompFunc((D3DCMPFUNC)mRenderState[D3DRS_ZFUNC].load()));
+            break;
 
         case D3DRS_ALPHAFUNC:
         case D3DRS_ALPHAREF:
