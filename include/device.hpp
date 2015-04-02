@@ -75,6 +75,14 @@ private:
 
     typedef std::array<std::atomic<DWORD>,33> TexStageStates;
     typedef std::array<std::atomic<DWORD>,14> SamplerStates;
+    union Vector4f {
+        float value[4];
+        struct { float x, y, z, w; };
+        struct { float r, g, b, a; };
+        float *ptr() { return &value[0]; };
+        const float *ptr() const { return &value[0]; };
+    };
+    static_assert(sizeof(Vector4f)==sizeof(float[4]), "Bad Vector4f size");
 
     std::array<TexStageStates,MAX_TEXTURES> mTexStageState;
     std::array<SamplerStates,MAX_COMBINED_SAMPLERS> mSamplerState;
@@ -83,8 +91,8 @@ private:
     D3DMATERIAL9 mMaterial;
     std::atomic<bool> mInScene;
 
-    std::array<float,256*4> mVertexConstantsF;
-    std::array<float,256*4> mPixelConstantsF;
+    std::array<Vector4f,256> mVertexConstantsF;
+    std::array<Vector4f,256> mPixelConstantsF;
 
     std::atomic<D3DGLVertexShader*> mVertexShader;
     std::atomic<D3DGLPixelShader*> mPixelShader;

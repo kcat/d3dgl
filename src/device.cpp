@@ -1863,16 +1863,39 @@ HRESULT D3DGLDevice::GetVertexShader(IDirect3DVertexShader9 **shader)
     return D3D_OK;
 }
 
-HRESULT D3DGLDevice::SetVertexShaderConstantF(UINT StartRegister, CONST float* pConstantData, UINT Vector4fCount)
+HRESULT D3DGLDevice::SetVertexShaderConstantF(UINT start, const float *values, UINT count)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    WARN("iface %p, start %u, values %p, count %u : semi-stub!\n", this, start, values, count);
+
+    if(start >= mVertexConstantsF.size() || mVertexConstantsF.size()-start > count)
+    {
+        WARN("Invalid constants range (%u + %u > %u)\n", start, count, mVertexConstantsF.size());
+        return D3DERR_INVALIDCALL;
+    }
+
+    // FIXME: Reset values in vertex shader
+    mQueue.lock();
+    memcpy(mVertexConstantsF[start].ptr(), values, count*sizeof(Vector4f));
+    mQueue.unlock();
+
+    return D3D_OK;
 }
 
-HRESULT D3DGLDevice::GetVertexShaderConstantF(UINT StartRegister, float* pConstantData, UINT Vector4fCount)
+HRESULT D3DGLDevice::GetVertexShaderConstantF(UINT start, float *values, UINT count)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, start %u, values %p, count %u\n", this, start, values, count);
+
+    if(start >= mVertexConstantsF.size() || mVertexConstantsF.size()-start > count)
+    {
+        WARN("Invalid constants range (%u + %u > %u)\n", start, count, mVertexConstantsF.size());
+        return D3DERR_INVALIDCALL;
+    }
+
+    mQueue.lock();
+    memcpy(values, mVertexConstantsF[start].ptr(), count*sizeof(Vector4f));
+    mQueue.unlock();
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetVertexShaderConstantI(UINT StartRegister, CONST int* pConstantData, UINT Vector4iCount)
@@ -2052,16 +2075,39 @@ HRESULT D3DGLDevice::GetPixelShader(IDirect3DPixelShader9 **shader)
     return D3D_OK;
 }
 
-HRESULT D3DGLDevice::SetPixelShaderConstantF(UINT StartRegister, CONST float* pConstantData, UINT Vector4fCount)
+HRESULT D3DGLDevice::SetPixelShaderConstantF(UINT start, const float *values, UINT count)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    WARN("iface %p, start %u, values %p, count %u : semi-stub!\n", this, start, values, count);
+
+    if(start >= mPixelConstantsF.size() || mPixelConstantsF.size()-start > count)
+    {
+        WARN("Invalid constants range (%u + %u > %u)\n", start, count, mPixelConstantsF.size());
+        return D3DERR_INVALIDCALL;
+    }
+
+    // FIXME: Reset values in pixel shader
+    mQueue.lock();
+    memcpy(mPixelConstantsF[start].ptr(), values, count*sizeof(Vector4f));
+    mQueue.unlock();
+
+    return D3D_OK;
 }
 
-HRESULT D3DGLDevice::GetPixelShaderConstantF(UINT StartRegister, float* pConstantData, UINT Vector4fCount)
+HRESULT D3DGLDevice::GetPixelShaderConstantF(UINT start, float *values, UINT count)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, start %u, values %p, count %u\n", this, start, values, count);
+
+    if(start >= mPixelConstantsF.size() || mPixelConstantsF.size()-start > count)
+    {
+        WARN("Invalid constants range (%u + %u > %u)\n", start, count, mPixelConstantsF.size());
+        return D3DERR_INVALIDCALL;
+    }
+
+    mQueue.lock();
+    memcpy(values, mPixelConstantsF[start].ptr(), count*sizeof(Vector4f));
+    mQueue.unlock();
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetPixelShaderConstantI(UINT StartRegister, CONST int* pConstantData, UINT Vector4iCount)
