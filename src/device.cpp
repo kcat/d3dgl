@@ -55,7 +55,7 @@ DWORD float_to_dword(float f)
 }
 std::array<DWORD,210> GenerateDefaultRSValues()
 {
-    std::array<DWORD,210> ret;
+    std::array<DWORD,210> ret{0ul};
     ret[D3DRS_ZENABLE] = D3DZB_TRUE;
     ret[D3DRS_FILLMODE] = D3DFILL_SOLID;
     ret[D3DRS_SHADEMODE] = D3DSHADE_GOURAUD;
@@ -182,7 +182,7 @@ static const std::array<DWORD,14> DefaultSSValues{
 
 std::array<DWORD,33> GenerateDefaultTSSValues()
 {
-    std::array<DWORD,33> ret;
+    std::array<DWORD,33> ret{0ul};
     ret[D3DTSS_COLOROP] = D3DTOP_DISABLE;
     ret[D3DTSS_COLORARG1] = D3DTA_TEXTURE;
     ret[D3DTSS_COLORARG2] = D3DTA_CURRENT;
