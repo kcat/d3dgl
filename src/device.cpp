@@ -50,9 +50,19 @@ DWORD float_to_dword(float f)
     union {
         float f;
         DWORD d;
-    } tmpfloat = { f };
-    return tmpfloat.d;
+    } tmp = { f };
+    return tmp.d;
 }
+float dword_to_float(DWORD d)
+{
+    union {
+        DWORD d;
+        float f;
+    } tmp = { d };
+    return tmp.f;
+}
+static_assert(sizeof(DWORD)==sizeof(float), "Sizeof DWORD does not match float");
+
 std::array<DWORD,210> GenerateDefaultRSValues()
 {
     std::array<DWORD,210> ret{0ul};
@@ -359,6 +369,20 @@ public:
     virtual ULONG execute()
     {
         glPolygonMode(GL_FRONT_AND_BACK, mMode);
+        return sizeof(*this);
+    }
+};
+
+class AlphaFuncSet : public Command {
+    GLenum mFunc;
+    GLclampf mRef;
+
+public:
+    AlphaFuncSet(GLenum func, GLclampf ref) : mFunc(func), mRef(ref) { }
+
+    virtual ULONG execute()
+    {
+        glAlphaFunc(mFunc, std::min(std::max(mRef, 0.0f), 1.0f));
         return sizeof(*this);
     }
 };
@@ -1632,6 +1656,14 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
             mQueue.sendAndUnlock<PolygonModeSet>(mode);
             break;
         }
+
+        case D3DRS_ALPHAFUNC:
+        case D3DRS_ALPHAREF:
+            mQueue.lock();
+            mRenderState[state] = value;
+            mQueue.sendAndUnlock<AlphaFuncSet>(GetGLCompFunc((D3DCMPFUNC)mRenderState[D3DRS_ALPHAFUNC].load()),
+                                               mRenderState[D3DRS_ALPHAREF] / 255.0f);
+            break;
 
         case D3DRS_SRCBLEND:
         case D3DRS_DESTBLEND:
