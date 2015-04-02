@@ -206,6 +206,52 @@ std::array<DWORD,33> GenerateDefaultTSSValues()
 static const std::array<DWORD,33> DefaultTSSValues = GenerateDefaultTSSValues();
 
 
+// A simple table that maps on/off D3D render states to GL states passed to
+// glEnable/glDisable.
+static const std::map<D3DRENDERSTATETYPE,GLenum> RSStateEnableMap{
+    {D3DRS_DITHERENABLE,         GL_DITHER},
+    {D3DRS_FOGENABLE,            GL_FOG},
+    {D3DRS_COLORVERTEX,          GL_COLOR_MATERIAL},
+    {D3DRS_NORMALIZENORMALS,     GL_NORMALIZE},
+    {D3DRS_SCISSORTESTENABLE,    GL_SCISSOR_TEST},
+    {D3DRS_STENCILENABLE,        GL_STENCIL_TEST},
+    {D3DRS_ALPHATESTENABLE,      GL_ALPHA_TEST},
+    {D3DRS_ALPHABLENDENABLE,     GL_BLEND},
+    {D3DRS_LIGHTING,             GL_LIGHTING},
+    {D3DRS_MULTISAMPLEANTIALIAS, GL_MULTISAMPLE},
+    {D3DRS_POINTSPRITEENABLE,    GL_POINT_SPRITE},
+    {D3DRS_SRGBWRITEENABLE,      GL_FRAMEBUFFER_SRGB},
+    // WARNING: ZENABLE is a three-state setting; FALSE, TRUE, and USEW. USEW
+    // is unsupportable with OpenGL, and is special-cased in SetRenderState.
+    {D3DRS_ZENABLE,              GL_DEPTH_TEST}
+};
+
+
+GLenum GetGLBlendFunc(DWORD mode)
+{
+    switch(mode)
+    {
+        case D3DBLEND_ZERO: return GL_ZERO;
+        case D3DBLEND_ONE: return GL_ONE;
+        case D3DBLEND_SRCCOLOR: return GL_SRC_COLOR;
+        case D3DBLEND_INVSRCCOLOR: return GL_ONE_MINUS_SRC_COLOR;
+        case D3DBLEND_SRCALPHA: return GL_SRC_ALPHA;
+        case D3DBLEND_INVSRCALPHA: return GL_ONE_MINUS_SRC_ALPHA;
+        case D3DBLEND_DESTALPHA: return GL_DST_ALPHA;
+        case D3DBLEND_INVDESTALPHA: return GL_ONE_MINUS_DST_ALPHA;
+        case D3DBLEND_DESTCOLOR: return GL_DST_COLOR;
+        case D3DBLEND_INVDESTCOLOR: return GL_ONE_MINUS_DST_COLOR;
+        case D3DBLEND_SRCALPHASAT: return GL_SRC_ALPHA_SATURATE;
+        //case D3DBLEND_BOTHSRCALPHA:
+        //case D3DBLEND_BOTHINVSRCALPHA:
+        case D3DBLEND_BLENDFACTOR: return GL_CONSTANT_COLOR;
+        case D3DBLEND_INVBLENDFACTOR: return GL_ONE_MINUS_CONSTANT_COLOR;
+    }
+    FIXME("Unhandled D3DBLEND mode: 0x%lx\n", mode);
+    return GL_ONE;
+}
+
+
 class StateEnable : public Command {
     GLenum mState;
     bool mEnable;
@@ -264,6 +310,32 @@ public:
     {
         glViewport(mX, mY, mWidth, mHeight);
         glDepthRange(mMinZ, mMaxZ);
+        return sizeof(*this);
+    }
+};
+
+class PolygonModeSet : public Command {
+    GLenum mMode;
+
+public:
+    PolygonModeSet(GLenum mode) : mMode(mode) { }
+
+    virtual ULONG execute()
+    {
+        glPolygonMode(GL_FRONT_AND_BACK, mMode);
+        return sizeof(*this);
+    }
+};
+
+class BlendFuncSet : public Command {
+    GLenum mSrc, mDst;
+
+public:
+    BlendFuncSet(GLenum src, GLenum dst) : mSrc(src), mDst(dst) { }
+
+    virtual ULONG execute()
+    {
+        glBlendFunc(mSrc, mDst);
         return sizeof(*this);
     }
 };
@@ -1446,18 +1518,52 @@ HRESULT D3DGLDevice::GetClipPlane(DWORD Index, float* pPlane)
 
 HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
 {
-    FIXME("iface %p, state %s, value 0x%lx : stub!\n", this, d3drs_to_str(state), value);
+    TRACE("iface %p, state %s, value 0x%lx : semi-stub!\n", this, d3drs_to_str(state), value);
 
-    if(state == D3DRS_DITHERENABLE)
+    auto glstate = RSStateEnableMap.find(state);
+    if(glstate != RSStateEnableMap.end())
     {
+        if(state == D3DRS_ZENABLE && value == D3DZB_USEW)
+        {
+            FIXME("W-buffer not handled\n");
+            return D3DERR_INVALIDCALL;
+        }
         mQueue.lock();
         mRenderState[state] = value;
-        mQueue.sendAndUnlock<StateEnable>(GL_DITHER, value!=0);
-        return D3D_OK;
+        mQueue.sendAndUnlock<StateEnable>(glstate->second, value!=0);
     }
+    else switch(state)
+    {
+        case D3DRS_FILLMODE:
+        {
+            GLenum mode = GL_FILL;
+            if(value == D3DFILL_POINT)
+                mode = GL_POINT;
+            else if(value == D3DFILL_WIREFRAME)
+                mode = GL_LINE;
+            else if(value != D3DFILL_SOLID)
+                WARN("Invalid fill mode: 0x%lx\n", value);
 
-    if(state < mRenderState.size())
-        mRenderState[state] = value;
+            mQueue.lock();
+            mRenderState[state] = value;
+            mQueue.sendAndUnlock<PolygonModeSet>(mode);
+            break;
+        }
+
+        case D3DRS_SRCBLEND:
+        case D3DRS_DESTBLEND:
+            mQueue.lock();
+            mRenderState[state] = value;
+            mQueue.sendAndUnlock<BlendFuncSet>(GetGLBlendFunc(mRenderState[D3DRS_SRCBLEND]),
+                                               GetGLBlendFunc(mRenderState[D3DRS_DESTBLEND]));
+            break;
+
+        default:
+            FIXME("Unhandled state %s, value 0x%lx\n", d3drs_to_str(state), value);
+            if(state < mRenderState.size())
+                mRenderState[state] = value;
+            break;
+    }
 
     return D3D_OK;
 }
