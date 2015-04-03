@@ -50,6 +50,9 @@ private:
         std::array<GLuint,MAX_COMBINED_SAMPLERS> samplers;
         GLuint pipeline;
 
+        GLuint vs_uniform_bufferf;
+        GLuint ps_uniform_bufferf;
+
         GLenum active_stage;
         std::array<GLenum,MAX_COMBINED_SAMPLERS> sampler_type;
         std::array<GLuint,MAX_COMBINED_SAMPLERS> sampler_binding;

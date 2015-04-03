@@ -500,6 +500,70 @@ public:
     }
 };
 
+#define BUFFER_VALUE_SEND_MAX (64u)
+class SetBufferValues : public Command {
+    GLuint mBuffer;
+    union {
+        char mData[BUFFER_VALUE_SEND_MAX*4*4];
+        float mVec4fs[BUFFER_VALUE_SEND_MAX][4];
+    };
+    GLintptr mStart;
+    GLsizeiptr mCount;
+
+public:
+    SetBufferValues(GLuint buffer, const float *data, GLintptr start, GLsizeiptr count)
+      : mBuffer(buffer)
+    {
+        for(GLsizeiptr i = 0;i < count;++i)
+        {
+            mVec4fs[i][0] = *(data++);
+            mVec4fs[i][1] = *(data++);
+            mVec4fs[i][2] = *(data++);
+            mVec4fs[i][3] = *(data++);
+        }
+        mStart = start * 4 * 4;
+        mCount = count * 4 * 4;
+    }
+
+    virtual ULONG execute()
+    {
+        glBindBuffer(GL_UNIFORM_BUFFER, mBuffer);
+        glBufferSubData(GL_UNIFORM_BUFFER, mStart, mCount, mData);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        checkGLError();
+        return sizeof(*this);
+    }
+};
+// Specialization of the above, for the common simple case of updating one vec4.
+class SetBufferValue : public Command {
+    GLuint mBuffer;
+    union {
+        char mData[4*4];
+        float mVec4f[4];
+    };
+    GLintptr mStart;
+
+public:
+    SetBufferValue(GLuint buffer, const float *data, GLintptr start)
+      : mBuffer(buffer)
+    {
+        mVec4f[0] = *(data++);
+        mVec4f[1] = *(data++);
+        mVec4f[2] = *(data++);
+        mVec4f[3] = *(data++);
+        mStart = start * 4 * 4;
+    }
+
+    virtual ULONG execute()
+    {
+        glBindBuffer(GL_UNIFORM_BUFFER, mBuffer);
+        glBufferSubData(GL_UNIFORM_BUFFER, mStart, 4*4, mData);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        checkGLError();
+        return sizeof(*this);
+    }
+};
+
 } // namespace
 
 
@@ -702,6 +766,22 @@ void D3DGLDevice::initGL()
 
     glGenProgramPipelines(1, &mGLState.pipeline);
     glBindProgramPipeline(mGLState.pipeline);
+    checkGLError();
+
+    {
+        float zero[256*4] = {0.0f};
+        // Binding index 0 = VS floats, 1 = VS ints, 2 = VS bools
+        glGenBuffers(1, &mGLState.vs_uniform_bufferf);
+        glBindBuffer(GL_UNIFORM_BUFFER, mGLState.vs_uniform_bufferf);
+        glBufferData(GL_UNIFORM_BUFFER, 256*sizeof(Vector4f), zero, GL_STREAM_DRAW);
+        glBindBufferBase(GL_UNIFORM_BUFFER, 0, mGLState.vs_uniform_bufferf);
+        // Binding index 3 = PS floats, 4 = PS ints, 5 = PS bools
+        glGenBuffers(1, &mGLState.ps_uniform_bufferf);
+        glBindBuffer(GL_UNIFORM_BUFFER, mGLState.ps_uniform_bufferf);
+        glBufferData(GL_UNIFORM_BUFFER, 256*sizeof(Vector4f), zero, GL_STREAM_DRAW);
+        glBindBufferBase(GL_UNIFORM_BUFFER, 3, mGLState.ps_uniform_bufferf);
+    }
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
     checkGLError();
 
     for(size_t i = 0;i < mGLState.sampler_type.size();++i)
@@ -2253,10 +2333,25 @@ HRESULT D3DGLDevice::SetVertexShaderConstantF(UINT start, const float *values, U
         return D3DERR_INVALIDCALL;
     }
 
-    // FIXME: Reset values in vertex shader
     mQueue.lock();
     memcpy(mVSConstantsF[start].ptr(), values, count*sizeof(Vector4f));
-    mQueue.unlock();
+    if(count == 1)
+        mQueue.sendAndUnlock<SetBufferValue>(mGLState.vs_uniform_bufferf, values, start);
+    else
+    {
+        mQueue.sendAndUnlock<SetBufferValues>(mGLState.vs_uniform_bufferf,
+            values, start, std::min(count, BUFFER_VALUE_SEND_MAX)
+        );
+        UINT i = std::min(count, BUFFER_VALUE_SEND_MAX);
+        while(i < count)
+        {
+            UINT todo = std::min(count-i, BUFFER_VALUE_SEND_MAX);
+            mQueue.send<SetBufferValues>(mGLState.vs_uniform_bufferf,
+                &values[i*4], (start+i), todo
+            );
+            i += todo;
+        }
+    }
 
     return D3D_OK;
 }
@@ -2465,10 +2560,25 @@ HRESULT D3DGLDevice::SetPixelShaderConstantF(UINT start, const float *values, UI
         return D3DERR_INVALIDCALL;
     }
 
-    // FIXME: Reset values in pixel shader
     mQueue.lock();
     memcpy(mPSConstantsF[start].ptr(), values, count*sizeof(Vector4f));
-    mQueue.unlock();
+    if(count == 1)
+        mQueue.sendAndUnlock<SetBufferValue>(mGLState.ps_uniform_bufferf, values, start);
+    else
+    {
+        mQueue.sendAndUnlock<SetBufferValues>(mGLState.ps_uniform_bufferf,
+            values, start, std::min(count, BUFFER_VALUE_SEND_MAX)
+        );
+        UINT i = std::min(count, BUFFER_VALUE_SEND_MAX);
+        while(i < count)
+        {
+            UINT todo = std::min(count-i, BUFFER_VALUE_SEND_MAX);
+            mQueue.send<SetBufferValues>(mGLState.ps_uniform_bufferf,
+                &values[i*4], (start+i), todo
+            );
+            i += todo;
+        }
+    }
 
     return D3D_OK;
 }
