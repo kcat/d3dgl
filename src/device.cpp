@@ -700,6 +700,10 @@ void D3DGLDevice::initGL()
         checkGLError();
     }
 
+    glGenProgramPipelines(1, &mGLState.pipeline);
+    glBindProgramPipeline(mGLState.pipeline);
+    checkGLError();
+
     for(size_t i = 0;i < mGLState.sampler_type.size();++i)
         mGLState.sampler_type[i] = GL_NONE;
     for(size_t i = 0;i < mGLState.sampler_binding.size();++i)
