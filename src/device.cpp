@@ -621,6 +621,14 @@ public:
     }
 };
 
+void D3DGLDevice::resetActiveTextureBindGL()
+{
+    GLuint stage = mGLState.active_stage;
+    GLenum type = mGLState.sampler_type[stage];
+    if(type) glBindTexture(type, mGLState.sampler_binding[stage]);
+    else glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 
 void D3DGLDevice::setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord)
 {

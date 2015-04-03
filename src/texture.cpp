@@ -12,21 +12,14 @@
 
 void D3DGLTexture::initGL()
 {
-    glActiveTexture(GL_TEXTURE0);
     glGenTextures(1, &mTexId);
     glBindTexture(GL_TEXTURE_2D, mTexId);
     checkGLError();
 
     glTexImage2D(GL_TEXTURE_2D, 0, mGLFormat->internalformat, mDesc.Width, mDesc.Height, 0,
                  mGLFormat->format, mGLFormat->type, NULL);
-    checkGLError();
-
-    if(mDesc.Pool == D3DPOOL_MANAGED)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_LOD, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, mSurfaces.size()-1);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    checkGLError();
 
     // Force allocation of mipmap levels, if any
     if(mSurfaces.size() > 1)
@@ -77,6 +70,8 @@ void D3DGLTexture::initGL()
     }
 
     mUpdateInProgress = 0;
+
+    mParent->resetActiveTextureBindGL();
 }
 class TextureInitCmd : public Command {
     D3DGLTexture *mTarget;
@@ -112,36 +107,13 @@ public:
 };
 
 
-void D3DGLTexture::setLodGL(DWORD lod)
-{
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, mTexId);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_LOD, lod);
-    checkGLError();
-}
-class TextureSetLODCmd : public Command {
-    D3DGLTexture *mTarget;
-    DWORD mLodLevel;
-
-public:
-    TextureSetLODCmd(D3DGLTexture *target, DWORD lod)
-      : mTarget(target), mLodLevel(lod)
-    { }
-
-    virtual ULONG execute()
-    {
-        mTarget->setLodGL(mLodLevel);
-        return sizeof(*this);
-    }
-};
-
-
 void D3DGLTexture::genMipmapGL()
 {
-    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mTexId);
     glGenerateMipmap(GL_TEXTURE_2D);
     checkGLError();
+
+    mParent->resetActiveTextureBindGL();
 }
 class TextureGenMipCmd : public Command {
     D3DGLTexture *mTarget;
@@ -173,7 +145,6 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPt
 
     D3DGLTextureSurface *surface = mSurfaces[level];
 
-    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mTexId);
     if(mIsCompressed)
     {
@@ -219,6 +190,8 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPt
     if(deletePtr)
         delete dataPtr;
     --mUpdateInProgress;
+
+    mParent->resetActiveTextureBindGL();
 }
 class TextureLoadLevelCmd : public Command {
     D3DGLTexture *mTarget;
@@ -453,12 +426,8 @@ DWORD D3DGLTexture::SetLOD(DWORD lod)
 
     lod = std::min(lod, (DWORD)mSurfaces.size()-1);
 
-    CommandQueue &queue = mParent->getQueue();
-    queue.lock();
-    if(mLodLevel.exchange(lod) == lod)
-        queue.unlock();
-    else
-        queue.sendAndUnlock<TextureSetLODCmd>(this, lod);
+    // FIXME: Set GL_TEXTURE_BASE_LEVEL
+    lod = mLodLevel.exchange(lod);
 
     return lod;
 }

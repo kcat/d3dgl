@@ -126,6 +126,7 @@ public:
 
     void initGL();
     void setTextureGL(GLuint stage, GLuint maxffpstage, GLenum type, GLuint binding);
+    void resetActiveTextureBindGL();
     void setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord);
     void drawGL(const GLIndexData &idxdata, const GLStreamData *streams, GLuint numstreams);
 

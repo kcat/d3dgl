@@ -48,7 +48,6 @@ public:
 
     void initGL();
     void deinitGL();
-    void setLodGL(DWORD lod);
     void genMipmapGL();
     void loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr);
 
