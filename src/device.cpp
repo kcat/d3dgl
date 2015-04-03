@@ -1685,7 +1685,7 @@ HRESULT D3DGLDevice::GetClipPlane(DWORD Index, float* pPlane)
 
 HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
 {
-    TRACE("iface %p, state %s, value 0x%lx : semi-stub!\n", this, d3drs_to_str(state), value);
+    TRACE("iface %p, state %s, value 0x%lx\n", this, d3drs_to_str(state), value);
 
     auto glstate = RSStateEnableMap.find(state);
     if(glstate != RSStateEnableMap.end())
