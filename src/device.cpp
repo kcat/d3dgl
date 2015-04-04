@@ -677,10 +677,76 @@ public:
     }
 };
 
-
-void D3DGLDevice::drawGL(const GLIndexData &idxdata, const GLStreamData *streams, GLuint numstreams)
+void D3DGLDevice::setVertexAttribArrayGL(UINT attribs)
 {
-    for(GLuint i = 0;i < numstreams;++i)
+    // Early out
+    if(attribs == mGLState.attrib_array_enabled)
+        return;
+
+    UINT numattribs = mAdapter.getLimits().vertex_attribs;
+    for(UINT i = 0;i < numattribs;++i)
+    {
+        UINT a = 1<<i;
+        if((attribs&a) != (mGLState.attrib_array_enabled&a))
+        {
+            if((attribs&a))
+                glEnableVertexAttribArray(i);
+            else
+                glDisableVertexAttribArray(i);
+        }
+    }
+    mGLState.attrib_array_enabled = attribs;
+    checkGLError();
+}
+class SetVertexAttribArrayCmd : public Command {
+    D3DGLDevice *mTarget;
+    UINT mAttribs;
+
+public:
+    SetVertexAttribArrayCmd(D3DGLDevice *target, UINT attribs)
+      : mTarget(target), mAttribs(attribs)
+    { }
+
+    virtual ULONG execute()
+    {
+        mTarget->setVertexAttribArrayGL(mAttribs);
+        return sizeof(*this);
+    }
+};
+
+void D3DGLDevice::setShaderProgramGL(GLbitfield stages, GLuint program)
+{
+    glUseProgramStages(mGLState.pipeline, stages, program);
+    checkGLError();
+}
+class SetShaderProgramCmd : public Command {
+    D3DGLDevice *mTarget;
+    GLbitfield mStages;
+    GLuint mProgram;
+
+public:
+    SetShaderProgramCmd(D3DGLDevice *target, GLbitfield stages, GLuint program)
+      : mTarget(target), mStages(stages), mProgram(program)
+    { }
+
+    virtual ULONG execute()
+    {
+        mTarget->setShaderProgramGL(mStages, mProgram);
+        return sizeof(*this);
+    }
+};
+
+
+void D3DGLDevice::drawGL(const D3DGLDevice::GLIndexData& idxdata, const D3DGLDevice::GLStreamData* streams, GLuint numstreams, bool ffp)
+{
+    if(!ffp)
+    {
+        for(GLuint i = 0;i < numstreams;++i)
+            glVertexAttribPointer(streams[i].mTarget, streams[i].mGLCount,
+                                  streams[i].mGLType, streams[i].mNormalize,
+                                  streams[i].mStride, streams[i].mPointer);
+    }
+    else for(GLuint i = 0;i < numstreams;++i)
     {
         if(streams[i].mTarget == GL_VERTEX_ARRAY)
             glVertexPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
@@ -712,6 +778,7 @@ void D3DGLDevice::drawGL(const GLIndexData &idxdata, const GLStreamData *streams
 
     checkGLError();
 }
+template<bool UseFFP>
 class DrawGLCmd : public Command {
     D3DGLDevice *mTarget;
     D3DGLDevice::GLIndexData mIdxData;
@@ -729,7 +796,7 @@ public:
 
     virtual ULONG execute()
     {
-        mTarget->drawGL(mIdxData, mStreams, mNumStreams);
+        mTarget->drawGL(mIdxData, mStreams, mNumStreams, UseFFP);
         return sizeof(*this);
     }
 };
@@ -791,6 +858,8 @@ void D3DGLDevice::initGL()
     mGLState.color_array_enabled = false;
     mGLState.specular_array_enabled = false;
     mGLState.texcoord_array_enabled = 0;
+
+    mGLState.attrib_array_enabled = 0;
 
     glFrontFace(GL_CW);
     checkGLError();
@@ -1043,6 +1112,7 @@ HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT start
     GLStreamData streams[16];
     GLuint cur = 0;
 
+    D3DGLVertexShader *vshader = mVertexShader;
     const std::vector<D3DGLVERTEXELEMENT> &elements = mVertexDecl.load()->getVtxElements();
     for(const D3DGLVERTEXELEMENT &elem : elements)
     {
@@ -1064,7 +1134,12 @@ HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT start
         streams[cur].mNormalize = elem.mNormalize;
         streams[cur].mStride = stream.mStride;
 
-        if(elem.Usage == D3DDECLUSAGE_POSITION || elem.Usage == D3DDECLUSAGE_POSITIONT)
+        if(vshader)
+        {
+            streams[cur].mTarget = vshader->getLocation(elem.Usage, elem.UsageIndex);
+            streams[cur].mIndex = 0;
+        }
+        else if(elem.Usage == D3DDECLUSAGE_POSITION || elem.Usage == D3DDECLUSAGE_POSITIONT)
         {
             streams[cur].mTarget = GL_VERTEX_ARRAY;
             streams[cur].mIndex = 0;
@@ -1120,7 +1195,10 @@ HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT start
     idxdata.mBuffer->queueDraw();
     for(GLuint i = 0;i < cur;++i)
         streams[i].mBuffer->queueDraw();
-    mQueue.sendAndUnlock<DrawGLCmd>(this, idxdata, streams, cur);
+    if(vshader)
+        mQueue.sendAndUnlock<DrawGLCmd<UseShaders>>(this, idxdata, streams, cur);
+    else
+        mQueue.sendAndUnlock<DrawGLCmd<UseFFP>>(this, idxdata, streams, cur);
 
     return D3D_OK;
 }
@@ -2239,6 +2317,17 @@ HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9 *decl)
         // FIXME: Set according to FVF
         mQueue.unlock();
     }
+    else if(D3DGLVertexShader *vshader = mVertexShader)
+    {
+        UINT attribs = 0;
+        for(const D3DGLVERTEXELEMENT &elem : vtxdecl->getVtxElements())
+        {
+            GLint loc = vshader->getLocation(elem.Usage, elem.UsageIndex);
+            if(loc >= 0) attribs |= 1<<loc;
+        }
+        vtxdecl = mVertexDecl.exchange(vtxdecl);
+        mQueue.sendAndUnlock<SetVertexAttribArrayCmd>(this, attribs);
+    }
     else
     {
         // NOTE: We'll always have vertices
@@ -2303,8 +2392,44 @@ HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
         if(FAILED(hr)) return D3DERR_INVALIDCALL;
     }
 
-    vshader = mVertexShader.exchange(vshader);
-    if(vshader) vshader->Release();
+    mQueue.lock();
+    D3DGLVertexShader *oldshader = mVertexShader.exchange(vshader);
+    if(vshader)
+    {
+        if(!oldshader)
+        {
+            // Need to disable fixed-function client state
+            mQueue.doSend<SetVertexArrayStateCmd>(this, false, false, false, false, 0);
+        }
+
+        UINT attribs = 0;
+        if(D3DGLVertexDeclaration *vtxdecl = mVertexDecl)
+        {
+            for(const D3DGLVERTEXELEMENT &elem : vtxdecl->getVtxElements())
+            {
+                GLint loc = vshader->getLocation(elem.Usage, elem.UsageIndex);
+                if(loc >= 0) attribs |= 1<<loc;
+            }
+        }
+        mQueue.doSend<SetVertexAttribArrayCmd>(this, attribs);
+        mQueue.sendAndUnlock<SetShaderProgramCmd>(this, GL_VERTEX_SHADER_BIT, vshader->getProgram());
+    }
+    else if(oldshader)
+    {
+        mQueue.doSend<SetVertexAttribArrayCmd>(this, 0);
+        if(D3DGLVertexDeclaration *vtxdecl = mVertexDecl)
+        {
+            // NOTE: We'll always have vertices
+            bool normal = vtxdecl->hasNormal();
+            bool color = vtxdecl->hasColor();
+            bool specular = vtxdecl->hasSpecular();
+            UINT texcoord = vtxdecl->hasTexCoord();
+            vtxdecl = mVertexDecl.exchange(vtxdecl);
+            mQueue.doSend<SetVertexArrayStateCmd>(this, true, normal, color, specular, texcoord);
+        }
+        mQueue.sendAndUnlock<SetShaderProgramCmd>(this, GL_VERTEX_SHADER_BIT, 0u);
+    }
+    if(oldshader) oldshader->Release();
 
     return D3D_OK;
 }

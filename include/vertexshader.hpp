@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <vector>
+#include <map>
 #include <d3d9.h>
 
 #include "glew.h"
@@ -21,6 +22,8 @@ class D3DGLVertexShader : public IDirect3DVertexShader9 {
 
     std::vector<BYTE> mCode;
 
+    std::map<USHORT,GLint> mUsageMap;
+
 public:
     D3DGLVertexShader(D3DGLDevice *parent);
     virtual ~D3DGLVertexShader();
@@ -29,6 +32,14 @@ public:
 
     void deinitGL();
     void compileShaderGL(const DWORD *data);
+
+    GLuint getProgram() const { return mProgram; }
+    GLint getLocation(BYTE usage, BYTE index) const
+    {
+        auto idx = mUsageMap.find((usage<<8) | index);
+        if(idx == mUsageMap.end()) return -1;
+        return idx->second;
+    }
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj);

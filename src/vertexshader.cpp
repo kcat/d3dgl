@@ -34,6 +34,7 @@ void D3DGLVertexShader::compileShaderGL(const DWORD *data)
 
     if(!mProgram)
     {
+        ERR("Failed to create shader program\n");
         GLint logLen;
         glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
         if(logLen > 0)
@@ -42,7 +43,6 @@ void D3DGLVertexShader::compileShaderGL(const DWORD *data)
             glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
             ERR("Compile log:\n----\n%s\n----\n", log.data());
         }
-        ERR("Failed to compile shader program\n");
         checkGLError();
         return;
     }
@@ -51,7 +51,7 @@ void D3DGLVertexShader::compileShaderGL(const DWORD *data)
 
     GLint logLen = 0;
     glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
-    if(logLen > 1)
+    if(logLen > 4)
     {
         std::vector<char> log(logLen+1);
         glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
@@ -59,7 +59,15 @@ void D3DGLVertexShader::compileShaderGL(const DWORD *data)
     }
 
     GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "vs_vec4f");
-    glUniformBlockBinding(mProgram, v4f_idx, VSF_BINDING_IDX);
+    if(v4f_idx != GL_INVALID_INDEX)
+        glUniformBlockBinding(mProgram, v4f_idx, VSF_BINDING_IDX);
+
+    for(int i = 0;i < mShader->attribute_count;++i)
+    {
+        GLint loc = glGetAttribLocation(mProgram, mShader->attributes[i].name);
+        TRACE("Got attribute %s at location %d\n", mShader->attributes[i].name, loc);
+        mUsageMap[(mShader->attributes[i].usage<<8) | mShader->attributes[i].index] = loc;
+    }
     checkGLError();
 }
 class CompileVShaderCmd : public Command {

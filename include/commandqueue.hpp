@@ -71,7 +71,7 @@ class CommandQueue {
     { return reinterpret_cast<CommandQueue*>(arg)->run(); }
 
     template<typename T, typename ...Args>
-    void doSend(size_t size, Args...args)
+    void doSizedSend(size_t size, Args...args)
     {
         ULONG head = mHead.load();
         while(1)
@@ -81,12 +81,12 @@ class CommandQueue {
             {
                 if(rem_size >= sizeof(CommandSkip))
                 {
-                    doSend<CommandSkip>(rem_size, rem_size);
+                    doSizedSend<CommandSkip>(rem_size, rem_size);
                     head = mHead.load();
                     rem_size = sQueueSize - head;
                 }
                 else do {
-                    doSend<CommandNoOp>(sizeof(CommandNoOp));
+                    doSizedSend<CommandNoOp>(sizeof(CommandNoOp));
                     head = mHead.load();
                     rem_size = sQueueSize - head;
                 } while(rem_size < size);
@@ -115,14 +115,21 @@ public:
 
     void lock() { EnterCriticalSection(&mLock); }
     void unlock() { LeaveCriticalSection(&mLock); }
+
     template<typename T, typename ...Args>
-    void sendAndUnlock(Args...args)
+    void doSend(Args...args)
     {
         static_assert(sizeof(T) >= sizeof(Command), "Type is too small!");
         static_assert((sizeof(T)%sizeof(Command)) == 0, "Type is not a multiple of Command!");
         static_assert(sizeof(T) < sQueueSize, "Type size is way too large!");
 
-        doSend<T,Args...>(sizeof(T), args...);
+        doSizedSend<T,Args...>(sizeof(T), args...);
+    }
+
+    template<typename T, typename ...Args>
+    void sendAndUnlock(Args...args)
+    {
+        doSend<T,Args...>(args...);
         unlock();
         WakeAllConditionVariable(&mCondVar);
     }

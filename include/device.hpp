@@ -69,7 +69,14 @@ private:
         bool color_array_enabled;
         bool specular_array_enabled;
         UINT texcoord_array_enabled; // Bitmask, 1<<texture_stage
+
+        UINT attrib_array_enabled; // Bitmask, 1<<attrib
     } mGLState;
+
+    enum FFPSelector {
+        UseShaders=0,
+        UseFFP=1
+    };
 
     CommandQueue mQueue;
 
@@ -134,7 +141,9 @@ public:
     void initGL();
     void setTextureGL(GLuint stage, GLenum type, GLuint binding);
     void setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord);
-    void drawGL(const GLIndexData &idxdata, const GLStreamData *streams, GLuint numstreams);
+    void setVertexAttribArrayGL(UINT attribs);
+    void setShaderProgramGL(GLbitfield stages, GLuint program);
+    void drawGL(const GLIndexData &idxdata, const GLStreamData *streams, GLuint numstreams, bool ffp);
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;
