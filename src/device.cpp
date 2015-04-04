@@ -2655,8 +2655,13 @@ HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9 *shader)
         if(FAILED(hr)) return D3DERR_INVALIDCALL;
     }
 
-    pshader = mPixelShader.exchange(pshader);
-    if(pshader) pshader->Release();
+    mQueue.lock();
+    D3DGLPixelShader *oldshader = mPixelShader.exchange(pshader);
+    if(pshader)
+        mQueue.sendAndUnlock<SetShaderProgramCmd>(this, GL_FRAGMENT_SHADER_BIT, pshader->getProgram());
+    else if(oldshader)
+        mQueue.sendAndUnlock<SetShaderProgramCmd>(this, GL_FRAGMENT_SHADER_BIT, 0u);
+    if(oldshader) oldshader->Release();
 
     return D3D_OK;
 }

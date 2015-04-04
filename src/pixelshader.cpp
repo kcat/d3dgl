@@ -1,28 +1,129 @@
 
 #include "pixelshader.hpp"
 
+#include <sstream>
+
+#include "mojoshader/mojoshader.h"
 #include "device.hpp"
 #include "trace.hpp"
 #include "private_iids.hpp"
 
 
+void D3DGLPixelShader::compileShaderGL(const DWORD *data)
+{
+    TRACE("Parsing %s shader %lu.%lu using profile %s\n",
+          (((*data>>16)==0xfffe) ? "vertex" : ((*data>>16)==0xffff) ? "pixel" : "unknown"),
+          (*data>>8)&0xff, *data&0xff, MOJOSHADER_PROFILE_GLSL120);
+
+    mShader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL120,
+        reinterpret_cast<const unsigned char*>(data), 0,
+        nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr
+    );
+    if(mShader->error_count > 0)
+    {
+        std::stringstream sstr;
+        for(int i = 0;i < mShader->error_count;++i)
+            sstr<< mShader->errors[i].error_position<<":"<<mShader->errors[i].error <<std::endl;
+        ERR("Failed to parse shader:\n----\n%s\n----\n", sstr.str().c_str());
+        return;
+    }
+
+    TRACE("Parsed shader:\n----\n%s\n----\n", mShader->output);
+    mProgram = glCreateShaderProgramv(GL_FRAGMENT_SHADER, 1, &mShader->output);
+    checkGLError();
+
+    if(!mProgram)
+    {
+        ERR("Failed to create shader program\n");
+        GLint logLen;
+        glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
+        if(logLen > 0)
+        {
+            std::vector<char> log(logLen+1);
+            glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
+            ERR("Compile log:\n----\n%s\n----\n", log.data());
+        }
+        checkGLError();
+        return;
+    }
+
+    TRACE("Created fragment shader program 0x%x\n", mProgram);
+
+    GLint logLen = 0;
+    glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
+    if(logLen > 4)
+    {
+        std::vector<char> log(logLen+1);
+        glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
+        WARN("Compile log:\n----\n%s\n----\n", log.data());
+    }
+
+    GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "ps_vec4f");
+    if(v4f_idx != GL_INVALID_INDEX)
+        glUniformBlockBinding(mProgram, v4f_idx, PSF_BINDING_IDX);
+
+    for(int i = 0;i < mShader->sampler_count;++i)
+    {
+        GLint loc = glGetUniformLocation(mProgram, mShader->samplers[i].name);
+        TRACE("Got sampler %s:%d at location %d\n", mShader->samplers[i].name, mShader->samplers[i].index, loc);
+        glProgramUniform1i(mProgram, loc, mShader->samplers[i].index);
+    }
+
+    checkGLError();
+}
+class CompilePShaderCmd : public Command {
+    D3DGLPixelShader *mTarget;
+    const DWORD *mData;
+
+public:
+    CompilePShaderCmd(D3DGLPixelShader *target, const DWORD *data) : mTarget(target), mData(data)
+    { }
+
+    virtual ULONG execute()
+    {
+        mTarget->compileShaderGL(mData);
+        return sizeof(*this);
+    }
+};
+
+void D3DGLPixelShader::deinitGL()
+{
+    glDeleteProgram(mProgram);
+    MOJOSHADER_freeParseData(mShader);
+}
+class DeinitPShaderCmd : public Command {
+    D3DGLPixelShader *mTarget;
+
+public:
+    DeinitPShaderCmd(D3DGLPixelShader *target) : mTarget(target) { }
+
+    virtual ULONG execute()
+    {
+        mTarget->deinitGL();
+        return sizeof(*this);
+    }
+};
+
+
 D3DGLPixelShader::D3DGLPixelShader(D3DGLDevice *parent)
   : mRefCount(0)
   , mParent(parent)
+  , mShader(nullptr)
+  , mProgram(0)
 {
     mParent->AddRef();
 }
 
 D3DGLPixelShader::~D3DGLPixelShader()
 {
+    mParent->getQueue().sendSync<DeinitPShaderCmd>(this);
     mParent->Release();
 }
 
 bool D3DGLPixelShader::init(const DWORD *data)
 {
-    ERR("Pretending to load %s shader %lu.%lu\n", (((*data>>16)==0xfffe) ? "vertex" :
-                                                   ((*data>>16)==0xffff) ? "pixel" : "unknown"),
-                                                  (*data>>8)&0xff, *data&0xff);
+    mParent->getQueue().sendSync<CompilePShaderCmd>(this, data);
+
     return true;
 }
 
