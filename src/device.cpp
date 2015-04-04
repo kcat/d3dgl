@@ -645,7 +645,7 @@ void D3DGLDevice::setVertexArrayStateGL(bool vertex, bool normal, bool color, bo
     }
     if(texcoord != mGLState.texcoord_array_enabled)
     {
-        UINT numcoords = std::min(mAdapter.getLimits().texture_coords, 32u);
+        UINT numcoords = std::min<UINT>(mAdapter.getLimits().texture_coords, D3DDP_MAXTEXCOORD);
         for(UINT i = 0;i < numcoords;++i)
         {
             UINT t = 1<<i;
@@ -686,7 +686,7 @@ void D3DGLDevice::drawGL(const GLIndexData &idxdata, const GLStreamData *streams
             glVertexPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
         else if(streams[i].mTarget == GL_TEXTURE_COORD_ARRAY)
         {
-            UINT numcoords = std::min(mAdapter.getLimits().texture_coords, 32u);
+            UINT numcoords = std::min<UINT>(mAdapter.getLimits().texture_coords, D3DDP_MAXTEXCOORD);
             for(UINT t = 0;t < numcoords;++t)
             {
                 if((streams[i].mIndex&(1<<t)))
