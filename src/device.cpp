@@ -567,7 +567,7 @@ public:
 } // namespace
 
 
-void D3DGLDevice::setTextureGL(GLuint stage, GLuint maxffpstage, GLenum type, GLuint binding)
+void D3DGLDevice::setTextureGL(GLuint stage, GLenum type, GLuint binding)
 {
     if(stage != mGLState.active_stage)
     {
@@ -581,7 +581,7 @@ void D3DGLDevice::setTextureGL(GLuint stage, GLuint maxffpstage, GLenum type, GL
     // various GL_TEXTURE_ types on stages at/above GL_MAX_TEXTURE_UNITS is
     // invalid. This also effectively means only 4 blending stages will work.
     // Fixing this requires manual FFP emulation with shaders.
-    if(stage >= maxffpstage)
+    if(stage >= getAdapter().getLimits().textures)
         mGLState.sampler_type[stage] = type;
     else if(type != mGLState.sampler_type[stage])
     {
@@ -615,8 +615,7 @@ public:
 
     virtual ULONG execute()
     {
-        mTarget->setTextureGL(mStage, mTarget->getAdapter().getLimits().textures,
-                              mType, mBinding);
+        mTarget->setTextureGL(mStage, mType, mBinding);
         return sizeof(*this);
     }
 };

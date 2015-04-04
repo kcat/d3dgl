@@ -125,7 +125,7 @@ public:
     HRESULT drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT startidx, UINT count);
 
     void initGL();
-    void setTextureGL(GLuint stage, GLuint maxffpstage, GLenum type, GLuint binding);
+    void setTextureGL(GLuint stage, GLenum type, GLuint binding);
     void setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord);
     void drawGL(const GLIndexData &idxdata, const GLStreamData *streams, GLuint numstreams);
 
