@@ -5,13 +5,19 @@
 #include <vector>
 #include <d3d9.h>
 
+#include "glew.h"
 
+
+struct MOJOSHADER_parseData;
 class D3DGLDevice;
 
 class D3DGLVertexShader : public IDirect3DVertexShader9 {
     std::atomic<ULONG> mRefCount;
 
     D3DGLDevice *mParent;
+
+    const MOJOSHADER_parseData *mShader;
+    GLuint mProgram;
 
     std::vector<BYTE> mCode;
 
@@ -20,6 +26,9 @@ public:
     virtual ~D3DGLVertexShader();
 
     bool init(const DWORD *data);
+
+    void deinitGL();
+    void compileShaderGL(const DWORD *data);
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj);

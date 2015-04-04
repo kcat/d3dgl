@@ -1,7 +1,21 @@
 cmake_minimum_required(VERSION 2.6)
 project(d3dgl)
 
-set(LIBNAME d3d9)
+
+add_library(mojoshader STATIC mojoshader/mojoshader_assembler.c
+                              mojoshader/mojoshader.c
+                              mojoshader/mojoshader_common.c
+                              mojoshader/mojoshader_compiler.c
+                              mojoshader/mojoshader_effects.c
+                              mojoshader/mojoshader.h
+                              mojoshader/mojoshader_internal.h
+                              mojoshader/mojoshader_lexer.c
+                              mojoshader/mojoshader_opengl.c
+                              mojoshader/mojoshader_parser_hlsl.h
+                              mojoshader/mojoshader_preprocessor.c
+                              mojoshader/mojoshader_version.h
+)
+
 
 if(WIN32)
     add_definitions("-D_WIN32 -D_WIN32_WINNT=0x0600")
@@ -36,10 +50,12 @@ if(HAVE_WEXTRA_SWITCH)
 endif()
 
 
-include_directories("${d3dgl_SOURCE_DIR}/include" "${d3dgl_BINARY_DIR}" ${OPENGL_INCLUDE_DIR})
+set(LIBNAME d3d9)
+
+include_directories("${d3dgl_SOURCE_DIR}/include" "${d3dgl_SOURCE_DIR}" "${d3dgl_BINARY_DIR}" ${OPENGL_INCLUDE_DIR})
 add_definitions("-DGLEW_STATIC")
 
-set(EXTRA_LIBS  ${OPENGL_LIBRARIES} dxguid)
+set(EXTRA_LIBS  mojoshader ${OPENGL_LIBRARIES} dxguid)
 if(WIN32 AND CMAKE_COMPILER_IS_GNUCC)
     set(EXTRA_LIBS  ${EXTRA_LIBS} -static-libgcc -static-libstdc++ -Wl,--enable-stdcall-fixup)
 endif()

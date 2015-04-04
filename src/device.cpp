@@ -769,12 +769,12 @@ void D3DGLDevice::initGL()
         glGenBuffers(1, &mGLState.vs_uniform_bufferf);
         glBindBuffer(GL_UNIFORM_BUFFER, mGLState.vs_uniform_bufferf);
         glBufferData(GL_UNIFORM_BUFFER, 256*sizeof(Vector4f), zero, GL_STREAM_DRAW);
-        glBindBufferBase(GL_UNIFORM_BUFFER, 0, mGLState.vs_uniform_bufferf);
+        glBindBufferBase(GL_UNIFORM_BUFFER, VSF_BINDING_IDX, mGLState.vs_uniform_bufferf);
         // Binding index 3 = PS floats, 4 = PS ints, 5 = PS bools
         glGenBuffers(1, &mGLState.ps_uniform_bufferf);
         glBindBuffer(GL_UNIFORM_BUFFER, mGLState.ps_uniform_bufferf);
         glBufferData(GL_UNIFORM_BUFFER, 256*sizeof(Vector4f), zero, GL_STREAM_DRAW);
-        glBindBufferBase(GL_UNIFORM_BUFFER, 3, mGLState.ps_uniform_bufferf);
+        glBindBufferBase(GL_UNIFORM_BUFFER, PSF_BINDING_IDX, mGLState.ps_uniform_bufferf);
     }
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
     checkGLError();

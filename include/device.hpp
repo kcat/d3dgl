@@ -18,6 +18,13 @@ class D3DGLVertexShader;
 class D3DGLPixelShader;
 class D3DGLVertexDeclaration;
 
+#define VSF_BINDING_IDX 0
+#define VSI_BINDING_IDX 1
+#define VSB_BINDING_IDX 2
+#define PSF_BINDING_IDX 3
+#define PSI_BINDING_IDX 4
+#define PSB_BINDING_IDX 5
+
 class D3DGLDevice : public IDirect3DDevice9 {
 public:
     struct GLStreamData {

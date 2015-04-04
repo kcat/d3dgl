@@ -1,28 +1,120 @@
 
 #include "vertexshader.hpp"
 
+#include <sstream>
+
+#include "mojoshader/mojoshader.h"
 #include "device.hpp"
 #include "trace.hpp"
 #include "private_iids.hpp"
 
 
+void D3DGLVertexShader::compileShaderGL(const DWORD *data)
+{
+    TRACE("Parsing %s shader %lu.%lu using profile %s\n",
+          (((*data>>16)==0xfffe) ? "vertex" : ((*data>>16)==0xffff) ? "pixel" : "unknown"),
+          (*data>>8)&0xff, *data&0xff, MOJOSHADER_PROFILE_GLSL120);
+
+    mShader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL120,
+        reinterpret_cast<const unsigned char*>(data), 0,
+        nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr
+    );
+    if(mShader->error_count > 0)
+    {
+        std::stringstream sstr;
+        for(int i = 0;i < mShader->error_count;++i)
+            sstr<< mShader->errors[i].error_position<<":"<<mShader->errors[i].error <<std::endl;
+        ERR("Failed to parse shader:\n----\n%s\n----\n", sstr.str().c_str());
+        return;
+    }
+
+    TRACE("Parsed shader:\n----\n%s\n----\n", mShader->output);
+    mProgram = glCreateShaderProgramv(GL_VERTEX_SHADER, 1, &mShader->output);
+    checkGLError();
+
+    if(!mProgram)
+    {
+        GLint logLen;
+        glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
+        if(logLen > 0)
+        {
+            std::vector<char> log(logLen+1);
+            glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
+            ERR("Compile log:\n----\n%s\n----\n", log.data());
+        }
+        ERR("Failed to compile shader program\n");
+        checkGLError();
+        return;
+    }
+
+    TRACE("Created vertex shader program 0x%x\n", mProgram);
+
+    GLint logLen = 0;
+    glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
+    if(logLen > 1)
+    {
+        std::vector<char> log(logLen+1);
+        glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
+        WARN("Compile log:\n----\n%s\n----\n", log.data());
+    }
+
+    GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "vs_vec4f");
+    glUniformBlockBinding(mProgram, v4f_idx, VSF_BINDING_IDX);
+    checkGLError();
+}
+class CompileVShaderCmd : public Command {
+    D3DGLVertexShader *mTarget;
+    const DWORD *mData;
+
+public:
+    CompileVShaderCmd(D3DGLVertexShader *target, const DWORD *data) : mTarget(target), mData(data)
+    { }
+
+    virtual ULONG execute()
+    {
+        mTarget->compileShaderGL(mData);
+        return sizeof(*this);
+    }
+};
+
+void D3DGLVertexShader::deinitGL()
+{
+    glDeleteProgram(mProgram);
+    MOJOSHADER_freeParseData(mShader);
+}
+class DeinitVShaderCmd : public Command {
+    D3DGLVertexShader *mTarget;
+
+public:
+    DeinitVShaderCmd(D3DGLVertexShader *target) : mTarget(target) { }
+
+    virtual ULONG execute()
+    {
+        mTarget->deinitGL();
+        return sizeof(*this);
+    }
+};
+
+
 D3DGLVertexShader::D3DGLVertexShader(D3DGLDevice *parent)
   : mRefCount(0)
   , mParent(parent)
+  , mShader(nullptr)
+  , mProgram(0)
 {
     mParent->AddRef();
 }
 
 D3DGLVertexShader::~D3DGLVertexShader()
 {
+    mParent->getQueue().sendSync<DeinitVShaderCmd>(this);
     mParent->Release();
 }
 
 bool D3DGLVertexShader::init(const DWORD *data)
 {
-    ERR("Pretending to load %s shader %lu.%lu\n", (((*data>>16)==0xfffe) ? "vertex" :
-                                                   ((*data>>16)==0xffff) ? "pixel" : "unknown"),
-                                                  (*data>>8)&0xff, *data&0xff);
+    mParent->getQueue().sendSync<CompileVShaderCmd>(this, data);
+
     return true;
 }
 
