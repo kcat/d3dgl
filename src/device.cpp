@@ -503,17 +503,19 @@ public:
 #define BUFFER_VALUE_SEND_MAX (64u)
 class SetBufferValues : public Command {
     GLuint mBuffer;
+    GLintptr mStart;
+    GLsizeiptr mSize;
     union {
         char mData[BUFFER_VALUE_SEND_MAX*4*4];
         float mVec4fs[BUFFER_VALUE_SEND_MAX][4];
     };
-    GLintptr mStart;
-    GLsizeiptr mCount;
 
 public:
     SetBufferValues(GLuint buffer, const float *data, GLintptr start, GLsizeiptr count)
       : mBuffer(buffer)
     {
+        mStart = start * 4 * 4;
+        mSize = count * 4 * 4;
         for(GLsizeiptr i = 0;i < count;++i)
         {
             mVec4fs[i][0] = *(data++);
@@ -521,44 +523,38 @@ public:
             mVec4fs[i][2] = *(data++);
             mVec4fs[i][3] = *(data++);
         }
-        mStart = start * 4 * 4;
-        mCount = count * 4 * 4;
     }
 
     virtual ULONG execute()
     {
-        glBindBuffer(GL_UNIFORM_BUFFER, mBuffer);
-        glBufferSubData(GL_UNIFORM_BUFFER, mStart, mCount, mData);
-        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        glNamedBufferSubDataEXT(mBuffer, mStart, mSize, mData);
         checkGLError();
         return sizeof(*this);
     }
 };
-// Specialization of the above, for the common simple case of updating one vec4.
+// Specialization of the above, for the common simple case of updating one vec4f.
 class SetBufferValue : public Command {
     GLuint mBuffer;
+    GLintptr mStart;
     union {
         char mData[4*4];
         float mVec4f[4];
     };
-    GLintptr mStart;
 
 public:
     SetBufferValue(GLuint buffer, const float *data, GLintptr start)
       : mBuffer(buffer)
     {
+        mStart = start * 4 * 4;
         mVec4f[0] = *(data++);
         mVec4f[1] = *(data++);
         mVec4f[2] = *(data++);
         mVec4f[3] = *(data++);
-        mStart = start * 4 * 4;
     }
 
     virtual ULONG execute()
     {
-        glBindBuffer(GL_UNIFORM_BUFFER, mBuffer);
-        glBufferSubData(GL_UNIFORM_BUFFER, mStart, 4*4, mData);
-        glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        glNamedBufferSubDataEXT(mBuffer, mStart, 4*4, mData);
         checkGLError();
         return sizeof(*this);
     }
