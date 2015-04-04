@@ -13,17 +13,14 @@
 void D3DGLTexture::initGL()
 {
     glGenTextures(1, &mTexId);
-    glBindTexture(GL_TEXTURE_2D, mTexId);
-    checkGLError();
-
-    glTexImage2D(GL_TEXTURE_2D, 0, mGLFormat->internalformat, mDesc.Width, mDesc.Height, 0,
-                 mGLFormat->format, mGLFormat->type, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, mSurfaces.size()-1);
+    glTextureParameteriEXT(mTexId, GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, mSurfaces.size()-1);
+    glTextureImage2DEXT(mTexId, GL_TEXTURE_2D, 0, mGLFormat->internalformat, mDesc.Width, mDesc.Height, 0,
+                        mGLFormat->format, mGLFormat->type, NULL);
     checkGLError();
 
     // Force allocation of mipmap levels, if any
     if(mSurfaces.size() > 1)
-        glGenerateMipmap(GL_TEXTURE_2D);
+        glGenerateTextureMipmapEXT(mTexId, GL_TEXTURE_2D);
     checkGLError();
 
     UINT total_size = 0;
@@ -70,8 +67,6 @@ void D3DGLTexture::initGL()
     }
 
     mUpdateInProgress = 0;
-
-    mParent->resetActiveTextureBindGL();
 }
 class TextureInitCmd : public Command {
     D3DGLTexture *mTarget;
@@ -109,11 +104,8 @@ public:
 
 void D3DGLTexture::genMipmapGL()
 {
-    glBindTexture(GL_TEXTURE_2D, mTexId);
-    glGenerateMipmap(GL_TEXTURE_2D);
+    glGenerateTextureMipmapEXT(mTexId, GL_TEXTURE_2D);
     checkGLError();
-
-    mParent->resetActiveTextureBindGL();
 }
 class TextureGenMipCmd : public Command {
     D3DGLTexture *mTarget;
@@ -144,8 +136,6 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPt
     }
 
     D3DGLTextureSurface *surface = mSurfaces[level];
-
-    glBindTexture(GL_TEXTURE_2D, mTexId);
     if(mIsCompressed)
     {
         GLsizei len = -1;
@@ -160,7 +150,7 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPt
                        mGLFormat->bytesperpixel;
             glPixelStorei(GL_UNPACK_ROW_LENGTH, ((w+3)/4)*mGLFormat->bytesperpixel);
         }
-        glCompressedTexSubImage2D(GL_TEXTURE_2D, level,
+        glCompressedTextureSubImage2DEXT(mTexId, GL_TEXTURE_2D, level,
             rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top,
             mGLFormat->internalformat, len, dataPtr
         );
@@ -169,7 +159,7 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPt
     {
         dataPtr += (rect.top*w + rect.left) * mGLFormat->bytesperpixel;
         glPixelStorei(GL_UNPACK_ROW_LENGTH, w);
-        glTexSubImage2D(GL_TEXTURE_2D, level,
+        glTextureSubImage2DEXT(mTexId, GL_TEXTURE_2D, level,
             rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top,
             mGLFormat->format, mGLFormat->type, dataPtr
         );
@@ -177,7 +167,7 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPt
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 
     if(level == 0 && (mDesc.Usage&D3DUSAGE_AUTOGENMIPMAP) && mSurfaces.size() > 1)
-        glGenerateMipmap(GL_TEXTURE_2D);
+        glGenerateTextureMipmapEXT(mTexId, GL_TEXTURE_2D);
     checkGLError();
 
     if(mPBO)
@@ -190,8 +180,6 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPt
     if(deletePtr)
         delete dataPtr;
     --mUpdateInProgress;
-
-    mParent->resetActiveTextureBindGL();
 }
 class TextureLoadLevelCmd : public Command {
     D3DGLTexture *mTarget;

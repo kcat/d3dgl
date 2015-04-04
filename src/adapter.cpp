@@ -1272,6 +1272,11 @@ bool D3DAdapter::init()
         ERR("Required GL 3.3 not supported!");
         goto done;
     }
+    if(!GLEW_EXT_direct_state_access)
+    {
+        ERR("Required GL_EXT_direct_state_access not supported!");
+        goto done;
+    }
 
     init_limits();
     init_caps();
