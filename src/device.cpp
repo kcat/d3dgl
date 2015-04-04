@@ -617,6 +617,74 @@ public:
 };
 
 
+void D3DGLDevice::resetRenderTargetGL(GLsizei index)
+{
+    if(mGLState.active_framebuffer != 0)
+    {
+        mGLState.active_framebuffer = 0;
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glDrawBuffer(GL_BACK_LEFT);
+        glFrontFace(GL_CW);
+    }
+    glNamedFramebufferRenderbufferEXT(mGLState.main_framebuffer, GL_COLOR_ATTACHMENT0+index,
+                                      GL_RENDERBUFFER, 0);
+    checkGLError();
+}
+class ResetRenderTargetCmd : public Command {
+    D3DGLDevice *mTarget;
+    GLsizei mIndex;
+
+public:
+    ResetRenderTargetCmd(D3DGLDevice *target, GLsizei index) : mTarget(target), mIndex(index) { }
+
+    virtual ULONG execute()
+    {
+        mTarget->resetRenderTargetGL(mIndex);
+        return sizeof(*this);
+    }
+};
+
+void D3DGLDevice::setRenderTargetGL(GLsizei index, GLuint id, GLint level, GLenum target)
+{
+    std::array<GLenum,D3D_MAX_SIMULTANEOUS_RENDERTARGETS> buffers{
+        GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3
+    };
+
+    if(mGLState.active_framebuffer != mGLState.main_framebuffer)
+    {
+        mGLState.active_framebuffer = mGLState.main_framebuffer;
+        glBindFramebuffer(GL_FRAMEBUFFER, mGLState.main_framebuffer);
+        glDrawBuffers(std::min(buffers.size(), mAdapter.getLimits().buffers),
+                      buffers.data());
+        glFrontFace(GL_CCW);
+    }
+
+    if(target == GL_RENDERBUFFER)
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, buffers[index], GL_RENDERBUFFER, id);
+    else if(target == GL_TEXTURE_2D)
+        glFramebufferTexture2D(GL_FRAMEBUFFER, buffers[index], target, id, level);
+    checkGLError();
+}
+class SetRenderTargetCmd : public Command {
+    D3DGLDevice *mTarget;
+    GLsizei mIndex;
+    GLuint mId;
+    GLint mLevel;
+    GLenum mRTarget;
+
+public:
+    SetRenderTargetCmd(D3DGLDevice *target, GLsizei index, GLuint id, GLint level, GLenum rtarget)
+      : mTarget(target), mIndex(index), mId(id), mLevel(level), mRTarget(rtarget)
+    { }
+
+    virtual ULONG execute()
+    {
+        mTarget->setRenderTargetGL(mIndex, mId, mLevel, mRTarget);
+        return sizeof(*this);
+    }
+};
+
+
 void D3DGLDevice::setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord)
 {
 #define SET_CLIENT_STATE(f, e) do { \
@@ -830,6 +898,10 @@ void D3DGLDevice::initGL()
     glBindProgramPipeline(mGLState.pipeline);
     checkGLError();
 
+    glGenFramebuffers(1, &mGLState.main_framebuffer);
+    glGenFramebuffers(2, mGLState.copy_framebuffers);
+    checkGLError();
+
     {
         float zero[256*4] = {0.0f};
         // Binding index 0 = VS floats, 1 = VS ints, 2 = VS bools
@@ -898,6 +970,7 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mFlags(flags)
   , mAutoDepthStencil(nullptr)
   , mSwapchains{nullptr}
+  , mBackbufferIsMain(true)
   , mDepthStencil(nullptr)
   , mInScene(false)
   , mVSConstantsF{0.0f}
@@ -1683,9 +1756,9 @@ HRESULT D3DGLDevice::CreateOffscreenPlainSurface(UINT Width, UINT Height, D3DFOR
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rendertarget)
+HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
 {
-    FIXME("iface %p, index %lu, rendertarget %p : semi-stub\n", this, index, rendertarget);
+    FIXME("iface %p, index %lu, rendertarget %p : semi-stub\n", this, index, rtarget);
 
     if(index >= mRenderTargets.size() || index >= mAdapter.getLimits().buffers)
     {
@@ -1693,17 +1766,73 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rendertarge
         return D3DERR_INVALIDCALL;
     }
 
-    if(index == 0 && !rendertarget)
+    if(!rtarget)
     {
-        WARN("Cannot set render target #0 to null\n");
-        return D3DERR_INVALIDCALL;
+        if(index == 0)
+        {
+            WARN("Cannot set render target #0 to null\n");
+            return D3DERR_INVALIDCALL;
+        }
+
+        mQueue.lock();
+        rtarget = mRenderTargets[index].exchange(rtarget);
+        if(mBackbufferIsMain)
+            mQueue.sendAndUnlock<ResetRenderTargetCmd>(this, index);
+        else
+            mQueue.sendAndUnlock<SetRenderTargetCmd>(this, index, GL_RENDERBUFFER, 0, 0);
+        if(rtarget) rtarget->Release();
+        return D3D_OK;
     }
 
-    if(rendertarget)
-        rendertarget->AddRef();
-    rendertarget = mRenderTargets[index].exchange(rendertarget);
-    if(rendertarget)
-        rendertarget->Release();
+    union {
+        void *pointer;
+        D3DGLTexture *tex2d;
+        D3DGLSwapChain *schain;
+    };
+    rtarget->AddRef();
+    if(SUCCEEDED(rtarget->GetContainer(IID_D3DGLTexture, &pointer)))
+    {
+        GLint level = tex2d->getLevelFromSurface(rtarget);
+
+        mQueue.lock();
+        rtarget = mRenderTargets[index].exchange(rtarget);
+        if(mBackbufferIsMain)
+        {
+            float result[4][4];
+            calculateProjectionFixup(mViewport.Width, mViewport.Height, true, result);
+            mQueue.doSend<SetBufferValues>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
+        }
+        mBackbufferIsMain = false;
+        mQueue.sendAndUnlock<SetRenderTargetCmd>(this,
+            index, GL_TEXTURE_2D, tex2d->getTextureId(), level
+        );
+        tex2d->Release();
+    }
+    else if(SUCCEEDED(rtarget->GetContainer(IID_D3DGLSwapChain, &pointer)))
+    {
+        mQueue.lock();
+        rtarget = mRenderTargets[index].exchange(rtarget);
+        if(index != 0)
+            mQueue.sendAndUnlock<SetRenderTargetCmd>(this, index, GL_RENDERBUFFER, 0, 0);
+        else
+        {
+            if(!mBackbufferIsMain)
+            {
+                float result[4][4];
+                calculateProjectionFixup(mViewport.Width, mViewport.Height, false, result);
+                mQueue.doSend<SetBufferValues>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
+            }
+            mBackbufferIsMain = true;
+            mQueue.sendAndUnlock<ResetRenderTargetCmd>(this, index);
+        }
+        schain->Release();
+    }
+    else
+    {
+        ERR("Unknown surface %p\n", rtarget);
+        rtarget = mRenderTargets[index].exchange(rtarget);
+    }
+    if(rtarget) rtarget->Release();
 
     return D3D_OK;
 }
@@ -1810,6 +1939,7 @@ HRESULT D3DGLDevice::SetViewport(const D3DVIEWPORT9 *viewport)
     D3DGLBackbufferSurface *surface;
     mQueue.lock();
     mViewport = *viewport;
+
     // For on-screen rendering the viewport needs to be realigned vertically,
     // since 0,0 is the window's lower-left in OpenGL. So it needs to set
     // Y = WindowHeight - (vp->Y + vp->Height).
@@ -1818,14 +1948,23 @@ HRESULT D3DGLDevice::SetViewport(const D3DVIEWPORT9 *viewport)
     // not, it's an off-screen target.
     hr = mRenderTargets[0].load()->QueryInterface(IID_D3DGLBackbufferSurface, (void**)&surface);
     if(FAILED(hr))
+    {
+        float result[4][4];
+        calculateProjectionFixup(mViewport.Width, mViewport.Height, true, result);
+        mQueue.doSend<SetBufferValues>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
         mQueue.sendAndUnlock<ViewportSet>(mViewport.X, mViewport.Y,
                                           std::min(mViewport.Width, 0x7ffffffful),
                                           std::min(mViewport.Height, 0x7ffffffful),
                                           mViewport.MinZ, mViewport.MaxZ);
+    }
     else
     {
         D3DSURFACE_DESC desc;
         surface->GetDesc(&desc);
+
+        float result[4][4];
+        calculateProjectionFixup(mViewport.Width, mViewport.Height, false, result);
+        mQueue.doSend<SetBufferValues>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
         mQueue.sendAndUnlock<ViewportSet>(mViewport.X,
                                           desc.Height - (mViewport.Y+mViewport.Height),
                                           std::min(mViewport.Width, 0x7ffffffful),

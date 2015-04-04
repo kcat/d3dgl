@@ -58,6 +58,10 @@ private:
         std::array<GLuint,MAX_COMBINED_SAMPLERS> samplers;
         GLuint pipeline;
 
+        GLuint active_framebuffer;   // 0 or main_framebuffer only
+        GLuint main_framebuffer;     // Used for offscreen rendering
+        GLuint copy_framebuffers[2]; // Used for FBO blits (0=draw, 1=read)
+
         GLuint vs_uniform_bufferf;
         GLuint ps_uniform_bufferf;
         GLuint proj_fixup_uniform_buffer;
@@ -88,6 +92,7 @@ private:
     D3DGLRenderTarget *mAutoDepthStencil;
     std::array<D3DGLSwapChain*,1> mSwapchains;
 
+    bool mBackbufferIsMain;
     std::array<std::atomic<IDirect3DSurface9*>,D3D_MAX_SIMULTANEOUS_RENDERTARGETS> mRenderTargets;
     std::atomic<IDirect3DSurface9*> mDepthStencil;
 
@@ -144,6 +149,8 @@ public:
 
     void initGL();
     void setTextureGL(GLuint stage, GLenum type, GLuint binding);
+    void resetRenderTargetGL(GLsizei index);
+    void setRenderTargetGL(GLsizei index, GLuint id, GLint level, GLenum target);
     void setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord);
     void setVertexAttribArrayGL(UINT attribs);
     void setShaderProgramGL(GLbitfield stages, GLuint program);
