@@ -24,6 +24,7 @@ class D3DGLVertexDeclaration;
 #define PSF_BINDING_IDX 3
 #define PSI_BINDING_IDX 4
 #define PSB_BINDING_IDX 5
+#define PROJECTION_BINDING_IDX 6
 
 class D3DGLDevice : public IDirect3DDevice9 {
 public:
@@ -59,6 +60,7 @@ private:
 
         GLuint vs_uniform_bufferf;
         GLuint ps_uniform_bufferf;
+        GLuint proj_fixup_uniform_buffer;
 
         GLenum active_stage;
         std::array<GLenum,MAX_COMBINED_SAMPLERS> sampler_type;

@@ -2172,7 +2172,6 @@ static void emit_GLSL_start(Context *ctx, const char *profilestr)
         // No gl_FragData[] before GLSL 1.10, so we have to force the version.
         push_output(ctx, &ctx->preflight);
         output_line(ctx, "#version 110");
-        output_line(ctx, "#extension GL_ARB_uniform_buffer_object : enable");
         pop_output(ctx);
     } // else if
 
@@ -2182,7 +2181,6 @@ static void emit_GLSL_start(Context *ctx, const char *profilestr)
         ctx->profile_supports_glsl120 = 1;
         push_output(ctx, &ctx->preflight);
         output_line(ctx, "#version 120");
-        output_line(ctx, "#extension GL_ARB_uniform_buffer_object : enable");
         pop_output(ctx);
     } // else if
     #endif
@@ -2192,6 +2190,17 @@ static void emit_GLSL_start(Context *ctx, const char *profilestr)
         failf(ctx, "Profile '%s' unsupported or unknown.", profilestr);
         return;
     } // else
+
+    push_output(ctx, &ctx->preflight);
+    // Require UBOs to attach the D3D constants' uniform arrays, and set a projection matrix fixup
+    output_line(ctx, "#extension GL_ARB_uniform_buffer_object : enable");
+    if (shader_is_vertex(ctx))
+    {
+        // NOTE: TMP_OUT to replace gl_Position, and PROJ_FIXUP to fix D3D/GL projection differences
+        output_line(ctx, "vec4 TMP_OUT;");
+        output_line(ctx, "layout(std140) uniform proj_fixup { mat4 PROJ_FIXUP; };");
+    }
+    pop_output(ctx);
 
     push_output(ctx, &ctx->mainline_intro);
     output_line(ctx, "void main()");
@@ -2214,7 +2223,12 @@ static void emit_GLSL_end(Context *ctx)
         set_used_register(ctx, REG_TYPE_COLOROUT, 0, 1);
         output_line(ctx, "%s_oC0 = %s_r0;", shstr, shstr);
     } // if
-
+    else if(shader_is_vertex(ctx))
+    {
+        // NOTE: Write the real vertex position output now
+        const char *shstr = ctx->shader_type_str;
+        output_line(ctx, "gl_Position = PROJ_FIXUP * TMP_OUT;");
+    }
     // force a RET opcode if we're at the end of the stream without one.
     if (ctx->previous_opcode != OPCODE_RET)
         emit_GLSL_RET(ctx);
@@ -2562,7 +2576,7 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
             switch (usage)
             {
                 case MOJOSHADER_USAGE_POSITION:
-                    usage_str = "gl_Position";
+                    usage_str = "TMP_OUT"; // NOTE: Replaced gl_Position for fixup
                     break;
                 case MOJOSHADER_USAGE_POINTSIZE:
                     usage_str = "gl_PointSize";
