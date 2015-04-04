@@ -46,6 +46,7 @@ public:
     void updateTexture(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr);
     GLuint getTextureId() const { return mTexId; }
     GLint getLevelFromSurface(IDirect3DSurface9 *surface);
+    GLenum getDepthStencilAttachment() const;
 
     void initGL();
     void deinitGL();

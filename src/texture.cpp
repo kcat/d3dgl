@@ -323,6 +323,20 @@ GLint D3DGLTexture::getLevelFromSurface(IDirect3DSurface9 *surface)
     return 0;
 }
 
+GLenum D3DGLTexture::getDepthStencilAttachment() const
+{
+    if(mGLFormat->internalformat == GL_DEPTH_COMPONENT16 ||
+       mGLFormat->internalformat == GL_DEPTH_COMPONENT24 ||
+       mGLFormat->internalformat == GL_DEPTH_COMPONENT32 ||
+       mGLFormat->internalformat == GL_DEPTH_COMPONENT32F)
+        return GL_DEPTH_ATTACHMENT;
+    if(mGLFormat->internalformat == GL_DEPTH24_STENCIL8 ||
+       mGLFormat->internalformat == GL_DEPTH32F_STENCIL8)
+        return GL_DEPTH_STENCIL_ATTACHMENT;
+    ERR("Unhandled internal depthstencil format: 0x%04x\n", mGLFormat->internalformat);
+    return GL_NONE;
+}
+
 void D3DGLTexture::addIface()
 {
     ++mIfaceCount;
