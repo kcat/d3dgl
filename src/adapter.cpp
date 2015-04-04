@@ -597,6 +597,7 @@ void D3DAdapter::init_limits()
                 mLimits.vertex_samplers = 0;
         }
     }
+    TRACE("Max vertex attribs: %u.\n", mLimits.vertex_attribs);
     TRACE("Max vertex samplers: %u.\n", mLimits.vertex_samplers);
     TRACE("Max combined samplers: %u.\n", mLimits.combined_samplers);
 
