@@ -140,6 +140,8 @@ public:
 
     HRESULT drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT startidx, UINT count);
 
+    void calculateProjectionFixup(UINT width, UINT height, bool flip, float result[4][4]);
+
     void initGL();
     void setTextureGL(GLuint stage, GLenum type, GLuint binding);
     void setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord);

@@ -1064,6 +1064,9 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
 
 
     mQueue.sendSync<InitGLDeviceCmd>(this);
+    float result[4][4];
+    calculateProjectionFixup(params->BackBufferWidth, params->BackBufferHeight, false, result);
+    mQueue.send<SetBufferValues>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
 
     return true;
 }
@@ -1213,6 +1216,50 @@ HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT start
         mQueue.sendAndUnlock<DrawGLCmd<UseFFP>>(this, idxdata, streams, cur);
 
     return D3D_OK;
+}
+
+void D3DGLDevice::calculateProjectionFixup(UINT width, UINT height, bool flip, float result[4][4])
+{
+    // OpenGL places pixel coords at the pixel's bottom-left, while D3D places
+    // it at the center. So we have to translate X and Y by /almost/ 0.5 pixels
+    // (almost because of certain triangle edge rules GL is a bit lax on). The
+    // offset is doubled since it ranges from -1...+1 instead of 0...1.
+    //
+    // Additionally, OpenGL uses -1...+1 for the Z clip space while D3D uses
+    // 0...1, so Z needs to be scaled and offset as well.
+    //
+    // Finally, offscreen rendering needs to flip the entire scene upside down
+    // so the 'top' of the image ends up at texture coord y=0, rather than
+    // height-1.
+    //
+    // This is all accomplished with these two matrices. The matrices are
+    // combined so that the scaling applies first, followed by the translation.
+    float trans[4][4] = {
+        { 1.0f, 0.0f, 0.0f, 0.0f },
+        { 0.0f, 1.0f, 0.0f, 0.0f },
+        { 0.0f, 0.0f, 1.0f, 0.0f },
+        { 0.99f/width, 0.99f/height, -1.0f, 1.0f }
+    };
+    float scale[4][4] = {
+        { 1.0f, 0.0f, 0.0f, 0.0f },
+        { 0.0f, 1.0f, 0.0f, 0.0f },
+        { 0.0f, 0.0f, 2.0f, 0.0f },
+        { 0.0f, 0.0f, 0.0f, 1.0f }
+    };
+    if(flip)
+        scale[1][1] *= -1.0f;
+
+    for(int r = 0;r < 4;++r)
+    {
+        for(int c = 0;c < 4;++c)
+        {
+            float sum = 0.0f;
+            for(int i = 0;i < 4;++i)
+                sum += scale[r][i]*trans[i][c];
+
+            result[r][c] = sum;
+        }
+    }
 }
 
 
@@ -1404,6 +1451,11 @@ HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
             return D3DERR_INVALIDCALL;
         }
     }
+
+    // FIXME: When the window/backbuffer gets properly resized, do this:
+    //float result[4][4];
+    //calculateProjectionFixup(params->BackBufferWidth, params->BackBufferHeight, false, result);
+    //mQueue.send<SetBufferValues>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
 
     return D3D_OK;
 }
