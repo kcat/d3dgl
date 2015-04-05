@@ -158,6 +158,9 @@ public:
     void setVertexAttribArrayGL(UINT attribs);
     void setShaderProgramGL(GLbitfield stages, GLuint program);
     void drawGL(const GLIndexData &idxdata, const GLStreamData *streams, GLuint numstreams, bool ffp);
+    void blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_face, const RECT &src_rect,
+                           GLenum dst_target, GLuint dst_binding, GLint dst_face, const RECT &dst_rect,
+                           GLenum filter);
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;

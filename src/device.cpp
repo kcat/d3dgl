@@ -682,6 +682,7 @@ void D3DGLDevice::resetRenderTargetGL(GLsizei index)
     {
         mGLState.active_framebuffer = 0;
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glReadBuffer(GL_BACK_LEFT);
         glDrawBuffer(GL_BACK_LEFT);
         glFrontFace(GL_CW);
     }
@@ -713,6 +714,7 @@ void D3DGLDevice::setRenderTargetGL(GLsizei index, GLenum target, GLuint id, GLi
     {
         mGLState.active_framebuffer = mGLState.main_framebuffer;
         glBindFramebuffer(GL_FRAMEBUFFER, mGLState.main_framebuffer);
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
         glDrawBuffers(std::min(buffers.size(), mAdapter.getLimits().buffers),
                       buffers.data());
         glFrontFace(GL_CCW);
@@ -955,6 +957,101 @@ public:
     }
 };
 
+
+void D3DGLDevice::blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_face, const RECT &src_rect, GLenum dst_target, GLuint dst_binding, GLint dst_face, const RECT &dst_rect, GLenum filter)
+{
+    if(!src_target)
+    {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+        glReadBuffer(GL_BACK_LEFT);
+    }
+    else
+    {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, mGLState.copy_framebuffers[0]);
+        if(src_target == GL_RENDERBUFFER)
+            glFramebufferRenderbuffer(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, src_binding);
+        else if(src_target == GL_TEXTURE_2D)
+            glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, src_target, src_binding, src_face);
+        else
+        {
+            ERR("Unhandled source target: 0x%x\n", src_target);
+            goto done;
+        }
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+    }
+
+    if(!dst_target)
+    {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glDrawBuffer(GL_BACK_LEFT);
+    }
+    else
+    {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mGLState.copy_framebuffers[1]);
+        if(dst_target == GL_RENDERBUFFER)
+            glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, dst_binding);
+        else if(dst_target == GL_TEXTURE_2D)
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, dst_target, dst_binding, dst_face);
+        else
+        {
+            ERR("Unhandled destination target: 0x%x\n", src_target);
+            goto done;
+        }
+        glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    }
+
+    glPushAttrib(GL_SCISSOR_BIT);
+    glDisable(GL_SCISSOR_TEST);
+
+    glBlitFramebuffer(src_rect.left, src_rect.top, src_rect.right, src_rect.bottom,
+                      dst_rect.left, dst_rect.top, dst_rect.right, dst_rect.bottom,
+                      GL_COLOR_BUFFER_BIT, filter);
+
+    glPopAttrib();
+
+done:
+    glBindFramebuffer(GL_FRAMEBUFFER, mGLState.active_framebuffer);
+    if(mGLState.active_framebuffer == 0)
+    {
+        glReadBuffer(GL_BACK_LEFT);
+        glDrawBuffer(GL_BACK_LEFT);
+    }
+    else
+    {
+        std::array<GLenum,D3D_MAX_SIMULTANEOUS_RENDERTARGETS> buffers{
+            GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3
+        };
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+        glDrawBuffers(std::min(buffers.size(), mAdapter.getLimits().buffers),
+                      buffers.data());
+    }
+    checkGLError();
+}
+class BlitFramebufferCmd : public Command {
+    D3DGLDevice *mTarget;
+    GLenum mSrcTarget;
+    GLuint mSrcBinding;
+    GLint mSrcFace;
+    RECT mSrcRect;
+    GLenum mDstTarget;
+    GLuint mDstBinding;
+    GLint mDstFace;
+    RECT mDstRect;
+    GLenum mFilter;
+
+public:
+    BlitFramebufferCmd(D3DGLDevice *target, GLenum src_target, GLuint src_binding, GLint src_face, const RECT &src_rect, GLenum dst_target, GLuint dst_binding, GLint dst_face, const RECT &dst_rect, GLenum filter)
+      : mTarget(target), mSrcTarget(src_target), mSrcBinding(src_binding), mSrcFace(src_face), mSrcRect(src_rect)
+      , mDstTarget(dst_target), mDstBinding(dst_binding), mDstFace(dst_face), mDstRect(dst_rect), mFilter(filter)
+    { }
+
+    virtual ULONG execute()
+    {
+        mTarget->blitFramebufferGL(mSrcTarget, mSrcBinding, mSrcFace, mSrcRect,
+                                   mDstTarget, mDstBinding, mDstFace, mDstRect, mFilter);
+        return sizeof(*this);
+    }
+};
 
 void D3DGLDevice::initGL()
 {
@@ -1821,10 +1918,133 @@ HRESULT D3DGLDevice::GetFrontBufferData(UINT iSwapChain, IDirect3DSurface9* pDes
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9* pSourceSurface, CONST RECT* pSourceRect, IDirect3DSurface9* pDestSurface, CONST RECT* pDestRect, D3DTEXTUREFILTERTYPE Filter)
+HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcRect, IDirect3DSurface9 *dstSurface, const RECT *dstRect, D3DTEXTUREFILTERTYPE filter)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, srcSurface %p, srcRect %p, dstSurface %p, dstRect %p, filter 0x%x : semi-stub\n", this, srcSurface, srcRect, dstSurface, dstRect, filter);
+
+    GLenum src_target = GL_NONE, dst_target = GL_NONE;
+    GLuint src_binding = 0, dst_binding = 0;
+    GLint src_face = 0, dst_face = 0;
+    RECT src_rect, dst_rect;
+
+    // FIXME: This doesn't handle depth or stencil blits
+    union {
+        void *pointer;
+        D3DGLTexture *tex2d;
+        D3DGLSwapChain *schain;
+    };
+
+    // Get source surface info
+    if(SUCCEEDED(srcSurface->GetContainer(IID_D3DGLTexture, &pointer)))
+    {
+        D3DSURFACE_DESC desc;
+        srcSurface->GetDesc(&desc);
+
+        src_target = GL_TEXTURE_2D;
+        src_binding = tex2d->getTextureId();
+        src_face = tex2d->getLevelFromSurface(srcSurface);
+        src_rect.left = 0;
+        src_rect.top = 0;
+        src_rect.right = desc.Width;
+        src_rect.bottom = desc.Height;
+        tex2d->Release();
+    }
+    else if(SUCCEEDED(srcSurface->GetContainer(IID_D3DGLSwapChain, &pointer)))
+    {
+        D3DSURFACE_DESC desc;
+        srcSurface->GetDesc(&desc);
+
+        src_target = GL_NONE;
+        src_binding = 0;
+        src_face = 0;
+        src_rect.left = 0;
+        src_rect.top = desc.Height;
+        src_rect.right = desc.Width;
+        src_rect.bottom = 0;
+        schain->Release();
+    }
+    else
+    {
+        FIXME("Unhandled source surface: %p\n", srcSurface);
+        return D3DERR_INVALIDCALL;
+    }
+
+    // Get destination surface info
+    if(SUCCEEDED(dstSurface->GetContainer(IID_D3DGLTexture, &pointer)))
+    {
+        D3DSURFACE_DESC desc;
+        dstSurface->GetDesc(&desc);
+
+        dst_target = GL_TEXTURE_2D;
+        dst_binding = tex2d->getTextureId();
+        dst_face = tex2d->getLevelFromSurface(dstSurface);
+        dst_rect.left = 0;
+        dst_rect.top = 0;
+        dst_rect.right = desc.Width;
+        dst_rect.bottom = desc.Height;
+        tex2d->Release();
+    }
+    else if(SUCCEEDED(dstSurface->GetContainer(IID_D3DGLSwapChain, &pointer)))
+    {
+        D3DSURFACE_DESC desc;
+        dstSurface->GetDesc(&desc);
+
+        dst_target = GL_NONE;
+        dst_binding = 0;
+        dst_face = 0;
+        dst_rect.left = 0;
+        dst_rect.top = desc.Height;
+        dst_rect.right = desc.Width;
+        dst_rect.bottom = 0;
+        schain->Release();
+    }
+    else
+    {
+        FIXME("Unhandled destination surface: %p\n", srcSurface);
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(srcRect)
+    {
+        if(src_target)
+        {
+            src_rect.left = srcRect->left;
+            src_rect.top = srcRect->top;
+            src_rect.right = srcRect->right;
+            src_rect.bottom = srcRect->bottom;
+        }
+        else
+        {
+            // No target type indicates "onscreen" backbuffer target, which needs to be flipped
+            src_rect.left = srcRect->left;
+            src_rect.top = srcRect->bottom;
+            src_rect.right = srcRect->right;
+            src_rect.bottom = srcRect->top;
+        }
+    }
+    if(dstRect)
+    {
+        if(dst_target)
+        {
+            dst_rect.left = dstRect->left;
+            dst_rect.top = dstRect->top;
+            dst_rect.right = dstRect->right;
+            dst_rect.bottom = dstRect->bottom;
+        }
+        else
+        {
+            // No target type indicates "onscreen" backbuffer target, which needs to be flipped
+            dst_rect.left = dstRect->left;
+            dst_rect.top = dstRect->bottom;
+            dst_rect.right = dstRect->right;
+            dst_rect.bottom = dstRect->top;
+        }
+    }
+
+    mQueue.send<BlitFramebufferCmd>(this, src_target, src_binding, src_face, src_rect, dst_target, dst_binding, dst_face, dst_rect,
+                                    GetGLFilterMode(filter, D3DTEXF_NONE));
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::ColorFill(IDirect3DSurface9* pSurface, CONST RECT* pRect, D3DCOLOR color)
