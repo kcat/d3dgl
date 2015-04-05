@@ -152,8 +152,8 @@ public:
     void initGL();
     void setTextureGL(GLuint stage, GLenum type, GLuint binding);
     void resetRenderTargetGL(GLsizei index);
-    void setRenderTargetGL(GLsizei index, GLuint id, GLint level, GLenum target);
-    void setDepthStencilGL(GLenum attachment, GLuint id, GLint level, GLenum target);
+    void setRenderTargetGL(GLsizei index, GLenum target, GLuint id, GLint level);
+    void setDepthStencilGL(GLenum attachment, GLenum target, GLuint id, GLint level);
     void setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord);
     void setVertexAttribArrayGL(UINT attribs);
     void setShaderProgramGL(GLbitfield stages, GLuint program);

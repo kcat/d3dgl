@@ -617,7 +617,7 @@ public:
     }
 };
 
-void D3DGLDevice::setRenderTargetGL(GLsizei index, GLuint id, GLint level, GLenum target)
+void D3DGLDevice::setRenderTargetGL(GLsizei index, GLenum target, GLuint id, GLint level)
 {
     std::array<GLenum,D3D_MAX_SIMULTANEOUS_RENDERTARGETS> buffers{
         GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3
@@ -641,23 +641,23 @@ void D3DGLDevice::setRenderTargetGL(GLsizei index, GLuint id, GLint level, GLenu
 class SetRenderTargetCmd : public Command {
     D3DGLDevice *mTarget;
     GLsizei mIndex;
+    GLenum mRTarget;
     GLuint mId;
     GLint mLevel;
-    GLenum mRTarget;
 
 public:
-    SetRenderTargetCmd(D3DGLDevice *target, GLsizei index, GLuint id, GLint level, GLenum rtarget)
-      : mTarget(target), mIndex(index), mId(id), mLevel(level), mRTarget(rtarget)
+    SetRenderTargetCmd(D3DGLDevice *target, GLsizei index, GLenum rtarget, GLuint id, GLint level)
+      : mTarget(target), mIndex(index), mRTarget(rtarget), mId(id), mLevel(level)
     { }
 
     virtual ULONG execute()
     {
-        mTarget->setRenderTargetGL(mIndex, mId, mLevel, mRTarget);
+        mTarget->setRenderTargetGL(mIndex, mRTarget, mId, mLevel);
         return sizeof(*this);
     }
 };
 
-void D3DGLDevice::setDepthStencilGL(GLenum attachment, GLuint id, GLint level, GLenum target)
+void D3DGLDevice::setDepthStencilGL(GLenum attachment, GLenum target, GLuint id, GLint level)
 {
     if(target == GL_RENDERBUFFER)
         glNamedFramebufferRenderbufferEXT(mGLState.main_framebuffer, attachment, GL_RENDERBUFFER, id);
@@ -668,18 +668,18 @@ void D3DGLDevice::setDepthStencilGL(GLenum attachment, GLuint id, GLint level, G
 class SetDepthStencilCmd : public Command {
     D3DGLDevice *mTarget;
     GLenum mAttachment;
+    GLenum mRTarget;
     GLuint mId;
     GLint mLevel;
-    GLenum mRTarget;
 
 public:
-    SetDepthStencilCmd(D3DGLDevice *target, GLenum attachment, GLuint id, GLint level, GLenum rtarget)
-      : mTarget(target), mAttachment(attachment), mId(id), mLevel(level), mRTarget(rtarget)
+    SetDepthStencilCmd(D3DGLDevice *target, GLenum attachment, GLenum rtarget, GLuint id, GLint level)
+      : mTarget(target), mAttachment(attachment), mRTarget(rtarget), mId(id), mLevel(level)
     { }
 
     virtual ULONG execute()
     {
-        mTarget->setDepthStencilGL(mAttachment, mId, mLevel, mRTarget);
+        mTarget->setDepthStencilGL(mAttachment, mRTarget, mId, mLevel);
         return sizeof(*this);
     }
 };
@@ -1776,7 +1776,7 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
         if(mBackbufferIsMain)
             mQueue.sendAndUnlock<ResetRenderTargetCmd>(this, index);
         else
-            mQueue.sendAndUnlock<SetRenderTargetCmd>(this, index, 0, 0, GL_RENDERBUFFER);
+            mQueue.sendAndUnlock<SetRenderTargetCmd>(this, index, GL_RENDERBUFFER, 0, 0);
         if(rtarget) rtarget->Release();
         return D3D_OK;
     }
@@ -1797,7 +1797,7 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
             resetProjectionFixup(mViewport.Width, mViewport.Height, true);
         mBackbufferIsMain = false;
         mQueue.sendAndUnlock<SetRenderTargetCmd>(this,
-            index, tex2d->getTextureId(), level, GL_TEXTURE_2D
+            index, GL_TEXTURE_2D, tex2d->getTextureId(), level
         );
         tex2d->Release();
     }
@@ -1806,7 +1806,7 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
         mQueue.lock();
         rtarget = mRenderTargets[index].exchange(rtarget);
         if(index != 0)
-            mQueue.sendAndUnlock<SetRenderTargetCmd>(this, index, 0, 0, GL_RENDERBUFFER);
+            mQueue.sendAndUnlock<SetRenderTargetCmd>(this, index, GL_RENDERBUFFER, 0, 0);
         else
         {
             if(!mBackbufferIsMain)
@@ -1850,7 +1850,7 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
     {
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(depthstencil);
-        mQueue.sendAndUnlock<SetDepthStencilCmd>(this, GL_DEPTH_STENCIL_ATTACHMENT, 0, 0, GL_RENDERBUFFER);
+        mQueue.sendAndUnlock<SetDepthStencilCmd>(this, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0, 0);
         if(depthstencil) depthstencil->Release();
 
         return D3D_OK;
@@ -1870,7 +1870,7 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(depthstencil);
         mQueue.sendAndUnlock<SetDepthStencilCmd>(this,
-            attachment, tex2d->getTextureId(), level, GL_TEXTURE_2D
+            attachment, GL_TEXTURE_2D, tex2d->getTextureId(), level
         );
         tex2d->Release();
     }
@@ -1879,7 +1879,7 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(depthstencil);
         mQueue.sendAndUnlock<SetDepthStencilCmd>(this,
-            GL_DEPTH_STENCIL_ATTACHMENT, 0, 0, GL_RENDERBUFFER
+            GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0, 0
         );
         device->Release();
     }
