@@ -500,14 +500,14 @@ public:
     }
 };
 
-#define BUFFER_VALUE_SEND_MAX (64u)
+template<size_t MAXCOUNT>
 class SetBufferValues : public Command {
     GLuint mBuffer;
     GLintptr mStart;
     GLsizeiptr mSize;
     union {
-        char mData[BUFFER_VALUE_SEND_MAX*4*4];
-        float mVec4fs[BUFFER_VALUE_SEND_MAX][4];
+        char mData[MAXCOUNT*4*4];
+        float mVec4fs[MAXCOUNT][4];
     };
 
 public:
@@ -528,33 +528,6 @@ public:
     virtual ULONG execute()
     {
         glNamedBufferSubDataEXT(mBuffer, mStart, mSize, mData);
-        checkGLError();
-        return sizeof(*this);
-    }
-};
-// Specialization of the above, for the common simple case of updating one vec4f.
-class SetBufferValue : public Command {
-    GLuint mBuffer;
-    GLintptr mStart;
-    union {
-        char mData[4*4];
-        float mVec4f[4];
-    };
-
-public:
-    SetBufferValue(GLuint buffer, const float *data, GLintptr start)
-      : mBuffer(buffer)
-    {
-        mStart = start * 4 * 4;
-        mVec4f[0] = *(data++);
-        mVec4f[1] = *(data++);
-        mVec4f[2] = *(data++);
-        mVec4f[3] = *(data++);
-    }
-
-    virtual ULONG execute()
-    {
-        glNamedBufferSubDataEXT(mBuffer, mStart, 4*4, mData);
         checkGLError();
         return sizeof(*this);
     }
@@ -1166,7 +1139,7 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
     mQueue.sendSync<InitGLDeviceCmd>(this);
     float result[4][4];
     calculateProjectionFixup(params->BackBufferWidth, params->BackBufferHeight, false, result);
-    mQueue.send<SetBufferValues>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
+    mQueue.send<SetBufferValues<4>>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
 
     return true;
 }
@@ -1553,11 +1526,6 @@ HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
         }
     }
 
-    // FIXME: When the window/backbuffer gets properly resized, do this:
-    //float result[4][4];
-    //calculateProjectionFixup(params->BackBufferWidth, params->BackBufferHeight, false, result);
-    //mQueue.send<SetBufferValues>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
-
     return D3D_OK;
 }
 
@@ -1828,7 +1796,7 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
         {
             float result[4][4];
             calculateProjectionFixup(mViewport.Width, mViewport.Height, true, result);
-            mQueue.doSend<SetBufferValues>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
+            mQueue.doSend<SetBufferValues<4>>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
         }
         mBackbufferIsMain = false;
         mQueue.sendAndUnlock<SetRenderTargetCmd>(this,
@@ -1848,7 +1816,7 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
             {
                 float result[4][4];
                 calculateProjectionFixup(mViewport.Width, mViewport.Height, false, result);
-                mQueue.doSend<SetBufferValues>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
+                mQueue.doSend<SetBufferValues<4>>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
             }
             mBackbufferIsMain = true;
             mQueue.sendAndUnlock<ResetRenderTargetCmd>(this, index);
@@ -2020,7 +1988,7 @@ HRESULT D3DGLDevice::SetViewport(const D3DVIEWPORT9 *viewport)
     {
         float result[4][4];
         calculateProjectionFixup(mViewport.Width, mViewport.Height, true, result);
-        mQueue.doSend<SetBufferValues>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
+        mQueue.doSend<SetBufferValues<4>>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
         mQueue.sendAndUnlock<ViewportSet>(mViewport.X, mViewport.Y,
                                           std::min(mViewport.Width, 0x7ffffffful),
                                           std::min(mViewport.Height, 0x7ffffffful),
@@ -2033,7 +2001,7 @@ HRESULT D3DGLDevice::SetViewport(const D3DVIEWPORT9 *viewport)
 
         float result[4][4];
         calculateProjectionFixup(mViewport.Width, mViewport.Height, false, result);
-        mQueue.doSend<SetBufferValues>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
+        mQueue.doSend<SetBufferValues<4>>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
         mQueue.sendAndUnlock<ViewportSet>(mViewport.X,
                                           desc.Height - (mViewport.Y+mViewport.Height),
                                           std::min(mViewport.Width, 0x7ffffffful),
@@ -2727,21 +2695,24 @@ HRESULT D3DGLDevice::SetVertexShaderConstantF(UINT start, const float *values, U
 
     mQueue.lock();
     memcpy(mVSConstantsF[start].ptr(), values, count*sizeof(Vector4f));
-    if(count == 1)
-        mQueue.sendAndUnlock<SetBufferValue>(mGLState.vs_uniform_bufferf, values, start);
-    else
     {
-        mQueue.sendAndUnlock<SetBufferValues>(mGLState.vs_uniform_bufferf,
-            values, start, std::min(count, BUFFER_VALUE_SEND_MAX)
-        );
-        UINT i = std::min(count, BUFFER_VALUE_SEND_MAX);
-        while(i < count)
+    set_more:
+        if(count == 1)
+            mQueue.sendAndUnlock<SetBufferValues<1>>(mGLState.vs_uniform_bufferf, values, start, 1);
+        else if(count <= 4)
+            mQueue.sendAndUnlock<SetBufferValues<4>>(mGLState.vs_uniform_bufferf, values, start, count);
+        else if(count <= 32)
+            mQueue.sendAndUnlock<SetBufferValues<32>>(mGLState.vs_uniform_bufferf, values, start, count);
+        else if(count <= 64)
+            mQueue.sendAndUnlock<SetBufferValues<64>>(mGLState.vs_uniform_bufferf, values, start, count);
+        else if(count <= 128)
+            mQueue.sendAndUnlock<SetBufferValues<128>>(mGLState.vs_uniform_bufferf, values, start, count);
+        else
         {
-            UINT todo = std::min(count-i, BUFFER_VALUE_SEND_MAX);
-            mQueue.send<SetBufferValues>(mGLState.vs_uniform_bufferf,
-                &values[i*4], (start+i), todo
-            );
-            i += todo;
+            mQueue.doSend<SetBufferValues<128>>(mGLState.vs_uniform_bufferf, values, start, 128);
+            values += 128*4;
+            count -= 128;
+            goto set_more;
         }
     }
 
@@ -2959,21 +2930,24 @@ HRESULT D3DGLDevice::SetPixelShaderConstantF(UINT start, const float *values, UI
 
     mQueue.lock();
     memcpy(mPSConstantsF[start].ptr(), values, count*sizeof(Vector4f));
-    if(count == 1)
-        mQueue.sendAndUnlock<SetBufferValue>(mGLState.ps_uniform_bufferf, values, start);
-    else
     {
-        mQueue.sendAndUnlock<SetBufferValues>(mGLState.ps_uniform_bufferf,
-            values, start, std::min(count, BUFFER_VALUE_SEND_MAX)
-        );
-        UINT i = std::min(count, BUFFER_VALUE_SEND_MAX);
-        while(i < count)
+    set_more:
+        if(count == 1)
+            mQueue.sendAndUnlock<SetBufferValues<1>>(mGLState.ps_uniform_bufferf, values, start, 1);
+        else if(count <= 4)
+            mQueue.sendAndUnlock<SetBufferValues<4>>(mGLState.ps_uniform_bufferf, values, start, count);
+        else if(count <= 32)
+            mQueue.sendAndUnlock<SetBufferValues<32>>(mGLState.ps_uniform_bufferf, values, start, count);
+        else if(count <= 64)
+            mQueue.sendAndUnlock<SetBufferValues<64>>(mGLState.ps_uniform_bufferf, values, start, count);
+        else if(count <= 128)
+            mQueue.sendAndUnlock<SetBufferValues<128>>(mGLState.ps_uniform_bufferf, values, start, count);
+        else
         {
-            UINT todo = std::min(count-i, BUFFER_VALUE_SEND_MAX);
-            mQueue.send<SetBufferValues>(mGLState.ps_uniform_bufferf,
-                &values[i*4], (start+i), todo
-            );
-            i += todo;
+            mQueue.doSend<SetBufferValues<128>>(mGLState.ps_uniform_bufferf, values, start, 128);
+            values += 128*4;
+            count -= 128;
+            goto set_more;
         }
     }
 
