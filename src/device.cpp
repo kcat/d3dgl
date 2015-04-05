@@ -2217,6 +2217,11 @@ HRESULT D3DGLDevice::BeginScene()
         ERR("Already in scene\n");
         return D3DERR_INVALIDCALL;
     }
+
+    // Wait for the last swap to complete before starting the next scene
+    while(mSwapchains[0]->getPendingSwaps() > 0)
+        SwitchToThread();
+
     // TODO: Prepare any GL state? Depends on what's allowed or not to be
     // called within a 'scene'.
 

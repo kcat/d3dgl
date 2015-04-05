@@ -9,6 +9,7 @@ void D3DGLSwapChain::swapBuffersGL()
 {
     if(!SwapBuffers(mDevCtx))
         ERR("Failed to swap buffers, error: 0x%lx\n", GetLastError());
+    --mPendingSwaps;
 }
 class SwapchainSwapBuffers : public Command {
     D3DGLSwapChain *mTarget;
@@ -31,6 +32,7 @@ D3DGLSwapChain::D3DGLSwapChain(D3DGLDevice *parent)
   , mWindow(nullptr)
   , mDevCtx(nullptr)
   , mIsAuto(false)
+  , mPendingSwaps(0)
 {
 }
 
@@ -134,8 +136,8 @@ HRESULT D3DGLSwapChain::Present(const RECT *srcRect, const RECT *dstRect, HWND d
     if(flags)
         ERR("Ignoring flags 0x%lx\n", flags);
 
-    CommandQueue &queue = mParent->getQueue();
-    queue.send<SwapchainSwapBuffers>(this);
+    ++mPendingSwaps;
+    mParent->getQueue().send<SwapchainSwapBuffers>(this);
     return D3D_OK;
 }
 

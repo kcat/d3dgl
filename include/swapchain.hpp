@@ -21,6 +21,8 @@ class D3DGLSwapChain : public IDirect3DSwapChain9 {
     HDC mDevCtx;
     bool mIsAuto;
 
+    std::atomic<ULONG> mPendingSwaps;
+
     void addIface();
     void releaseIface();
 
@@ -35,6 +37,7 @@ public:
     bool init(const D3DPRESENT_PARAMETERS *params, HWND window, bool isauto=false);
 
     D3DGLBackbufferSurface *getBackbuffer() { return mBackbuffers[0]; }
+    ULONG getPendingSwaps() const { return mPendingSwaps; }
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;
