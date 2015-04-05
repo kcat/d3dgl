@@ -289,6 +289,56 @@ GLenum GetGLCompFunc(D3DCMPFUNC func)
     return GL_ALWAYS;
 }
 
+GLenum GetGLWrapMode(D3DTEXTUREADDRESS mode)
+{
+    switch(mode)
+    {
+        case D3DTADDRESS_WRAP: return GL_REPEAT;
+        case D3DTADDRESS_MIRROR: return GL_MIRRORED_REPEAT;
+        case D3DTADDRESS_CLAMP: return GL_CLAMP_TO_EDGE;
+        case D3DTADDRESS_BORDER: return GL_CLAMP_TO_BORDER;
+        case D3DTADDRESS_MIRRORONCE: return GL_MIRROR_CLAMP_TO_EDGE;
+        case D3DTADDRESS_FORCE_DWORD: break;
+    }
+    FIXME("Unhandled D3DTEXTUREADDRESS: 0x%x\n", mode);
+    return GL_REPEAT;
+}
+
+GLenum GetGLFilterMode(D3DTEXTUREFILTERTYPE type, D3DTEXTUREFILTERTYPE miptype)
+{
+    if(miptype == D3DTEXF_NONE)
+    {
+        if(type <= D3DTEXF_POINT)
+            return GL_NEAREST;
+        if(type <= D3DTEXF_ANISOTROPIC)
+            return GL_LINEAR;
+        ERR("Unsupported D3DTEXTUREFILTERTYPE: 0x%x\n", type);
+        return GL_LINEAR;
+    }
+    if(miptype == D3DTEXF_POINT)
+    {
+        if(type <= D3DTEXF_POINT)
+            return GL_NEAREST_MIPMAP_NEAREST;
+        if(type <= D3DTEXF_ANISOTROPIC)
+            return GL_LINEAR_MIPMAP_NEAREST;
+        ERR("Unsupported D3DTEXTUREFILTERTYPE: 0x%x\n", type);
+        return GL_LINEAR_MIPMAP_NEAREST;
+    }
+    if(miptype != D3DTEXF_LINEAR)
+        ERR("Unsupported mipmap D3DTEXTUREFILTERTYPE: 0x%x\n", miptype);
+    if(type <= D3DTEXF_POINT)
+        return GL_NEAREST_MIPMAP_LINEAR;
+    if(type <= D3DTEXF_ANISOTROPIC)
+        return GL_LINEAR_MIPMAP_LINEAR;
+    ERR("Unsupported D3DTEXTUREFILTERTYPE: 0x%x\n", type);
+    return GL_LINEAR_MIPMAP_LINEAR;
+}
+
+#define D3DCOLOR_R(color) (((color)>>16)&0xff)
+#define D3DCOLOR_G(color) (((color)>> 8)&0xff)
+#define D3DCOLOR_B(color) (((color)    )&0xff)
+#define D3DCOLOR_A(color) (((color)>>24)&0xff)
+
 
 class StateEnable : public Command {
     GLenum mState;
@@ -496,6 +546,42 @@ public:
     virtual ULONG execute()
     {
         glStencilMask(mMask);
+        return sizeof(*this);
+    }
+};
+
+class SetSamplerParameteri : public Command {
+    GLuint mSampler;
+    GLenum mParameter;
+    GLint mValue;
+
+public:
+    SetSamplerParameteri(GLuint sampler, GLenum parameter, GLint value)
+      : mSampler(sampler), mParameter(parameter), mValue(value)
+    { }
+
+    virtual ULONG execute()
+    {
+        if((mParameter != GL_TEXTURE_MAX_ANISOTROPY_EXT && mParameter != GL_TEXTURE_SRGB_DECODE_EXT) ||
+           (mParameter == GL_TEXTURE_MAX_ANISOTROPY_EXT && GLEW_EXT_texture_filter_anisotropic) ||
+           (mParameter == GL_TEXTURE_SRGB_DECODE_EXT && GLEW_EXT_texture_sRGB_decode))
+            glSamplerParameteri(mSampler, mParameter, mValue);
+        return sizeof(*this);
+    }
+};
+class SetSamplerParameter4f : public Command {
+    GLuint mSampler;
+    GLenum mParameter;
+    GLfloat mValues[4];
+
+public:
+    SetSamplerParameter4f(GLuint sampler, GLenum parameter, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3)
+      : mSampler(sampler), mParameter(parameter), mValues{v0,v1,v2,v3}
+    { }
+
+    virtual ULONG execute()
+    {
+        glSamplerParameterfv(mSampler, mParameter, mValues);
         return sizeof(*this);
     }
 };
@@ -2392,7 +2478,7 @@ HRESULT D3DGLDevice::GetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DW
 
 HRESULT D3DGLDevice::SetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DWORD value)
 {
-    FIXME("iface %p, sampler %lu, type %s, value 0x%lx : stub!\n", this, sampler, d3dsamp_to_str(type), value);
+    TRACE("iface %p, sampler %lu, type %s, value 0x%lx\n", this, sampler, d3dsamp_to_str(type), value);
 
     if(sampler >= D3DVERTEXTEXTURESAMPLER0 && sampler <= D3DVERTEXTEXTURESAMPLER3)
         sampler = sampler - D3DVERTEXTEXTURESAMPLER0 + MAX_FRAGMENT_SAMPLERS;
@@ -2402,9 +2488,93 @@ HRESULT D3DGLDevice::SetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DW
         WARN("Sampler index out of range (%lu >= %u)\n", sampler, mSamplerState.size());
         return D3DERR_INVALIDCALL;
     }
+    if(type >= mSamplerState[sampler].size())
+    {
+        WARN("Sampler type out of range (%u >= %u)\n", type, mSamplerState[sampler].size());
+        return D3DERR_INVALIDCALL;
+    }
 
-    if(type < mSamplerState[sampler].size())
-        mSamplerState[sampler][type] = value;
+    mQueue.lock();
+    DWORD oldvalue = mSamplerState[sampler][type].exchange(value);
+    switch(type)
+    {
+        case D3DSAMP_ADDRESSU:
+            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+                GL_TEXTURE_WRAP_S, GetGLWrapMode((D3DTEXTUREADDRESS)value)
+            );
+            break;
+        case D3DSAMP_ADDRESSV:
+            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+                GL_TEXTURE_WRAP_T, GetGLWrapMode((D3DTEXTUREADDRESS)value)
+            );
+            break;
+        case D3DSAMP_ADDRESSW:
+            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+                GL_TEXTURE_WRAP_R, GetGLWrapMode((D3DTEXTUREADDRESS)value)
+            );
+            break;
+        case D3DSAMP_BORDERCOLOR:
+            mQueue.sendAndUnlock<SetSamplerParameter4f>(mGLState.samplers[sampler],
+                GL_TEXTURE_BORDER_COLOR, D3DCOLOR_R(value)/255.0f, D3DCOLOR_G(value)/255.0f,
+                D3DCOLOR_B(value)/255.0f, D3DCOLOR_A(value)/255.0f
+            );
+            break;
+        case D3DSAMP_MAGFILTER:
+            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+                GL_TEXTURE_MAG_FILTER, GetGLFilterMode((D3DTEXTUREFILTERTYPE)value, D3DTEXF_NONE)
+            );
+            break;
+        case D3DSAMP_MINFILTER:
+            if((oldvalue == D3DTEXF_ANISOTROPIC) != (value == D3DTEXF_ANISOTROPIC))
+                mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[sampler],
+                    GL_TEXTURE_MAX_ANISOTROPY_EXT, (value == D3DTEXF_ANISOTROPIC) ?
+                                                   mSamplerState[sampler][D3DSAMP_MAXANISOTROPY].load() :
+                                                   1ul
+                );
+            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+                GL_TEXTURE_MIN_FILTER, GetGLFilterMode((D3DTEXTUREFILTERTYPE)value,
+                    (D3DTEXTUREFILTERTYPE)mSamplerState[sampler][D3DSAMP_MIPFILTER].load()
+                )
+            );
+            break;
+        case D3DSAMP_MIPFILTER:
+            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+                GL_TEXTURE_MIN_FILTER, GetGLFilterMode(
+                    (D3DTEXTUREFILTERTYPE)mSamplerState[sampler][D3DSAMP_MINFILTER].load(),
+                    (D3DTEXTUREFILTERTYPE)value
+                )
+            );
+            break;
+        case D3DSAMP_MIPMAPLODBIAS:
+            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+                GL_TEXTURE_LOD_BIAS, value
+            );
+            break;
+        case D3DSAMP_MAXMIPLEVEL:
+            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+                GL_TEXTURE_MAX_LOD, value
+            );
+            break;
+        case D3DSAMP_MAXANISOTROPY:
+            if(mSamplerState[sampler][D3DSAMP_MIPFILTER] == D3DTEXF_ANISOTROPIC)
+                mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+                    GL_TEXTURE_MAX_ANISOTROPY_EXT, value
+                );
+            else
+                mQueue.unlock();
+            break;
+        case D3DSAMP_SRGBTEXTURE:
+            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+                GL_TEXTURE_SRGB_DECODE_EXT, value ? GL_DECODE_EXT : GL_SKIP_DECODE_EXT
+            );
+            break;
+        case D3DSAMP_ELEMENTINDEX:
+        case D3DSAMP_DMAPOFFSET:
+        default:
+            FIXME("Unhandled sampler state: %s\n", d3dsamp_to_str(type));
+            mQueue.unlock();
+            break;
+    }
 
     return D3D_OK;
 }
