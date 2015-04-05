@@ -167,8 +167,7 @@ HRESULT Direct3DGL::QueryInterface(REFIID riid, void **obj)
 
     if(riid == IID_IDirect3D9Ex)
     {
-        FIXME("Application asks for IDirect3D9Ex, but this instance wasn't created with Direct3DCreate9Ex.\n");
-        *obj = nullptr;
+        WARN("Application asks for IDirect3D9Ex, but this instance wasn't created with Direct3DCreate9Ex.\n");
         return E_NOINTERFACE;
     }
 

@@ -1350,7 +1350,6 @@ HRESULT D3DGLDevice::QueryInterface(const IID &riid, void **obj)
     if(riid == IID_IDirect3DDevice9Ex)
     {
         WARN("IDirect3D9 instance wasn't created with CreateDirect3D9Ex, returning E_NOINTERFACE.\n");
-        *obj = NULL;
         return E_NOINTERFACE;
     }
 
