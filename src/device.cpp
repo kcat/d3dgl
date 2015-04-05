@@ -1137,9 +1137,9 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
 
 
     mQueue.sendSync<InitGLDeviceCmd>(this);
-    float result[4][4];
-    calculateProjectionFixup(params->BackBufferWidth, params->BackBufferHeight, false, result);
-    mQueue.send<SetBufferValues<4>>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
+    mQueue.lock();
+    resetProjectionFixup(mViewport.Width, mViewport.Height, false);
+    mQueue.unlock();
 
     return true;
 }
@@ -1291,19 +1291,18 @@ HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT start
     return D3D_OK;
 }
 
-void D3DGLDevice::calculateProjectionFixup(UINT width, UINT height, bool flip, float result[4][4])
+void D3DGLDevice::resetProjectionFixup(UINT width, UINT height, bool flip)
 {
     // OpenGL places pixel coords at the pixel's bottom-left, while D3D places
     // it at the center. So we have to translate X and Y by /almost/ 0.5 pixels
     // (almost because of certain triangle edge rules GL is a bit lax on). The
-    // offset is doubled since it ranges from -1...+1 instead of 0...1.
+    // offset is doubled since projection ranges from -1...+1 instead of 0...1.
     //
     // Additionally, OpenGL uses -1...+1 for the Z clip space while D3D uses
     // 0...1, so Z needs to be scaled and offset as well.
     //
     // Finally, offscreen rendering needs to flip the entire scene upside down
-    // so the 'top' of the image ends up at texture coord y=0, rather than
-    // height-1.
+    // so the 'top' of the image ends up at Y=0, rather than height-1.
     //
     // This is all accomplished with these two matrices. The matrices are
     // combined so that the scaling applies first, followed by the translation.
@@ -1322,6 +1321,7 @@ void D3DGLDevice::calculateProjectionFixup(UINT width, UINT height, bool flip, f
     if(flip)
         scale[1][1] *= -1.0f;
 
+    float result[4][4];
     for(int r = 0;r < 4;++r)
     {
         for(int c = 0;c < 4;++c)
@@ -1333,6 +1333,8 @@ void D3DGLDevice::calculateProjectionFixup(UINT width, UINT height, bool flip, f
             result[r][c] = sum;
         }
     }
+
+    mQueue.doSend<SetBufferValues<4>>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
 }
 
 
@@ -1793,11 +1795,7 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
         mQueue.lock();
         rtarget = mRenderTargets[index].exchange(rtarget);
         if(mBackbufferIsMain)
-        {
-            float result[4][4];
-            calculateProjectionFixup(mViewport.Width, mViewport.Height, true, result);
-            mQueue.doSend<SetBufferValues<4>>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
-        }
+            resetProjectionFixup(mViewport.Width, mViewport.Height, true);
         mBackbufferIsMain = false;
         mQueue.sendAndUnlock<SetRenderTargetCmd>(this,
             index, tex2d->getTextureId(), level, GL_TEXTURE_2D
@@ -1813,11 +1811,7 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
         else
         {
             if(!mBackbufferIsMain)
-            {
-                float result[4][4];
-                calculateProjectionFixup(mViewport.Width, mViewport.Height, false, result);
-                mQueue.doSend<SetBufferValues<4>>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
-            }
+                resetProjectionFixup(mViewport.Width, mViewport.Height, false);
             mBackbufferIsMain = true;
             mQueue.sendAndUnlock<ResetRenderTargetCmd>(this, index);
         }
@@ -1872,11 +1866,12 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
     if(SUCCEEDED(depthstencil->GetContainer(IID_D3DGLTexture, &pointer)))
     {
         GLint level = tex2d->getLevelFromSurface(depthstencil);
+        GLenum attachment = tex2d->getDepthStencilAttachment();
 
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(depthstencil);
         mQueue.sendAndUnlock<SetDepthStencilCmd>(this,
-            tex2d->getDepthStencilAttachment(), tex2d->getTextureId(), level, GL_TEXTURE_2D
+            attachment, tex2d->getTextureId(), level, GL_TEXTURE_2D
         );
         tex2d->Release();
     }
@@ -1986,9 +1981,7 @@ HRESULT D3DGLDevice::SetViewport(const D3DVIEWPORT9 *viewport)
     hr = mRenderTargets[0].load()->QueryInterface(IID_D3DGLBackbufferSurface, (void**)&surface);
     if(FAILED(hr))
     {
-        float result[4][4];
-        calculateProjectionFixup(mViewport.Width, mViewport.Height, true, result);
-        mQueue.doSend<SetBufferValues<4>>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
+        resetProjectionFixup(mViewport.Width, mViewport.Height, true);
         mQueue.sendAndUnlock<ViewportSet>(mViewport.X, mViewport.Y,
                                           std::min(mViewport.Width, 0x7ffffffful),
                                           std::min(mViewport.Height, 0x7ffffffful),
@@ -1999,9 +1992,7 @@ HRESULT D3DGLDevice::SetViewport(const D3DVIEWPORT9 *viewport)
         D3DSURFACE_DESC desc;
         surface->GetDesc(&desc);
 
-        float result[4][4];
-        calculateProjectionFixup(mViewport.Width, mViewport.Height, false, result);
-        mQueue.doSend<SetBufferValues<4>>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
+        resetProjectionFixup(mViewport.Width, mViewport.Height, false);
         mQueue.sendAndUnlock<ViewportSet>(mViewport.X,
                                           desc.Height - (mViewport.Y+mViewport.Height),
                                           std::min(mViewport.Width, 0x7ffffffful),
@@ -2711,6 +2702,7 @@ HRESULT D3DGLDevice::SetVertexShaderConstantF(UINT start, const float *values, U
         {
             mQueue.doSend<SetBufferValues<128>>(mGLState.vs_uniform_bufferf, values, start, 128);
             values += 128*4;
+            start += 128;
             count -= 128;
             goto set_more;
         }
@@ -2946,6 +2938,7 @@ HRESULT D3DGLDevice::SetPixelShaderConstantF(UINT start, const float *values, UI
         {
             mQueue.doSend<SetBufferValues<128>>(mGLState.ps_uniform_bufferf, values, start, 128);
             values += 128*4;
+            start += 128;
             count -= 128;
             goto set_more;
         }

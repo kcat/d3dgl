@@ -134,6 +134,10 @@ private:
     std::array<StreamSource,MAX_STREAMS> mStreams;
     std::atomic<D3DGLBufferObject*> mIndexBuffer;
 
+    // Sends buffer values to update proj_fixup_uniform_buffer. Caller is
+    // responsible for holding the mQueue lock.
+    void resetProjectionFixup(UINT width, UINT height, bool flip);
+
 public:
     D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags);
     virtual ~D3DGLDevice();
@@ -144,8 +148,6 @@ public:
     CommandQueue &getQueue() { return mQueue; }
 
     HRESULT drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT startidx, UINT count);
-
-    void calculateProjectionFixup(UINT width, UINT height, bool flip, float result[4][4]);
 
     void initGL();
     void setTextureGL(GLuint stage, GLenum type, GLuint binding);
