@@ -898,6 +898,53 @@ public:
 };
 
 
+void D3DGLDevice::clearGL(GLbitfield mask, GLuint color, GLfloat depth, GLuint stencil, const RECT &rect)
+{
+    glPushAttrib(mask | GL_SCISSOR_BIT);
+
+    if((mask&GL_COLOR_BUFFER_BIT))
+    {
+        glClearColor(D3DCOLOR_R(color), D3DCOLOR_G(color), D3DCOLOR_B(color), D3DCOLOR_A(color));
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    }
+    if((mask&GL_DEPTH_BUFFER_BIT))
+    {
+        glClearDepth(depth);
+        glDepthMask(GL_TRUE);
+    }
+    if((mask&GL_STENCIL_BUFFER_BIT))
+    {
+        glClearStencil(stencil);
+        glStencilMask(GL_TRUE);
+    }
+
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top);
+    glClear(mask);
+
+    glPopAttrib();
+    checkGLError();
+}
+class ClearCmd : public Command {
+    D3DGLDevice *mTarget;
+    GLbitfield mMask;
+    GLuint mColor;
+    GLfloat mDepth;
+    GLuint mStencil;
+    RECT mRect;
+
+public:
+    ClearCmd(D3DGLDevice *target, GLbitfield mask, GLuint color, GLfloat depth, GLuint stencil, const RECT &rect)
+      : mTarget(target), mMask(mask), mColor(color), mDepth(depth), mStencil(stencil), mRect(rect)
+    { }
+
+    virtual ULONG execute()
+    {
+        mTarget->clearGL(mMask, mColor, mDepth, mStencil, mRect);
+        return sizeof(*this);
+    }
+};
+
 void D3DGLDevice::drawGL(const D3DGLDevice::GLIndexData& idxdata, const D3DGLDevice::GLStreamData *streams, GLuint numstreams, GLsizei numinstances, bool ffp)
 {
     if(!ffp)
@@ -2269,10 +2316,45 @@ HRESULT D3DGLDevice::EndScene()
     return D3D_OK;
 }
 
-HRESULT D3DGLDevice::Clear(DWORD Count, CONST D3DRECT* pRects, DWORD Flags, D3DCOLOR Color, float Z, DWORD Stencil)
+HRESULT D3DGLDevice::Clear(DWORD count, const D3DRECT *rects, DWORD flags, D3DCOLOR color, float depth, DWORD stencil)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, count %lu, rects %p, flags 0x%lx, color 0x%08lx, depth %f, stencil 0x%lx\n", this, count, rects, flags, color, depth, stencil);
+
+    GLbitfield mask = 0;
+    if((flags&D3DCLEAR_TARGET)) mask |= GL_COLOR_BUFFER_BIT;
+    if((flags&D3DCLEAR_ZBUFFER)) mask |= GL_DEPTH_BUFFER_BIT;
+    if((flags&D3DCLEAR_STENCIL)) mask |= GL_STENCIL_BUFFER_BIT;
+
+    mQueue.lock();
+    if(count == 0)
+    {
+        RECT main_rect;
+        if(mBackbufferIsMain)
+        {
+            D3DSURFACE_DESC desc;
+            mRenderTargets[0].load()->GetDesc(&desc);
+
+            main_rect.left = mViewport.X;
+            main_rect.top = desc.Height - (mViewport.Y+mViewport.Height);
+            main_rect.right = main_rect.left + mViewport.Width;
+            main_rect.bottom = main_rect.top + mViewport.Height;
+        }
+        else
+        {
+            main_rect.left = mViewport.X;
+            main_rect.top = mViewport.Y;
+            main_rect.right = main_rect.left + mViewport.Width;
+            main_rect.bottom = main_rect.top + mViewport.Height;
+        }
+        mQueue.sendAndUnlock<ClearCmd>(this, mask, color, depth, stencil, main_rect);
+    }
+    else
+    {
+        mQueue.unlock();
+        FIXME("Rectangles not yet handled\n");
+    }
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetTransform(D3DTRANSFORMSTATETYPE State, CONST D3DMATRIX* pMatrix)
