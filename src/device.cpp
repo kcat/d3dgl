@@ -566,7 +566,10 @@ public:
         if((mParameter != GL_TEXTURE_MAX_ANISOTROPY_EXT && mParameter != GL_TEXTURE_SRGB_DECODE_EXT) ||
            (mParameter == GL_TEXTURE_MAX_ANISOTROPY_EXT && GLEW_EXT_texture_filter_anisotropic) ||
            (mParameter == GL_TEXTURE_SRGB_DECODE_EXT && GLEW_EXT_texture_sRGB_decode))
+        {
             glSamplerParameteri(mSampler, mParameter, mValue);
+            checkGLError();
+        }
         return sizeof(*this);
     }
 };
@@ -583,6 +586,7 @@ public:
     virtual ULONG execute()
     {
         glSamplerParameterfv(mSampler, mParameter, mValues);
+        checkGLError();
         return sizeof(*this);
     }
 };
@@ -1385,6 +1389,16 @@ HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT start
         mQueue.unlock();
         return D3DERR_INVALIDCALL;
     }
+
+    if(mBackbufferIsMain)
+    {
+        if(!mDepthStencil && mAutoDepthStencil)
+            FIXME("Drawing to backbuffer without a depthstencil buffer\n");
+        else if(mDepthStencil != mAutoDepthStencil)
+            FIXME("Drawing to backbuffer with non-default depthstencil buffer\n");
+    }
+    else if(mAutoDepthStencil && mDepthStencil == mAutoDepthStencil)
+        FIXME("Drawing offscreen with default depthstencil buffer\n");
 
     GLStreamData streams[16];
     GLuint cur = 0;
