@@ -168,10 +168,14 @@ bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems)
                 return false;
         }
 
-        if(elem.Usage == D3DDECLUSAGE_NORMAL && elem.mGLCount != 3)
+        if(elem.Usage == D3DDECLUSAGE_NORMAL)
         {
-            ERR("Usage 'normal' has %d elements!\n", elem.mGLCount);
-            return false;
+            // This is fine for shaders, but will fail hard for fixed-function
+            // (glNormalPointer doesn't take a count parameter, and assumes 3).
+            if(elem.mGLCount == GL_BGRA)
+                WARN("Usage 'normal' has BGRA element format\n");
+            else if(elem.mGLCount != 3)
+                WARN("Usage 'normal' has %d elements\n", elem.mGLCount);
         }
 
         TRACE("Index: %u, Offset: %u, Type: 0x%x, Method: 0x%x, Usage: 0x%x, UsageIndex: %u\n",
