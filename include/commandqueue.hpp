@@ -100,7 +100,7 @@ class CommandQueue {
         }
 
         Command *cmd = new(&mQueueData[head]) T(args...);
-        (void)cmd;
+        TRACE("Sending %p\n", cmd);
 
         head += size;
         mHead.store(head&sQueueMask);

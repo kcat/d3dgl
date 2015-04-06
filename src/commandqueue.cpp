@@ -127,6 +127,7 @@ restart_loop:
         }
 
         Command *cmd = reinterpret_cast<Command*>(&mQueueData[tail]);
+        TRACE("Executing %p\n", cmd);
         ULONG size = cmd->execute();
         if(size < sizeof(Command))
         {
