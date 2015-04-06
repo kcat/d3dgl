@@ -61,7 +61,8 @@ if(WIN32 AND CMAKE_COMPILER_IS_GNUCC)
 endif()
 
 
-set(HDRS  include/swapchain.hpp
+set(HDRS  include/query.hpp
+          include/swapchain.hpp
           include/rendertarget.hpp
           include/bufferobject.hpp
           include/vertexshader.hpp
@@ -77,7 +78,8 @@ set(HDRS  include/swapchain.hpp
           include/private_iids.hpp
 )
 
-set(SRCS  src/swapchain.cpp
+set(SRCS  src/query.cpp
+          src/swapchain.cpp
           src/rendertarget.cpp
           src/bufferobject.cpp
           src/vertexshader.cpp

@@ -16,6 +16,7 @@
 #include "vertexshader.hpp"
 #include "pixelshader.hpp"
 #include "vertexdeclaration.hpp"
+#include "query.hpp"
 #include "private_iids.hpp"
 
 
@@ -3402,6 +3403,16 @@ HRESULT D3DGLDevice::DeletePatch(UINT Handle)
 
 HRESULT D3DGLDevice::CreateQuery(D3DQUERYTYPE type, IDirect3DQuery9 **query)
 {
-    FIXME("iface %p, type %s, query %p : stub!\n", this, d3dquery_to_str(type), query);
-    return E_NOTIMPL;
+    TRACE("iface %p, type %s, query %p\n", this, d3dquery_to_str(type), query);
+
+    D3DGLQuery *_query = new D3DGLQuery(this);
+    if(!_query->init(type))
+    {
+        delete _query;
+        return D3DERR_INVALIDCALL;
+    }
+
+    *query = _query;
+    (*query)->AddRef();
+    return D3D_OK;
 }
