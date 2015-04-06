@@ -2910,7 +2910,7 @@ HRESULT D3DGLDevice::ProcessVertices(UINT SrcStartIndex, UINT DestIndex, UINT Ve
 
 HRESULT D3DGLDevice::CreateVertexDeclaration(const D3DVERTEXELEMENT9 *elems, IDirect3DVertexDeclaration9 **decl)
 {
-    FIXME("iface %p, elems %p, decl %p\n", this, elems, decl);
+    TRACE("iface %p, elems %p, decl %p\n", this, elems, decl);
 
     D3DGLVertexDeclaration *vtxdecl = new D3DGLVertexDeclaration(this);
     if(!vtxdecl->init(elems))
