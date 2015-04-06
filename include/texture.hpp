@@ -43,7 +43,7 @@ public:
     virtual ~D3DGLTexture();
 
     bool init(const D3DSURFACE_DESC *desc, UINT levels);
-    void updateTexture(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr);
+    void updateTexture(DWORD level, const RECT &rect, const GLubyte *dataPtr);
     GLuint getTextureId() const { return mTexId; }
     GLint getLevelFromSurface(IDirect3DSurface9 *surface);
     GLenum getDepthStencilAttachment() const;
@@ -51,7 +51,7 @@ public:
     void initGL();
     void deinitGL();
     void genMipmapGL();
-    void loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr);
+    void loadTexLevelGL(DWORD level, const RECT &rect, const GLubyte *dataPtr);
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;

@@ -12,17 +12,6 @@
 
 void D3DGLTexture::initGL()
 {
-    glGenTextures(1, &mTexId);
-    glTextureParameteriEXT(mTexId, GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, mSurfaces.size()-1);
-    glTextureImage2DEXT(mTexId, GL_TEXTURE_2D, 0, mGLFormat->internalformat, mDesc.Width, mDesc.Height, 0,
-                        mGLFormat->format, mGLFormat->type, NULL);
-    checkGLError();
-
-    // Force allocation of mipmap levels, if any
-    if(mSurfaces.size() > 1)
-        glGenerateTextureMipmapEXT(mTexId, GL_TEXTURE_2D);
-    checkGLError();
-
     UINT total_size = 0;
     GLint w = mDesc.Width;
     GLint h = mDesc.Height;
@@ -49,21 +38,37 @@ void D3DGLTexture::initGL()
     /*if((mDesc.Usage&D3DUSAGE_DYNAMIC))
     {
         glGenBuffers(1, &mPBO);
-        checkGLError();
-
         if(mPBO)
         {
             glBindBuffer(GL_PIXEL_PACK_BUFFER, mPBO);
             glBufferData(GL_PIXEL_PACK_BUFFER, total_size, NULL, GL_DYNAMIC_DRAW);
-            mUserPtr = glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_WRITE);
-            glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-            checkGLError();
         }
+        checkGLError();
     }*/
     if((mDesc.Pool == D3DPOOL_SYSTEMMEM || (mDesc.Usage&D3DUSAGE_DYNAMIC)) && !mPBO)
     {
         mSysMem.resize(total_size);
         mUserPtr = mSysMem.data();
+    }
+
+    glGenTextures(1, &mTexId);
+    glTextureParameteriEXT(mTexId, GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, mSurfaces.size()-1);
+    glTextureImage2DEXT(mTexId, GL_TEXTURE_2D, 0, mGLFormat->internalformat, mDesc.Width, mDesc.Height, 0,
+                        mGLFormat->format, mGLFormat->type, mUserPtr);
+    checkGLError();
+
+    // Force allocation of mipmap levels, if any
+    if(mSurfaces.size() > 1)
+    {
+        glGenerateTextureMipmapEXT(mTexId, GL_TEXTURE_2D);
+        checkGLError();
+    }
+
+    if(mPBO)
+    {
+        mUserPtr = (GLubyte*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_WRITE);
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+        checkGLError();
     }
 
     mUpdateInProgress = 0;
@@ -121,7 +126,7 @@ public:
 };
 
 
-void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr)
+void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, const GLubyte *dataPtr)
 {
     UINT w = std::max(1u, mDesc.Width>>level);
     /*UINT h = std::max(1u, mDesc.Height>>Level);*/
@@ -132,7 +137,7 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPt
         glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
         checkGLError();
 
-        dataPtr = (GLubyte*)(dataPtr-mUserPtr);
+        dataPtr = (const GLubyte*)(dataPtr-mUserPtr);
     }
 
     D3DGLTextureSurface *surface = mSurfaces[level];
@@ -177,25 +182,22 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, GLubyte *dataPt
         checkGLError();
     }
 
-    if(deletePtr)
-        delete dataPtr;
     --mUpdateInProgress;
 }
 class TextureLoadLevelCmd : public Command {
     D3DGLTexture *mTarget;
     DWORD mLevel;
     RECT mRect;
-    GLubyte *mDataPtr;
-    bool mDeletePtr;
+    const GLubyte *mDataPtr;
 
 public:
-    TextureLoadLevelCmd(D3DGLTexture *target, DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr)
-      : mTarget(target), mLevel(level), mRect(rect), mDataPtr(dataPtr), mDeletePtr(deletePtr)
+    TextureLoadLevelCmd(D3DGLTexture *target, DWORD level, const RECT &rect, const GLubyte *dataPtr)
+      : mTarget(target), mLevel(level), mRect(rect), mDataPtr(dataPtr)
     { }
 
     virtual ULONG execute()
     {
-        mTarget->loadTexLevelGL(mLevel, mRect, mDataPtr, mDeletePtr);
+        mTarget->loadTexLevelGL(mLevel, mRect, mDataPtr);
         return sizeof(*this);
     }
 };
@@ -304,12 +306,12 @@ bool D3DGLTexture::init(const D3DSURFACE_DESC *desc, UINT levels)
     return true;
 }
 
-void D3DGLTexture::updateTexture(DWORD level, const RECT &rect, GLubyte *dataPtr, bool deletePtr)
+void D3DGLTexture::updateTexture(DWORD level, const RECT &rect, const GLubyte *dataPtr)
 {
     CommandQueue &queue = mParent->getQueue();
     queue.lock();
     ++mUpdateInProgress;
-    queue.sendAndUnlock<TextureLoadLevelCmd>(this, level, rect, dataPtr, deletePtr);
+    queue.sendAndUnlock<TextureLoadLevelCmd>(this, level, rect, dataPtr);
 }
 
 GLint D3DGLTexture::getLevelFromSurface(IDirect3DSurface9 *surface)
@@ -439,7 +441,7 @@ DWORD D3DGLTexture::SetLOD(DWORD lod)
 
     lod = std::min(lod, (DWORD)mSurfaces.size()-1);
 
-    // FIXME: Set GL_TEXTURE_BASE_LEVEL
+    // FIXME: Set GL_TEXTURE_BASE_LEVEL? Or GL_TEXTURE_MIN_LOD?
     lod = mLodLevel.exchange(lod);
 
     return lod;
@@ -703,16 +705,12 @@ HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *re
     while(mParent->mUpdateInProgress)
         Sleep(1);
 
-    bool updateMem = false;
-
     /* NOTE: D3DPOOL_MANAGED resources are lockable, however their main purpose
      * (ensuring resources aren't lost) is already gauranteed by OpenGL. But
      * because they're lockable, we need something the app can write to and
-     * read from. Allocating system memory space for this anyway is wasteful
-     * (GL already has one), and a pixel buffer object (PBO) would increase
-     * VRAM/AGP memory usage just as bad.
-     * Instead, temporarilly allocate storage to pass to the app. It will be
-     * deallocated after load so as not to hold unnecessary memory. */
+     * read from.
+     * So for now, we allocate some scratch mem the first time such a texture
+     * surface is locked and hold on to that. */
     GLubyte *memPtr = mParent->mUserPtr;
     if(memPtr)
         memPtr += mDataOffset;
@@ -721,12 +719,6 @@ HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *re
         if(!mScratchMem)
             mScratchMem = new GLubyte[mDataLength];
         memPtr = mScratchMem;
-        updateMem = !(flags&D3DLOCK_DISCARD);
-    }
-
-    if(updateMem)
-    {
-        ERR("Skipping local memory update\n");
     }
 
     mLockRegion = *rect;
@@ -762,13 +754,13 @@ HRESULT D3DGLTextureSurface::UnlockRect()
         return D3DERR_INVALIDCALL;
     }
 
-    if(mScratchMem)
+    if(mLock != LT_ReadOnly)
     {
-        mParent->updateTexture(mLevel, mLockRegion, mScratchMem, true);
-        mScratchMem = nullptr;
+        if(mScratchMem)
+            mParent->updateTexture(mLevel, mLockRegion, mScratchMem);
+        else
+            mParent->updateTexture(mLevel, mLockRegion, mParent->mUserPtr+mDataOffset);
     }
-    else
-        mParent->updateTexture(mLevel, mLockRegion, mParent->mUserPtr+mDataOffset, false);
 
     mLock = LT_Unlocked;
     return D3D_OK;
