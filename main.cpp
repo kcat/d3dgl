@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <sstream>
+#include <cstdio>
 
 #include "glew.h"
 #include "trace.hpp"
@@ -20,6 +21,23 @@
 
 eLogLevel LogLevel = FIXME_;
 FILE *LogFile = stderr;
+
+
+static CRITICAL_SECTION LogLock;
+
+void log_printf(FILE *file, const char *fmt, ...)
+{
+    va_list ap;
+
+    EnterCriticalSection(&LogLock);
+    va_start(ap, fmt);
+    vfprintf(file, fmt, ap);
+    va_end(ap);
+
+    fflush(file);
+    LeaveCriticalSection(&LogLock);
+}
+
 
 static const wchar_t WndClassName[] = L"D3DGLWndClass";
 
@@ -85,6 +103,7 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD reason, void */*lpReserved*/)
     {
         case DLL_PROCESS_ATTACH:
             DisableThreadLibraryCalls(hModule);
+            InitializeCriticalSection(&LogLock);
 
             str = getenv("D3DGL_LOGFILE");
             if(str && str[0] != '\0')
@@ -106,11 +125,13 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD reason, void */*lpReserved*/)
                 else
                     ERR("Invalid log level: %s\n", str);
             }
+
             TRACE("DLL_PROCESS_ATTACH\n");
             break;
 
         case DLL_PROCESS_DETACH:
             TRACE("DLL_PROCESS_DETACH\n");
+            DeleteCriticalSection(&LogLock);
             break;
     }
     return TRUE;
