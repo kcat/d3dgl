@@ -37,6 +37,7 @@ public:
         GLsizei mStride;
         GLint mTarget;
         GLsizei mIndex;
+        GLuint mDivisor;
     };
     struct GLIndexData {
         D3DGLBufferObject *mBuffer;
@@ -157,7 +158,7 @@ public:
     void setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord);
     void setVertexAttribArrayGL(UINT attribs);
     void setShaderProgramGL(GLbitfield stages, GLuint program);
-    void drawGL(const GLIndexData &idxdata, const GLStreamData *streams, GLuint numstreams, bool ffp);
+    void drawGL(const GLIndexData &idxdata, const GLStreamData *streams, GLuint numstreams, GLsizei numinstances, bool ffp);
     void blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_face, const RECT &src_rect,
                            GLenum dst_target, GLuint dst_binding, GLint dst_face, const RECT &dst_rect,
                            GLenum filter);

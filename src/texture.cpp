@@ -553,6 +553,7 @@ D3DGLTextureSurface::D3DGLTextureSurface(D3DGLTexture *parent, UINT level)
 
 D3DGLTextureSurface::~D3DGLTextureSurface()
 {
+    delete mScratchMem;
 }
 
 void D3DGLTextureSurface::init(UINT offset, UINT length)

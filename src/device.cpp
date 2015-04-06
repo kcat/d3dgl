@@ -894,14 +894,17 @@ public:
 };
 
 
-void D3DGLDevice::drawGL(const D3DGLDevice::GLIndexData& idxdata, const D3DGLDevice::GLStreamData* streams, GLuint numstreams, bool ffp)
+void D3DGLDevice::drawGL(const D3DGLDevice::GLIndexData& idxdata, const D3DGLDevice::GLStreamData *streams, GLuint numstreams, GLsizei numinstances, bool ffp)
 {
     if(!ffp)
     {
         for(GLuint i = 0;i < numstreams;++i)
+        {
             glVertexAttribPointer(streams[i].mTarget, streams[i].mGLCount,
                                   streams[i].mGLType, streams[i].mNormalize,
                                   streams[i].mStride, streams[i].mPointer);
+            glVertexAttribDivisor(streams[i].mTarget, streams[i].mDivisor);
+        }
     }
     else for(GLuint i = 0;i < numstreams;++i)
     {
@@ -927,7 +930,7 @@ void D3DGLDevice::drawGL(const D3DGLDevice::GLIndexData& idxdata, const D3DGLDev
             glSecondaryColorPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
     }
 
-    glDrawElements(idxdata.mMode, idxdata.mCount, idxdata.mType, idxdata.mPointer);
+    glDrawElementsInstanced(idxdata.mMode, idxdata.mCount, idxdata.mType, idxdata.mPointer, numinstances);
 
     idxdata.mBuffer->finishedDraw();
     for(GLuint i = 0;i < numstreams;++i)
@@ -941,19 +944,21 @@ class DrawGLCmd : public Command {
     D3DGLDevice::GLIndexData mIdxData;
     D3DGLDevice::GLStreamData mStreams[16];
     GLuint mNumStreams;
+    GLsizei mNumInstances;
 
 public:
-    DrawGLCmd(D3DGLDevice *target, const D3DGLDevice::GLIndexData &idxdata, const D3DGLDevice::GLStreamData *streams, GLuint numstream)
+    DrawGLCmd(D3DGLDevice *target, const D3DGLDevice::GLIndexData &idxdata, const D3DGLDevice::GLStreamData *streams, GLuint numstream, GLsizei num_instances)
       : mTarget(target), mIdxData(idxdata)
     {
         for(GLuint i = 0;i < numstream;++i)
             mStreams[i] = streams[i];
         mNumStreams = numstream;
+        mNumInstances = num_instances;
     }
 
     virtual ULONG execute()
     {
-        mTarget->drawGL(mIdxData, mStreams, mNumStreams, UseFFP);
+        mTarget->drawGL(mIdxData, mStreams, mNumStreams, mNumInstances, UseFFP);
         return sizeof(*this);
     }
 };
@@ -1405,6 +1410,9 @@ HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT start
         streams[cur].mGLType = elem.mGLType;
         streams[cur].mNormalize = elem.mNormalize;
         streams[cur].mStride = stream.mStride;
+        streams[cur].mDivisor = 0;
+        if((stream.mFreq&D3DSTREAMSOURCE_INSTANCEDATA))
+            streams[cur].mDivisor = stream.mFreq & 0x3fffffff;
 
         if(vshader)
         {
@@ -1464,13 +1472,17 @@ HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT start
         idxdata.mPointer = idxdata.mBuffer->getDataPtr();
     }
 
+    GLsizei num_instances = 1;
+    if((mStreams[0].mFreq&D3DSTREAMSOURCE_INDEXEDDATA))
+        num_instances = mStreams[0].mFreq & 0x3fffffff;
+
     idxdata.mBuffer->queueDraw();
     for(GLuint i = 0;i < cur;++i)
         streams[i].mBuffer->queueDraw();
     if(vshader)
-        mQueue.sendAndUnlock<DrawGLCmd<UseShaders>>(this, idxdata, streams, cur);
+        mQueue.sendAndUnlock<DrawGLCmd<UseShaders>>(this, idxdata, streams, cur, num_instances);
     else
-        mQueue.sendAndUnlock<DrawGLCmd<UseFFP>>(this, idxdata, streams, cur);
+        mQueue.sendAndUnlock<DrawGLCmd<UseFFP>>(this, idxdata, streams, cur, num_instances);
 
     return D3D_OK;
 }
@@ -3202,13 +3214,19 @@ HRESULT D3DGLDevice::SetStreamSourceFreq(UINT index, UINT divisor)
         return D3DERR_INVALIDCALL;
     }
 
+    if((divisor&D3DSTREAMSOURCE_INDEXEDDATA) && (divisor&D3DSTREAMSOURCE_INSTANCEDATA))
+    {
+        WARN("Indexed and instance data both specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+
     if(index == 0 && (divisor&D3DSTREAMSOURCE_INSTANCEDATA))
     {
         WARN("Instance data not allowed on stream 0\n");
         return D3DERR_INVALIDCALL;
     }
 
-    if(!(divisor&D3DSTREAMSOURCE_INDEXEDDATA) && divisor != 1)
+    if(!(divisor&(D3DSTREAMSOURCE_INDEXEDDATA|D3DSTREAMSOURCE_INSTANCEDATA)) && divisor != 1)
         FIXME("Unexpected divisor value: 0x%x\n", divisor);
 
     mStreams[index].mFreq = divisor;
