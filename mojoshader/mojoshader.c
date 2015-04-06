@@ -158,6 +158,7 @@ typedef struct Context
     int glsl_generated_lit_helper;
     int glsl_generated_texldd_setup;
     int glsl_generated_texm3x3spec_helper;
+    int glsl_wrote_texregs;
     int arb1_wrote_position;
     int have_preshader;
     int ignores_ctab;
@@ -2157,6 +2158,20 @@ static const char *get_GLSL_comparison_string_vector(Context *ctx)
     return comps[ctx->instruction_controls];
 } // get_GLSL_comparison_string_vector
 
+static void ensure_GLSL_texregs(Context *ctx)
+{
+    if(ctx->glsl_wrote_texregs)
+        return;
+
+    push_output(ctx, &ctx->preflight);
+    // D3D shaders allow using TEXCOORD varyings above what GLSL supplies with
+    // its built-ins. So to work around this, declare an extra 8 varyings to
+    // use when it addresses more than the built-in 8.
+    output_line(ctx, "varying vec4 TexCoord[8];");
+    pop_output(ctx);
+    ctx->glsl_wrote_texregs = 1;
+} // ensure_GLSL_texregs
+
 
 static void emit_GLSL_start(Context *ctx, const char *profilestr)
 {
@@ -2322,8 +2337,15 @@ static void emit_GLSL_global(Context *ctx, RegisterType regtype, int regnum)
                 //  ps_1_1 TEX opcode expects to overwrite it.
                 if (!shader_version_atleast(ctx, 1, 4))
                 {
-                    output_line(ctx, "vec4 %s = gl_TexCoord[%d];",
-                                varname, regnum);
+                    if(regnum < 8)
+                        output_line(ctx, "vec4 %s = gl_TexCoord[%d];",
+                                    varname, regnum);
+                    else
+                    {
+                        ensure_GLSL_texregs(ctx);
+                        output_line(ctx, "vec4 %s = TexCoord[%d];",
+                                    varname, regnum-8);
+                    }
                 } // if
             } // else if
             break;
@@ -2592,8 +2614,17 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                     usage_str = "gl_FogFragCoord";
                     break;
                 case MOJOSHADER_USAGE_TEXCOORD:
-                    snprintf(index_str, sizeof (index_str), "%u", (uint) index);
-                    usage_str = "gl_TexCoord";
+                    if(index < 8)
+                    {
+                        snprintf(index_str, sizeof (index_str), "%u", (uint) index);
+                        usage_str = "gl_TexCoord";
+                    }
+                    else
+                    {
+                        ensure_GLSL_texregs(ctx);
+                        snprintf(index_str, sizeof (index_str), "%u", (uint) index-8);
+                        usage_str = "TexCoord";
+                    }
                     arrayleft = "[";
                     arrayright = "]";
                     break;
@@ -2657,8 +2688,17 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                 //  Refer to emit_GLSL_global()'s REG_TYPE_TEXTURE code.
                 if (shader_version_atleast(ctx, 1, 4))
                 {
-                    snprintf(index_str, sizeof (index_str), "%u", (uint) index);
-                    usage_str = "gl_TexCoord";
+                    if(index < 8)
+                    {
+                        snprintf(index_str, sizeof (index_str), "%u", (uint) index);
+                        usage_str = "gl_TexCoord";
+                    }
+                    else
+                    {
+                        ensure_GLSL_texregs(ctx);
+                        snprintf(index_str, sizeof (index_str), "%u", (uint) index-8);
+                        usage_str = "TexCoord";
+                    }
                     arrayleft = "[";
                     arrayright = "]";
                 } // if
