@@ -44,6 +44,8 @@ public:
 
     bool init(const D3DSURFACE_DESC *desc, UINT levels);
     void updateTexture(DWORD level, const RECT &rect, const GLubyte *dataPtr);
+
+    const D3DSURFACE_DESC &getDesc() const { return mDesc; }
     GLuint getTextureId() const { return mTexId; }
     GLint getLevelFromSurface(IDirect3DSurface9 *surface);
     GLenum getDepthStencilAttachment() const;

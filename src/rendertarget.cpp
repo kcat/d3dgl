@@ -6,16 +6,62 @@
 #include "private_iids.hpp"
 
 
+class DeleteRenderbuffer : public Command {
+    GLuint mId;
+
+public:
+    DeleteRenderbuffer(GLuint id) : mId(id) { }
+
+    virtual ULONG execute()
+    {
+        glDeleteRenderbuffers(1, &mId);
+        checkGLError();
+        return sizeof(*this);
+    }
+};
+
+
+void D3DGLRenderTarget::initGL()
+{
+    glGenRenderbuffers(1, &mId);
+    glBindRenderbuffer(GL_RENDERBUFFER, mId);
+    checkGLError();
+
+    if(mDesc.MultiSampleType <= D3DMULTISAMPLE_NONE)
+        glRenderbufferStorage(GL_RENDERBUFFER, mGLFormat->internalformat, mDesc.Width, mDesc.Height);
+    else
+        glRenderbufferStorageMultisample(GL_RENDERBUFFER, mDesc.MultiSampleType, mGLFormat->internalformat,
+                                         mDesc.Width, mDesc.Height);
+
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    checkGLError();
+}
+class InitRenderTargetCmd : public Command {
+    D3DGLRenderTarget *mTarget;
+
+public:
+    InitRenderTargetCmd(D3DGLRenderTarget *target) : mTarget(target) { }
+
+    virtual ULONG execute()
+    {
+        mTarget->initGL();
+        return sizeof(*this);
+    }
+};
+
 D3DGLRenderTarget::D3DGLRenderTarget(D3DGLDevice *parent)
   : mRefCount(0)
   , mParent(parent)
   , mGLFormat(nullptr)
   , mIsAuto(false)
+  , mId(0)
 {
 }
 
 D3DGLRenderTarget::~D3DGLRenderTarget()
 {
+    if(mId != 0)
+        mParent->getQueue().send<DeleteRenderbuffer>(mId);
 }
 
 bool D3DGLRenderTarget::init(const D3DSURFACE_DESC *desc, bool isauto)
@@ -31,10 +77,23 @@ bool D3DGLRenderTarget::init(const D3DSURFACE_DESC *desc, bool isauto)
     }
     mGLFormat = &fmtinfo->second;
 
-    // TODO: For non-auto rendertargets, create a Renderbuffer and add to the
-    // device's list of render surfaces.
+    mParent->getQueue().sendSync<InitRenderTargetCmd>(this);
 
     return true;
+}
+
+GLenum D3DGLRenderTarget::getDepthStencilAttachment() const
+{
+    if(mGLFormat->internalformat == GL_DEPTH_COMPONENT16 ||
+       mGLFormat->internalformat == GL_DEPTH_COMPONENT24 ||
+       mGLFormat->internalformat == GL_DEPTH_COMPONENT32 ||
+       mGLFormat->internalformat == GL_DEPTH_COMPONENT32F)
+        return GL_DEPTH_ATTACHMENT;
+    if(mGLFormat->internalformat == GL_DEPTH24_STENCIL8 ||
+       mGLFormat->internalformat == GL_DEPTH32F_STENCIL8)
+        return GL_DEPTH_STENCIL_ATTACHMENT;
+    ERR("Unhandled internal depthstencil format: 0x%04x\n", mGLFormat->internalformat);
+    return GL_NONE;
 }
 
 

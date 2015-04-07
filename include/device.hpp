@@ -59,9 +59,8 @@ private:
         std::array<GLuint,MAX_COMBINED_SAMPLERS> samplers;
         GLuint pipeline;
 
-        GLuint active_framebuffer;   // 0 or main_framebuffer only
         GLuint main_framebuffer;     // Used for offscreen rendering
-        GLuint copy_framebuffers[2]; // Used for FBO blits (0=draw, 1=read)
+        GLuint copy_framebuffers[2]; // Used for FBO blits (0=read, 1=draw)
 
         GLuint vs_uniform_bufferf;
         GLuint ps_uniform_bufferf;
@@ -93,7 +92,6 @@ private:
     D3DGLRenderTarget *mAutoDepthStencil;
     std::array<D3DGLSwapChain*,1> mSwapchains;
 
-    bool mBackbufferIsMain;
     std::array<std::atomic<IDirect3DSurface9*>,D3D_MAX_SIMULTANEOUS_RENDERTARGETS> mRenderTargets;
     std::atomic<IDirect3DSurface9*> mDepthStencil;
 
@@ -137,7 +135,7 @@ private:
 
     // Sends buffer values to update proj_fixup_uniform_buffer. Caller is
     // responsible for holding the mQueue lock.
-    void resetProjectionFixup(UINT width, UINT height, bool flip);
+    void resetProjectionFixup(UINT width, UINT height);
 
 public:
     D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags);
@@ -153,9 +151,7 @@ public:
     void initGL();
     void clearGL(GLbitfield mask, GLuint color, GLfloat depth, GLuint stencil, const RECT &rect);
     void setTextureGL(GLuint stage, GLenum type, GLuint binding);
-    void resetRenderTargetGL(GLsizei index);
-    void setRenderTargetGL(GLsizei index, GLenum target, GLuint id, GLint level);
-    void setDepthStencilGL(GLenum attachment, GLenum target, GLuint id, GLint level);
+    void setFBAttachmentGL(GLenum attachment, GLenum target, GLuint id, GLint level);
     void setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord);
     void setVertexAttribArrayGL(UINT attribs);
     void setShaderProgramGL(GLbitfield stages, GLuint program);

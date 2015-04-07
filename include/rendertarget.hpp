@@ -4,6 +4,8 @@
 #include <atomic>
 #include <d3d9.h>
 
+#include "glew.h"
+
 
 struct GLFormatInfo;
 class D3DGLDevice;
@@ -17,11 +19,19 @@ class D3DGLRenderTarget : public IDirect3DSurface9 {
     D3DSURFACE_DESC mDesc;
     bool mIsAuto;
 
+    GLuint mId;
+
 public:
     D3DGLRenderTarget(D3DGLDevice *parent);
     virtual ~D3DGLRenderTarget();
 
     bool init(const D3DSURFACE_DESC *desc, bool isauto=false);
+
+    void initGL();
+
+    const D3DSURFACE_DESC &getDesc() const { return mDesc; }
+    GLuint getId() const { return mId; }
+    GLenum getDepthStencilAttachment() const;
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;
