@@ -157,8 +157,8 @@ public:
     void setVertexAttribArrayGL(UINT attribs);
     void setShaderProgramGL(GLbitfield stages, GLuint program);
     void drawGL(const GLIndexData &idxdata, const GLStreamData *streams, GLuint numstreams, GLsizei numinstances, bool ffp);
-    void blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_face, const RECT &src_rect,
-                           GLenum dst_target, GLuint dst_binding, GLint dst_face, const RECT &dst_rect,
+    void blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect,
+                           GLenum dst_target, GLuint dst_binding, GLint dst_level, const RECT &dst_rect,
                            GLenum filter);
 
     /*** IUnknown methods ***/

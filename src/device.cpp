@@ -950,7 +950,7 @@ public:
 };
 
 
-void D3DGLDevice::blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_face, const RECT &src_rect, GLenum dst_target, GLuint dst_binding, GLint dst_face, const RECT &dst_rect, GLenum filter)
+void D3DGLDevice::blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect, GLenum dst_target, GLuint dst_binding, GLint dst_level, const RECT &dst_rect, GLenum filter)
 {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, mGLState.copy_framebuffers[0]);
     if(src_target == GL_RENDERBUFFER)
@@ -959,7 +959,7 @@ void D3DGLDevice::blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint
             src_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_X || src_target == GL_TEXTURE_CUBE_MAP_POSITIVE_Y ||
             src_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Y || src_target == GL_TEXTURE_CUBE_MAP_POSITIVE_Z ||
             src_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Z)
-        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, src_target, src_binding, src_face);
+        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, src_target, src_binding, src_level);
     else
     {
         ERR("Unhandled source target: 0x%x\n", src_target);
@@ -977,7 +977,7 @@ void D3DGLDevice::blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint
                 dst_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_X || dst_target == GL_TEXTURE_CUBE_MAP_POSITIVE_Y ||
                 dst_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Y || dst_target == GL_TEXTURE_CUBE_MAP_POSITIVE_Z ||
                 dst_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Z)
-            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, dst_target, dst_binding, dst_face);
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, dst_target, dst_binding, dst_level);
         else
         {
             ERR("Unhandled destination target: 0x%x\n", dst_target);
@@ -1002,24 +1002,24 @@ class BlitFramebufferCmd : public Command {
     D3DGLDevice *mTarget;
     GLenum mSrcTarget;
     GLuint mSrcBinding;
-    GLint mSrcFace;
+    GLint mSrcLevel;
     RECT mSrcRect;
     GLenum mDstTarget;
     GLuint mDstBinding;
-    GLint mDstFace;
+    GLint mDstLevel;
     RECT mDstRect;
     GLenum mFilter;
 
 public:
-    BlitFramebufferCmd(D3DGLDevice *target, GLenum src_target, GLuint src_binding, GLint src_face, const RECT &src_rect, GLenum dst_target, GLuint dst_binding, GLint dst_face, const RECT &dst_rect, GLenum filter)
-      : mTarget(target), mSrcTarget(src_target), mSrcBinding(src_binding), mSrcFace(src_face), mSrcRect(src_rect)
-      , mDstTarget(dst_target), mDstBinding(dst_binding), mDstFace(dst_face), mDstRect(dst_rect), mFilter(filter)
+    BlitFramebufferCmd(D3DGLDevice *target, GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect, GLenum dst_target, GLuint dst_binding, GLint dst_level, const RECT &dst_rect, GLenum filter)
+      : mTarget(target), mSrcTarget(src_target), mSrcBinding(src_binding), mSrcLevel(src_level), mSrcRect(src_rect)
+      , mDstTarget(dst_target), mDstBinding(dst_binding), mDstLevel(dst_level), mDstRect(dst_rect), mFilter(filter)
     { }
 
     virtual ULONG execute()
     {
-        mTarget->blitFramebufferGL(mSrcTarget, mSrcBinding, mSrcFace, mSrcRect,
-                                   mDstTarget, mDstBinding, mDstFace, mDstRect, mFilter);
+        mTarget->blitFramebufferGL(mSrcTarget, mSrcBinding, mSrcLevel, mSrcRect,
+                                   mDstTarget, mDstBinding, mDstLevel, mDstRect, mFilter);
         return sizeof(*this);
     }
 };
@@ -1998,7 +1998,7 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
 
     GLenum src_target = GL_NONE, dst_target = GL_NONE;
     GLuint src_binding = 0, dst_binding = 0;
-    GLint src_face = 0, dst_face = 0;
+    GLint src_level = 0, dst_level = 0;
     RECT src_rect, dst_rect;
 
     // FIXME: This doesn't handle depth or stencil blits
@@ -2014,21 +2014,21 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
     {
         src_target = GL_TEXTURE_2D;
         src_binding = tex2dsurface->getParent()->getTextureId();
-        src_face = tex2dsurface->getLevel();
+        src_level = tex2dsurface->getLevel();
         tex2dsurface->Release();
     }
     else if(SUCCEEDED(srcSurface->QueryInterface(IID_D3DGLRenderTarget, &pointer)))
     {
         src_target = GL_RENDERBUFFER;
         src_binding = surface->getId();
-        src_face = 0;
+        src_level = 0;
         surface->Release();
     }
     else if(SUCCEEDED(srcSurface->QueryInterface(IID_D3DGLCubeSurface, &pointer)))
     {
         src_target = cubesurface->getTarget();
         src_binding = cubesurface->getParent()->getTextureId();
-        src_face = cubesurface->getLevel();
+        src_level = cubesurface->getLevel();
         cubesurface->Release();
     }
     else
@@ -2058,21 +2058,21 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
     {
         dst_target = GL_TEXTURE_2D;
         dst_binding = tex2dsurface->getParent()->getTextureId();
-        dst_face = tex2dsurface->getLevel();
+        dst_level = tex2dsurface->getLevel();
         tex2dsurface->Release();
     }
     else if(SUCCEEDED(dstSurface->QueryInterface(IID_D3DGLRenderTarget, &pointer)))
     {
         dst_target = GL_RENDERBUFFER;
         dst_binding = surface->getId();
-        dst_face = 0;
+        dst_level = 0;
         surface->Release();
     }
     else if(SUCCEEDED(dstSurface->QueryInterface(IID_D3DGLCubeSurface, &pointer)))
     {
         dst_target = cubesurface->getTarget();
         dst_binding = cubesurface->getParent()->getTextureId();
-        dst_face = cubesurface->getLevel();
+        dst_level = cubesurface->getLevel();
         cubesurface->Release();
     }
     else
@@ -2097,7 +2097,8 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
         dst_rect.bottom = desc.Height;
     }
 
-    mQueue.send<BlitFramebufferCmd>(this, src_target, src_binding, src_face, src_rect, dst_target, dst_binding, dst_face, dst_rect,
+    mQueue.send<BlitFramebufferCmd>(this, src_target, src_binding, src_level, src_rect,
+                                    dst_target, dst_binding, dst_level, dst_rect,
                                     GetGLFilterMode(filter, D3DTEXF_NONE));
 
     return D3D_OK;
