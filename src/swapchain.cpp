@@ -81,9 +81,12 @@ bool D3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window, bool
     desc.Width = params->BackBufferWidth;
     desc.Height = params->BackBufferHeight;
 
-    mBackbuffers.push_back(new D3DGLRenderTarget(mParent));
-    if(!mBackbuffers.back()->init(&desc, true))
-        return false;
+    for(UINT i = 0;i < mParams.BackBufferCount;++i)
+    {
+        mBackbuffers.push_back(new D3DGLRenderTarget(mParent));
+        if(!mBackbuffers.back()->init(&desc, true))
+            return false;
+    }
 
     return true;
 }
