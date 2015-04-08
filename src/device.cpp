@@ -686,7 +686,10 @@ void D3DGLDevice::setFBAttachmentGL(GLenum attachment, GLenum target, GLuint id,
 {
     if(target == GL_RENDERBUFFER)
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, attachment, GL_RENDERBUFFER, id);
-    else if(target == GL_TEXTURE_2D)
+    else if(target == GL_TEXTURE_2D || target == GL_TEXTURE_CUBE_MAP_POSITIVE_X ||
+            target == GL_TEXTURE_CUBE_MAP_NEGATIVE_X || target == GL_TEXTURE_CUBE_MAP_POSITIVE_Y ||
+            target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Y || target == GL_TEXTURE_CUBE_MAP_POSITIVE_Z ||
+            target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Z)
         glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, target, id, level);
     checkGLError();
 }
@@ -952,7 +955,10 @@ void D3DGLDevice::blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint
     glBindFramebuffer(GL_READ_FRAMEBUFFER, mGLState.copy_framebuffers[0]);
     if(src_target == GL_RENDERBUFFER)
         glFramebufferRenderbuffer(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, src_binding);
-    else if(src_target == GL_TEXTURE_2D)
+    else if(src_target == GL_TEXTURE_2D || src_target == GL_TEXTURE_CUBE_MAP_POSITIVE_X ||
+            src_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_X || src_target == GL_TEXTURE_CUBE_MAP_POSITIVE_Y ||
+            src_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Y || src_target == GL_TEXTURE_CUBE_MAP_POSITIVE_Z ||
+            src_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Z)
         glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, src_target, src_binding, src_face);
     else
     {
@@ -967,11 +973,14 @@ void D3DGLDevice::blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mGLState.copy_framebuffers[1]);
         if(dst_target == GL_RENDERBUFFER)
             glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, dst_binding);
-        else if(dst_target == GL_TEXTURE_2D)
+        else if(dst_target == GL_TEXTURE_2D || dst_target == GL_TEXTURE_CUBE_MAP_POSITIVE_X ||
+                dst_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_X || dst_target == GL_TEXTURE_CUBE_MAP_POSITIVE_Y ||
+                dst_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Y || dst_target == GL_TEXTURE_CUBE_MAP_POSITIVE_Z ||
+                dst_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Z)
             glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, dst_target, dst_binding, dst_face);
         else
         {
-            ERR("Unhandled destination target: 0x%x\n", src_target);
+            ERR("Unhandled destination target: 0x%x\n", dst_target);
             goto done;
         }
     }
@@ -1997,6 +2006,7 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
         void *pointer;
         D3DGLTextureSurface *tex2dsurface;
         D3DGLRenderTarget *surface;
+        D3DGLCubeSurface *cubesurface;
     };
 
     // Get source surface info
@@ -2013,6 +2023,13 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
         src_binding = surface->getId();
         src_face = 0;
         surface->Release();
+    }
+    else if(SUCCEEDED(srcSurface->QueryInterface(IID_D3DGLCubeSurface, &pointer)))
+    {
+        src_target = cubesurface->getTarget();
+        src_binding = cubesurface->getParent()->getTextureId();
+        src_face = cubesurface->getLevel();
+        cubesurface->Release();
     }
     else
     {
@@ -2050,6 +2067,13 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
         dst_binding = surface->getId();
         dst_face = 0;
         surface->Release();
+    }
+    else if(SUCCEEDED(dstSurface->QueryInterface(IID_D3DGLCubeSurface, &pointer)))
+    {
+        dst_target = cubesurface->getTarget();
+        dst_binding = cubesurface->getParent()->getTextureId();
+        dst_face = cubesurface->getLevel();
+        cubesurface->Release();
     }
     else
     {
