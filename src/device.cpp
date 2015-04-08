@@ -12,6 +12,7 @@
 #include "rendertarget.hpp"
 #include "adapter.hpp"
 #include "texture.hpp"
+#include "texturecube.hpp"
 #include "bufferobject.hpp"
 #include "vertexshader.hpp"
 #include "pixelshader.hpp"
@@ -1841,8 +1842,54 @@ HRESULT D3DGLDevice::CreateVolumeTexture(UINT width, UINT height, UINT depth, UI
 
 HRESULT D3DGLDevice::CreateCubeTexture(UINT edgeLength, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DCubeTexture9 **texture, HANDLE *handle)
 {
-    FIXME("iface %p, edgeLength %u, levels %u, usage 0x%lx, format %s, pool 0x%x, texture %p, handle %p : stub!\n", this, edgeLength, levels, usage, d3dfmt_to_str(format), pool, texture, handle);
-    return E_NOTIMPL;
+    TRACE("iface %p, edgeLength %u, levels %u, usage 0x%lx, format %s, pool 0x%x, texture %p, handle %p\n", this, edgeLength, levels, usage, d3dfmt_to_str(format), pool, texture, handle);
+
+    if(handle)
+    {
+        WARN("Non-NULL handle specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+    if(!texture)
+    {
+        WARN("NULL texture storage specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    HRESULT hr = D3D_OK;
+    DWORD realusage = mAdapter.getUsage(D3DRTYPE_CUBETEXTURE, format);
+    if((usage&realusage) != usage)
+    {
+        usage &= ~D3DUSAGE_AUTOGENMIPMAP;
+        if((usage&realusage) != usage)
+        {
+            ERR("Invalid usage flags, 0x%lx / 0x%lx\n", usage, realusage);
+            return D3DERR_INVALIDCALL;
+        }
+        WARN("AUTOGENMIPMAP requested, but unavailable (usage: 0x%lx)\n", realusage);
+        hr = D3DOK_NOAUTOGEN;
+    }
+
+    D3DSURFACE_DESC desc;
+    desc.Format = format;
+    desc.Type = D3DRTYPE_TEXTURE;
+    desc.Usage = usage;
+    desc.Pool = pool;
+    desc.MultiSampleType = D3DMULTISAMPLE_NONE;
+    desc.MultiSampleQuality = 0;
+    desc.Width = edgeLength;
+    desc.Height = edgeLength;
+
+    D3DGLCubeTexture *tex = new D3DGLCubeTexture(this);
+    if(!tex->init(&desc, levels))
+    {
+        delete tex;
+        return D3DERR_INVALIDCALL;
+    }
+
+    *texture = tex;
+    (*texture)->AddRef();
+
+    return hr;
 }
 
 HRESULT D3DGLDevice::CreateVertexBuffer(UINT length, DWORD usage, DWORD fvf, D3DPOOL pool, IDirect3DVertexBuffer9 **vbuffer, HANDLE *handle)
@@ -2074,13 +2121,14 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
         void *pointer;
         D3DGLTextureSurface *tex2dsurface;
         D3DGLRenderTarget *surface;
+        D3DGLCubeSurface *cubesurface;
     };
     if(SUCCEEDED(rtarget->QueryInterface(IID_D3DGLTextureSurface, &pointer)))
     {
         if(!(tex2dsurface->getParent()->getDesc().Usage&D3DUSAGE_RENDERTARGET))
         {
             tex2dsurface->Release();
-            WARN("Surface %p missing RENDERTARGET usage (depth stencil?)\n", surface);
+            WARN("Surface %p missing RENDERTARGET usage (depth stencil?)\n", tex2dsurface);
             return D3DERR_INVALIDCALL;
         }
 
@@ -2104,6 +2152,21 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
         rtarget = mRenderTargets[index].exchange(surface);
         mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_COLOR_ATTACHMENT0+index,
             GL_RENDERBUFFER, surface->getId(), 0
+        );
+    }
+    else if(SUCCEEDED(rtarget->QueryInterface(IID_D3DGLCubeSurface, &pointer)))
+    {
+        if(!(cubesurface->getParent()->getDesc().Usage&D3DUSAGE_RENDERTARGET))
+        {
+            cubesurface->Release();
+            WARN("Surface %p missing RENDERTARGET usage (depth stencil?)\n", cubesurface);
+            return D3DERR_INVALIDCALL;
+        }
+
+        mQueue.lock();
+        rtarget = mRenderTargets[index].exchange(cubesurface);
+        mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_COLOR_ATTACHMENT0+index,
+            cubesurface->getTarget(), cubesurface->getParent()->getTextureId(), 0
         );
     }
     else
@@ -2152,13 +2215,14 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
         void *pointer;
         D3DGLTextureSurface *tex2dsurface;
         D3DGLRenderTarget *surface;
+        D3DGLCubeSurface *cubesurface;
     };
     if(SUCCEEDED(depthstencil->QueryInterface(IID_D3DGLTextureSurface, &pointer)))
     {
         if(!(tex2dsurface->getParent()->getDesc().Usage&D3DUSAGE_DEPTHSTENCIL))
         {
             tex2dsurface->Release();
-            WARN("Texture %p missing DEPTHSTENCIL usage (render target?)\n", surface);
+            WARN("Texture %p missing DEPTHSTENCIL usage (render target?)\n", tex2dsurface);
             return D3DERR_INVALIDCALL;
         }
 
@@ -2197,6 +2261,26 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
                                               GL_RENDERBUFFER, 0, 0);
         mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, attachment,
             GL_RENDERBUFFER, surface->getId(), 0
+        );
+    }
+    else if(SUCCEEDED(depthstencil->QueryInterface(IID_D3DGLCubeSurface, &pointer)))
+    {
+        if(!(cubesurface->getParent()->getDesc().Usage&D3DUSAGE_DEPTHSTENCIL))
+        {
+            cubesurface->Release();
+            WARN("Surface %p missing DETHSTENCIL usage (render target?)\n", cubesurface);
+            return D3DERR_INVALIDCALL;
+        }
+
+        GLenum attachment = cubesurface->getDepthStencilAttachment();
+
+        mQueue.lock();
+        depthstencil = mDepthStencil.exchange(cubesurface);
+        if(attachment == GL_DEPTH_ATTACHMENT)
+            mQueue.doSend<SetFBAttachmentCmd>(this, GL_STENCIL_ATTACHMENT,
+                                              GL_RENDERBUFFER, 0, 0);
+        mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, attachment,
+            cubesurface->getTarget(), cubesurface->getParent()->getTextureId(), 0
         );
     }
     else
@@ -2627,20 +2711,27 @@ HRESULT D3DGLDevice::SetTexture(DWORD stage, IDirect3DBaseTexture9 *texture)
     }
     else
     {
-        HRESULT hr;
         GLenum type = GL_NONE;
         GLuint binding = 0;
-        D3DGLTexture *tex2d;
-        hr = texture->QueryInterface(IID_D3DGLTexture, (void**)&tex2d);
-        if(SUCCEEDED(hr))
+        union {
+            void *pointer;
+            D3DGLTexture *tex2d;
+            D3DGLCubeTexture *cubetex;
+        };
+        if(SUCCEEDED(texture->QueryInterface(IID_D3DGLTexture, &pointer)))
         {
             type = GL_TEXTURE_2D;
             binding = tex2d->getTextureId();
         }
+        else if(SUCCEEDED(texture->QueryInterface(IID_D3DGLCubeTexture, &pointer)))
+        {
+            type = GL_TEXTURE_CUBE_MAP;
+            binding = cubetex->getTextureId();
+        }
         else
         {
             ERR("Unhandled texture type from iface %p\n", texture);
-            if(texture) texture->AddRef();
+            texture->AddRef();
         }
         mQueue.lock();
         // Texture being set already has an added reference

@@ -69,6 +69,7 @@ set(HDRS  include/query.hpp
           include/pixelshader.hpp
           include/vertexdeclaration.hpp
           include/texture.hpp
+          include/texturecube.hpp
           include/device.hpp
           include/adapter.hpp
           include/d3dgl.hpp
@@ -86,6 +87,7 @@ set(SRCS  src/query.cpp
           src/pixelshader.cpp
           src/vertexdeclaration.cpp
           src/texture.cpp
+          src/texturecube.cpp
           src/device.cpp
           src/adapter.cpp
           src/d3dgl.cpp
