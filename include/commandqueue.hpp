@@ -110,8 +110,9 @@ public:
     CommandQueue();
     ~CommandQueue();
 
-    bool init(HWND window, HGLRC glctx);
+    bool init();
     void deinit();
+    bool isActive() const { return mThreadHdl != nullptr; }
 
     void lock() { EnterCriticalSection(&mLock); }
     void unlock() { LeaveCriticalSection(&mLock); }

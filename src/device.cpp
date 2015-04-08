@@ -1014,8 +1014,15 @@ public:
     }
 };
 
-void D3DGLDevice::initGL()
+void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
 {
+    TRACE("Initializing OpenGL for device %p\n", this);
+    if(!wglMakeCurrent(dc, glcontext))
+    {
+        ERR("Failed to make context current! Error: %lu\n", GetLastError());
+        std::terminate();
+    }
+
     glGenSamplers(mGLState.samplers.size(), mGLState.samplers.data());
     checkGLError();
 
@@ -1103,12 +1110,46 @@ void D3DGLDevice::initGL()
 }
 class InitGLDeviceCmd : public Command {
     D3DGLDevice *mTarget;
+    HDC mDc;
+    HGLRC mGLContext;
 
 public:
-    InitGLDeviceCmd(D3DGLDevice *target) : mTarget(target) { }
+    InitGLDeviceCmd(D3DGLDevice *target, HDC dc, HGLRC glcontext) : mTarget(target), mDc(dc), mGLContext(glcontext) { }
     virtual ULONG execute()
     {
-        mTarget->initGL();
+        mTarget->initGL(mDc, mGLContext);
+        return sizeof(*this);
+    }
+};
+
+void D3DGLDevice::deinitGL()
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    glDeleteBuffers(1, &mGLState.proj_fixup_uniform_buffer);
+    glDeleteBuffers(1, &mGLState.ps_uniform_bufferf);
+    glDeleteBuffers(1, &mGLState.vs_uniform_bufferf);
+
+    glDeleteFramebuffers(2, mGLState.copy_framebuffers);
+    glDeleteFramebuffers(1, &mGLState.main_framebuffer);
+
+    glBindProgramPipeline(0);
+    glDeleteProgramPipelines(1, &mGLState.pipeline);
+
+    for(size_t i = 0;i < mGLState.samplers.size();++i)
+        glBindSampler(i, 0);
+    glDeleteSamplers(mGLState.samplers.size(), mGLState.samplers.data());
+
+    wglMakeCurrent(nullptr, nullptr);
+}
+class DeinitGLDeviceCmd : public Command {
+    D3DGLDevice *mTarget;
+
+public:
+    DeinitGLDeviceCmd(D3DGLDevice *target) : mTarget(target) { }
+    virtual ULONG execute()
+    {
+        mTarget->deinitGL();
         return sizeof(*this);
     }
 };
@@ -1158,7 +1199,11 @@ D3DGLDevice::~D3DGLDevice()
     delete mAutoDepthStencil;
     mAutoDepthStencil = nullptr;
 
-    mQueue.deinit();
+    if(mQueue.isActive())
+    {
+        mQueue.send<DeinitGLDeviceCmd>(this);
+        mQueue.deinit();
+    }
     if(mGLContext)
         wglDeleteContext(mGLContext);
     mGLContext = nullptr;
@@ -1186,6 +1231,9 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
         WARN("Format %s is not a valid rendertarget format\n", d3dfmt_to_str(params->BackBufferFormat));
         return false;
     }
+
+    if(!mQueue.init())
+        return false;
 
     std::vector<std::array<int,2>> glattrs;
     glattrs.reserve(16);
@@ -1239,11 +1287,9 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
         ReleaseDC(win, hdc);
         return false;
     }
-    ReleaseDC(win, hdc);
 
-    if(!mQueue.init(win, mGLContext))
-        return false;
-    mQueue.sendSync<InitGLDeviceCmd>(this);
+    mQueue.sendSync<InitGLDeviceCmd>(this, hdc, mGLContext);
+    ReleaseDC(win, hdc);
 
     D3DGLSwapChain *schain = new D3DGLSwapChain(this);
     if(!schain->init(params, win, true))

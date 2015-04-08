@@ -11,38 +11,11 @@ static_assert(sizeof(Command) == sizeof(void*), "Command is larger than a pointe
 static_assert(sizeof(Command) == sizeof(CommandNoOp), "CommandNoOp is too large!");
 
 
-class CommandInitThrd : public Command {
-    HWND mWindow;
-    HGLRC mContext;
-    HANDLE mEvent;
-
-public:
-    CommandInitThrd(HWND window, HGLRC glctx, HANDLE evt)
-      : mWindow(window), mContext(glctx), mEvent(evt)
-    { }
-
-    virtual ULONG execute()
-    {
-        HDC hdc = GetDC(mWindow);
-        if(!wglMakeCurrent(hdc, mContext))
-        {
-            ERR("Failed to make context current! Error: %lu\n", GetLastError());
-            std::terminate();
-        }
-        ReleaseDC(mWindow, hdc);
-        TRACE("Command thread init complete\n");
-
-        SetEvent(mEvent);
-        return sizeof(*this);
-    }
-};
-
 class CommandQuitThrd : public Command {
 public:
     virtual ULONG execute()
     {
         TRACE("Command thread shutting down\n");
-        wglMakeCurrent(nullptr, nullptr);
         ExitThread(0);
         return sizeof(*this);
     }
@@ -65,27 +38,14 @@ CommandQueue::~CommandQueue()
     DeleteCriticalSection(&mLock);
 }
 
-bool CommandQueue::init(HWND window, HGLRC glctx)
+bool CommandQueue::init()
 {
-    HANDLE thrdInitEvt = CreateEvent(NULL, FALSE, FALSE, NULL);
-    mHead = sQueueSize - sizeof(CommandInitThrd);
-    mTail = sQueueSize - sizeof(CommandInitThrd);
-    send<CommandInitThrd>(window, glctx, thrdInitEvt);
-
     mThreadHdl = CreateThread(nullptr, 1024*1024, thread_func, this, 0, &mThreadId);
     if(!mThreadHdl)
     {
         ERR("Failed to create background thread, error %lu\n", GetLastError());
         return false;
     }
-
-    if(WaitForSingleObject(thrdInitEvt, INFINITE) != WAIT_OBJECT_0)
-    {
-        ERR("Background thread init failed! Error: %lu\n", GetLastError());
-        return false;
-    }
-
-    CloseHandle(thrdInitEvt);
     return true;
 }
 
@@ -144,4 +104,3 @@ restart_loop:
 
     return 0;
 }
-

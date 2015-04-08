@@ -148,7 +148,8 @@ public:
 
     HRESULT drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT startidx, UINT count);
 
-    void initGL();
+    void initGL(HDC dc, HGLRC glcontext);
+    void deinitGL();
     void clearGL(GLbitfield mask, GLuint color, GLfloat depth, GLuint stencil, const RECT &rect);
     void setTextureGL(GLuint stage, GLenum type, GLuint binding);
     void setFBAttachmentGL(GLenum attachment, GLenum target, GLuint id, GLint level);
