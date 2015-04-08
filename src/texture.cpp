@@ -314,17 +314,6 @@ void D3DGLTexture::updateTexture(DWORD level, const RECT &rect, const GLubyte *d
     queue.sendAndUnlock<TextureLoadLevelCmd>(this, level, rect, dataPtr);
 }
 
-GLint D3DGLTexture::getLevelFromSurface(IDirect3DSurface9 *surface)
-{
-    for(size_t i = 0;i < mSurfaces.size();++i)
-    {
-        if(mSurfaces[i] == surface)
-            return i;
-    }
-    ERR("Failed to find surface iface %p in texture %p\n", surface, this);
-    return 0;
-}
-
 GLenum D3DGLTexture::getDepthStencilAttachment() const
 {
     if(mGLFormat->internalformat == GL_DEPTH_COMPONENT16 ||

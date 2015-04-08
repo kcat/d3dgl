@@ -47,7 +47,6 @@ public:
 
     const D3DSURFACE_DESC &getDesc() const { return mDesc; }
     GLuint getTextureId() const { return mTexId; }
-    GLint getLevelFromSurface(IDirect3DSurface9 *surface);
     GLenum getDepthStencilAttachment() const;
 
     void initGL();
@@ -108,6 +107,10 @@ public:
     virtual ~D3DGLTextureSurface();
 
     void init(UINT offset, UINT length);
+    D3DGLTexture *getParent() { return mParent; }
+    GLenum getDepthStencilAttachment() const
+    { return mParent->getDepthStencilAttachment(); }
+    UINT getLevel() const { return mLevel; }
     UINT getDataLength() const { return mDataLength; }
 
     /*** IUnknown methods ***/

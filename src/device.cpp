@@ -1948,17 +1948,17 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
     // FIXME: This doesn't handle depth or stencil blits
     union {
         void *pointer;
-        D3DGLTexture *tex2d;
+        D3DGLTextureSurface *tex2dsurface;
         D3DGLRenderTarget *surface;
     };
 
     // Get source surface info
-    if(SUCCEEDED(srcSurface->GetContainer(IID_D3DGLTexture, &pointer)))
+    if(SUCCEEDED(srcSurface->QueryInterface(IID_D3DGLTextureSurface, &pointer)))
     {
         src_target = GL_TEXTURE_2D;
-        src_binding = tex2d->getTextureId();
-        src_face = tex2d->getLevelFromSurface(srcSurface);
-        tex2d->Release();
+        src_binding = tex2dsurface->getParent()->getTextureId();
+        src_face = tex2dsurface->getLevel();
+        tex2dsurface->Release();
     }
     else if(SUCCEEDED(srcSurface->QueryInterface(IID_D3DGLRenderTarget, &pointer)))
     {
@@ -1990,12 +1990,12 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
     }
 
     // Get destination surface info
-    if(SUCCEEDED(dstSurface->GetContainer(IID_D3DGLTexture, &pointer)))
+    if(SUCCEEDED(dstSurface->QueryInterface(IID_D3DGLTextureSurface, &pointer)))
     {
         dst_target = GL_TEXTURE_2D;
-        dst_binding = tex2d->getTextureId();
-        dst_face = tex2d->getLevelFromSurface(dstSurface);
-        tex2d->Release();
+        dst_binding = tex2dsurface->getParent()->getTextureId();
+        dst_face = tex2dsurface->getLevel();
+        tex2dsurface->Release();
     }
     else if(SUCCEEDED(dstSurface->QueryInterface(IID_D3DGLRenderTarget, &pointer)))
     {
@@ -2072,47 +2072,44 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
 
     union {
         void *pointer;
-        D3DGLTexture *tex2d;
+        D3DGLTextureSurface *tex2dsurface;
         D3DGLRenderTarget *surface;
     };
-    rtarget->AddRef();
-    if(SUCCEEDED(rtarget->GetContainer(IID_D3DGLTexture, &pointer)))
+    if(SUCCEEDED(rtarget->QueryInterface(IID_D3DGLTextureSurface, &pointer)))
     {
-        if(!(tex2d->getDesc().Usage&D3DUSAGE_RENDERTARGET))
+        if(!(tex2dsurface->getParent()->getDesc().Usage&D3DUSAGE_RENDERTARGET))
         {
-            rtarget->Release();
+            tex2dsurface->Release();
             WARN("Surface %p missing RENDERTARGET usage (depth stencil?)\n", surface);
             return D3DERR_INVALIDCALL;
         }
 
-        GLint level = tex2d->getLevelFromSurface(rtarget);
-
         mQueue.lock();
-        rtarget = mRenderTargets[index].exchange(rtarget);
+        rtarget = mRenderTargets[index].exchange(tex2dsurface);
         mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_COLOR_ATTACHMENT0+index,
-            GL_TEXTURE_2D, tex2d->getTextureId(), level
+            GL_TEXTURE_2D, tex2dsurface->getParent()->getTextureId(),
+            tex2dsurface->getLevel()
         );
-        tex2d->Release();
     }
     else if(SUCCEEDED(rtarget->QueryInterface(IID_D3DGLRenderTarget, &pointer)))
     {
         if(!(surface->getDesc().Usage&D3DUSAGE_RENDERTARGET))
         {
-            rtarget->Release();
+            surface->Release();
             WARN("Surface %p missing RENDERTARGET usage (depth stencil?)\n", surface);
             return D3DERR_INVALIDCALL;
         }
 
         mQueue.lock();
-        rtarget = mRenderTargets[index].exchange(rtarget);
+        rtarget = mRenderTargets[index].exchange(surface);
         mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_COLOR_ATTACHMENT0+index,
             GL_RENDERBUFFER, surface->getId(), 0
         );
-        surface->Release();
     }
     else
     {
         ERR("Unknown surface %p\n", rtarget);
+        rtarget->AddRef();
         rtarget = mRenderTargets[index].exchange(rtarget);
     }
     if(rtarget) rtarget->Release();
@@ -2153,24 +2150,22 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
 
     union {
         void *pointer;
-        D3DGLTexture *tex2d;
+        D3DGLTextureSurface *tex2dsurface;
         D3DGLRenderTarget *surface;
     };
-    depthstencil->AddRef();
-    if(SUCCEEDED(depthstencil->GetContainer(IID_D3DGLTexture, &pointer)))
+    if(SUCCEEDED(depthstencil->QueryInterface(IID_D3DGLTextureSurface, &pointer)))
     {
-        if(!(tex2d->getDesc().Usage&D3DUSAGE_DEPTHSTENCIL))
+        if(!(tex2dsurface->getParent()->getDesc().Usage&D3DUSAGE_DEPTHSTENCIL))
         {
-            depthstencil->Release();
+            tex2dsurface->Release();
             WARN("Texture %p missing DEPTHSTENCIL usage (render target?)\n", surface);
             return D3DERR_INVALIDCALL;
         }
 
-        GLint level = tex2d->getLevelFromSurface(depthstencil);
-        GLenum attachment = tex2d->getDepthStencilAttachment();
+        GLenum attachment = tex2dsurface->getDepthStencilAttachment();
 
         mQueue.lock();
-        depthstencil = mDepthStencil.exchange(depthstencil);
+        depthstencil = mDepthStencil.exchange(tex2dsurface);
         if(attachment == GL_DEPTH_ATTACHMENT)
         {
             // If the previous attachment was GL_DEPTH_STENCIL_ATTACHMENT, and
@@ -2180,15 +2175,15 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
                                               GL_RENDERBUFFER, 0, 0);
         }
         mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, attachment,
-            GL_TEXTURE_2D, tex2d->getTextureId(), level
+            GL_TEXTURE_2D, tex2dsurface->getParent()->getTextureId(),
+            tex2dsurface->getLevel()
         );
-        tex2d->Release();
     }
     else if(SUCCEEDED(depthstencil->QueryInterface(IID_D3DGLRenderTarget, &pointer)))
     {
         if(!(surface->getDesc().Usage&D3DUSAGE_DEPTHSTENCIL))
         {
-            depthstencil->Release();
+            surface->Release();
             WARN("Surface %p missing DEPTHSTENCIL usage (render target?)\n", surface);
             return D3DERR_INVALIDCALL;
         }
@@ -2196,18 +2191,18 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
         GLenum attachment = surface->getDepthStencilAttachment();
 
         mQueue.lock();
-        depthstencil = mDepthStencil.exchange(depthstencil);
+        depthstencil = mDepthStencil.exchange(surface);
         if(attachment == GL_DEPTH_ATTACHMENT)
             mQueue.doSend<SetFBAttachmentCmd>(this, GL_STENCIL_ATTACHMENT,
                                               GL_RENDERBUFFER, 0, 0);
         mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, attachment,
             GL_RENDERBUFFER, surface->getId(), 0
         );
-        surface->Release();
     }
     else
     {
         ERR("Unknown surface %p\n", depthstencil);
+        depthstencil->AddRef();
         depthstencil = mDepthStencil.exchange(depthstencil);
     }
     if(depthstencil) depthstencil->Release();
