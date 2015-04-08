@@ -1300,8 +1300,8 @@ DWORD D3DAdapter::getUsage(DWORD restype, D3DFORMAT format) const
 {
     UsageMap::const_iterator usage = mUsage.find(std::make_pair(restype, format));
     if(usage != mUsage.end()) return usage->second;
-    ERR("Usage flags not found for resource type 0x%lx, %s\n",
-        restype, d3dfmt_to_str(format));
+    WARN("Usage flags not found for resource type 0x%lx, %s\n",
+         restype, d3dfmt_to_str(format));
     return 0;
 }
 
@@ -1314,7 +1314,7 @@ UINT D3DAdapter::getModeCount(D3DFORMAT format) const
     else if(format == D3DFMT_X1R5G5B5) bpp = 15;
     else
     {
-        ERR("Unhandled format: %s\n", d3dfmt_to_str(format));
+        FIXME("Unhandled format: %s\n", d3dfmt_to_str(format));
         return 0;
     }
 

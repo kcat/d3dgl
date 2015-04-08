@@ -34,14 +34,14 @@ void D3DGLPixelShader::compileShaderGL(const DWORD *data)
 
     if(!mProgram)
     {
-        ERR("Failed to create shader program\n");
+        FIXME("Failed to create shader program\n");
         GLint logLen;
         glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
         if(logLen > 0)
         {
             std::vector<char> log(logLen+1);
             glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
-            ERR("Compile log:\n----\n%s\n----\n", log.data());
+            FIXME("Compile log:\n----\n%s\n----\n", log.data());
         }
         checkGLError();
         return;

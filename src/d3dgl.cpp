@@ -293,15 +293,14 @@ HRESULT Direct3DGL::CheckDeviceFormat(UINT adapter, D3DDEVTYPE devType, D3DFORMA
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter format %s not supported\n", d3dfmt_to_str(adapterFormat));
 
     DWORD realusage = gAdapterList[adapter].getUsage(resType, checkFormat);
-    if(!realusage)
-        return D3DERR_NOTAVAILABLE;
+    if(!realusage) return D3DERR_NOTAVAILABLE;
 
     if((usage&realusage) != usage)
     {
         DWORD nomipusage = usage & ~D3DUSAGE_AUTOGENMIPMAP;
         if((nomipusage&realusage) != nomipusage)
         {
-            ERR("Usage query 0x%lx does not match real usage 0x%lx, for resource 0x%x, %s\n", usage, realusage, resType, d3dfmt_to_str(checkFormat));
+            WARN("Usage query 0x%lx does not match real usage 0x%lx, for resource 0x%x, %s\n", usage, realusage, resType, d3dfmt_to_str(checkFormat));
             return D3DERR_NOTAVAILABLE;
         }
         return D3DOK_NOAUTOGEN;
@@ -321,7 +320,7 @@ HRESULT Direct3DGL::CheckDeviceMultiSampleType(UINT adapter, D3DDEVTYPE devType,
 
     if(multiSampleType != D3DMULTISAMPLE_NONE)
     {
-        ERR("Multisampling not currently supported\n");
+        FIXME("Multisampling not currently supported\n");
         if(qualityLevels) *qualityLevels = 0;
         return D3DERR_NOTAVAILABLE;
     }
@@ -352,12 +351,12 @@ HRESULT Direct3DGL::CheckDepthStencilMatch(UINT adapter, D3DDEVTYPE devType, D3D
     HRESULT hr = D3D_OK;
     if(!(rtusage&D3DUSAGE_RENDERTARGET))
     {
-        ERR("%s not usable as a RenderTarget\n", d3dfmt_to_str(renderTargetFormat));
+        FIXME("%s not usable as a RenderTarget\n", d3dfmt_to_str(renderTargetFormat));
         hr = D3DERR_NOTAVAILABLE;
     }
     if(!(dsusage&D3DUSAGE_DEPTHSTENCIL))
     {
-        ERR("%s not usable as a DepthStencil\n", d3dfmt_to_str(depthStencilFormat));
+        FIXME("%s not usable as a DepthStencil\n", d3dfmt_to_str(depthStencilFormat));
         hr = D3DERR_NOTAVAILABLE;
     }
     return hr;
@@ -435,29 +434,16 @@ HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND window, 
         return D3DERR_INVALIDCALL;
     }
 
-    DWORD UnknownFlags = (flags&~(D3DCREATE_FPU_PRESERVE | D3DCREATE_MULTITHREADED |
-                                  D3DCREATE_PUREDEVICE | D3DCREATE_SOFTWARE_VERTEXPROCESSING |
-                                  D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_MIXED_VERTEXPROCESSING |
-                                  D3DCREATE_DISABLE_DRIVER_MANAGEMENT | D3DCREATE_ADAPTERGROUP_DEVICE));
-    if(UnknownFlags)
-    {
-        ERR("Unknown flags specified (0x%lx)!\n", UnknownFlags);
-        flags &= ~UnknownFlags;
-    }
-
-    // Unless we want to transform and process vertices manually, just pretend
-    // the app is getting what it wants. OpenGL will automatically do what it
-    // needs to.
-    flags &= ~(D3DCREATE_SOFTWARE_VERTEXPROCESSING | D3DCREATE_HARDWARE_VERTEXPROCESSING |
-               D3DCREATE_MIXED_VERTEXPROCESSING);
-
     // FIXME: handle known flags
-    UnknownFlags = (flags&(D3DCREATE_FPU_PRESERVE | D3DCREATE_MULTITHREADED |
-                           D3DCREATE_PUREDEVICE | D3DCREATE_DISABLE_DRIVER_MANAGEMENT |
-                           D3DCREATE_ADAPTERGROUP_DEVICE));
-    if(UnknownFlags)
-        ERR("Unhandled flags: 0x%lx\n", UnknownFlags);
-
+    //D3DCREATE_FPU_PRESERVE
+    //D3DCREATE_MULTITHREADED - we should be thread-safe already
+    //D3DCREATE_PUREDEVICE
+    //D3DCREATE_SOFTWARE_VERTEXPROCESSING - OpenGL handles vertex processing for us
+    //D3DCREATE_HARDWARE_VERTEXPROCESSING -   ^       ^       ^        ^      ^  ^
+    //D3DCREATE_MIXED_VERTEXPROCESSING    -   ^       ^       ^        ^      ^  ^
+    //D3DCREATE_DISABLE_DRIVER_MANAGEMENT
+    //D3DCREATE_ADAPTERGROUP_DEVICE
+    FIXME("Unhandled flags: 0x%lx\n", flags);
 
     D3DGLDevice *device = new D3DGLDevice(this, gAdapterList[adapter], window, flags);
     if(!device->init(params))
