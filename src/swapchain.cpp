@@ -47,14 +47,13 @@ D3DGLSwapChain::D3DGLSwapChain(D3DGLDevice *parent)
 
 D3DGLSwapChain::~D3DGLSwapChain()
 {
-    // FIXME: Send a command to destroy GL objects, and wait for it to complete.
-
     for(auto surface : mBackbuffers)
         delete surface;
     mBackbuffers.clear();
 
     if(mDevCtx)
         ReleaseDC(mWindow, mDevCtx);
+    mDevCtx = nullptr;
 }
 
 bool D3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window, bool isauto)
