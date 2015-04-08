@@ -1016,7 +1016,6 @@ public:
 
 void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
 {
-    TRACE("Initializing OpenGL for device %p\n", this);
     if(!wglMakeCurrent(dc, glcontext))
     {
         ERR("Failed to make context current! Error: %lu\n", GetLastError());

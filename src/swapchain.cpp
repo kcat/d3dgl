@@ -81,6 +81,8 @@ bool D3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window, bool
     desc.Width = params->BackBufferWidth;
     desc.Height = params->BackBufferHeight;
 
+    // Enforce at least one backbuffer
+    mParams.BackBufferCount = std::max(mParams.BackBufferCount, 1u);
     for(UINT i = 0;i < mParams.BackBufferCount;++i)
     {
         mBackbuffers.push_back(new D3DGLRenderTarget(mParent));
