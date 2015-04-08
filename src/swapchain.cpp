@@ -148,17 +148,17 @@ HRESULT D3DGLSwapChain::Present(const RECT *srcRect, const RECT *dstRect, HWND d
     TRACE("iface %p, srcRect %p, dstRect %p, dstWindowOverride %p, dirtyRegion %p, flags 0x%lx\n", this, srcRect, dstRect, dstWindowOverride, dirtyRegion, flags);
 
     if(srcRect || dstRect)
-        ERR("Rectangled present not handled\n");
+        FIXME("Rectangled present not handled\n");
 
     if(dstWindowOverride)
     {
-        ERR("Destination window override not handled\n");
+        FIXME("Destination window override not handled\n");
         return D3D_OK;
     }
     if(dirtyRegion)
         WARN("Dirty region ignored\n");
     if(flags)
-        ERR("Ignoring flags 0x%lx\n", flags);
+        FIXME("Ignoring flags 0x%lx\n", flags);
 
     ++mPendingSwaps;
     mParent->getQueue().send<SwapchainSwapBuffers>(this, 0);
