@@ -698,18 +698,17 @@ void D3DAdapter::init_caps()
     mCaps.Caps  = 0;
     mCaps.Caps2 = D3DCAPS2_CANRENDERWINDOWED |
                   D3DCAPS2_FULLSCREENGAMMA |
-                  D3DCAPS2_DYNAMICTEXTURES;
-    if(GLEW_SGIS_generate_mipmap)
-        mCaps.Caps2 |= D3DCAPS2_CANAUTOGENMIPMAP;
+                  D3DCAPS2_DYNAMICTEXTURES |
+                  D3DCAPS2_CANAUTOGENMIPMAP;
 
     mCaps.Caps3 = D3DCAPS3_ALPHA_FULLSCREEN_FLIP_OR_DISCARD |
                   D3DCAPS3_COPY_TO_VIDMEM                   |
                   D3DCAPS3_COPY_TO_SYSTEMMEM;
 
-    mCaps.PresentationIntervals = D3DPRESENT_INTERVAL_IMMEDIATE  |
+    mCaps.PresentationIntervals = D3DPRESENT_INTERVAL_IMMEDIATE |
                                   D3DPRESENT_INTERVAL_ONE;
 
-    mCaps.CursorCaps = D3DCURSORCAPS_COLOR            |
+    mCaps.CursorCaps = D3DCURSORCAPS_COLOR |
                        D3DCURSORCAPS_LOWRES;
 
     mCaps.DevCaps = D3DDEVCAPS_EXECUTESYSTEMMEMORY |
