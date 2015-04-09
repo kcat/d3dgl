@@ -35,9 +35,19 @@ bool fmt_to_glattrs(D3DFORMAT fmt, T inserter)
             *inserter = {WGL_BLUE_BITS_ARB, 8};
             *inserter = {WGL_COLOR_BITS_ARB, 32};
             return true;
+        case D3DFMT_A8R8G8B8:
+            *inserter = {WGL_RED_BITS_ARB, 8};
+            *inserter = {WGL_GREEN_BITS_ARB, 8};
+            *inserter = {WGL_BLUE_BITS_ARB, 8};
+            *inserter = {WGL_ALPHA_BITS_ARB, 8};
+            *inserter = {WGL_COLOR_BITS_ARB, 32};
+            return true;
         case D3DFMT_D24S8:
             *inserter = {WGL_DEPTH_BITS_ARB, 24};
             *inserter = {WGL_STENCIL_BITS_ARB, 8};
+            return true;
+        case D3DFMT_D16:
+            *inserter = {WGL_DEPTH_BITS_ARB, 16};
             return true;
 
         default:
