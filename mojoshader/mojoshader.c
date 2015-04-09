@@ -2351,7 +2351,6 @@ static void glsl_texld(Context *ctx, const int texldd)
         fail(ctx, "TEXLD == Shader Model 1.4 unimplemented.");  // !!! FIXME
         return;
     }
-
     else
     {
         const SourceArgInfo *samp_arg = &ctx->source_args[1];
@@ -3640,6 +3639,14 @@ static int parse_args_DCL(Context *ctx)
             ctx->dwords[0] = usage;
             ctx->dwords[1] = index;
         }
+        else if (regtype == REG_TYPE_SAMPLER)
+        {
+            const uint32 ttype = ((token >> 27) & 0xF);
+            if (!valid_texture_type(ttype))
+                fail(ctx, "unknown sampler texture type");
+            reserved_mask = 0x7FFFFFF;
+            ctx->dwords[0] = ttype;
+        }
         else
         {
             failf(ctx, "vs3.x DCL unexpected register type: 0x%x", regtype);
@@ -3864,14 +3871,19 @@ static void state_DCL(Context *ctx)
         fail(ctx, "DCL token must come before any instructions");
     else if (shader_is_vertex(ctx))
     {
-        const MOJOSHADER_usage usage = (const MOJOSHADER_usage) ctx->dwords[0];
-        const int index = ctx->dwords[1];
-        if (usage >= MOJOSHADER_USAGE_TOTAL)
+        if (regtype == REG_TYPE_SAMPLER)
+            add_sampler(ctx, regnum, (TextureType) ctx->dwords[0], 0);
+        else
         {
-            fail(ctx, "unknown DCL usage");
-            return;
+            const MOJOSHADER_usage usage = (const MOJOSHADER_usage) ctx->dwords[0];
+            const int index = ctx->dwords[1];
+            if (usage >= MOJOSHADER_USAGE_TOTAL)
+            {
+                fail(ctx, "unknown DCL usage");
+                return;
+            }
+            add_attribute_register(ctx, regtype, regnum, usage, index, wmask, mods);
         }
-        add_attribute_register(ctx, regtype, regnum, usage, index, wmask, mods);
     }
     else if (shader_is_pixel(ctx))
     {

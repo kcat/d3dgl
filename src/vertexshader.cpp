@@ -70,6 +70,14 @@ void D3DGLVertexShader::compileShaderGL(const DWORD *data)
         TRACE("Got attribute %s at location %d\n", mShader->attributes[i].name, loc);
         mUsageMap[(mShader->attributes[i].usage<<8) | mShader->attributes[i].index] = loc;
     }
+
+    for(int i = 0;i < mShader->sampler_count;++i)
+    {
+        GLint loc = glGetUniformLocation(mProgram, mShader->samplers[i].name);
+        TRACE("Got sampler %s:%d at location %d\n", mShader->samplers[i].name, mShader->samplers[i].index, loc);
+        glProgramUniform1i(mProgram, loc, mShader->samplers[i].index+MAX_FRAGMENT_SAMPLERS);
+    }
+
     checkGLError();
 }
 class CompileVShaderCmd : public Command {
