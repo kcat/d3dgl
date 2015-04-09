@@ -16,8 +16,7 @@ void D3DGLPixelShader::compileShaderGL(const DWORD *data)
           (*data>>8)&0xff, *data&0xff, MOJOSHADER_PROFILE_GLSL120);
 
     mShader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL120,
-        reinterpret_cast<const unsigned char*>(data), 0,
-        nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr
+        reinterpret_cast<const unsigned char*>(data), 0, nullptr, 0, nullptr, 0
     );
     if(mShader->error_count > 0)
     {

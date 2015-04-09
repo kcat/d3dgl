@@ -7,15 +7,6 @@ void *MOJOSHADER_internal_malloc(int bytes, void *d) { return malloc(bytes); }
 void MOJOSHADER_internal_free(void *ptr, void *d) { free(ptr); }
 #endif
 
-MOJOSHADER_error MOJOSHADER_out_of_mem_error = {
-    "Out of memory", NULL, MOJOSHADER_POSITION_NONE
-};
-
-MOJOSHADER_parseData MOJOSHADER_out_of_mem_data = {
-    1, &MOJOSHADER_out_of_mem_error, 0, 0, 0, 0,
-    MOJOSHADER_TYPE_UNKNOWN, 0, 0, 0, 0
-};
-
 
 typedef struct HashItem
 {
@@ -104,7 +95,7 @@ int hash_iter(const HashTable *table, const void *key,
 int hash_iter_keys(const HashTable *table, const void **_key, void **iter)
 {
     HashItem *item = *iter;
-    int idx = 0;
+    uint32 idx = 0;
 
     if (item != NULL)
     {
@@ -408,7 +399,7 @@ const char *stringcache_fmt(StringCache *cache, const char *fmt, ...)
 {
     char buf[128];  // use the stack if reasonable.
     char *ptr = NULL;
-    int len = 0;  // number of chars, NOT counting null-terminator!
+    uint len = 0;  // number of chars, NOT counting null-terminator!
     va_list ap;
 
     va_start(ap, fmt);
@@ -418,8 +409,6 @@ const char *stringcache_fmt(StringCache *cache, const char *fmt, ...)
     if (len > sizeof (buf))
     {
         ptr = (char *) cache->m(len, cache->d);
-        if (ptr == NULL)
-            return NULL;
 
         va_start(ap, fmt);
         vsnprintf(ptr, len, fmt, ap);
@@ -557,16 +546,10 @@ int errorlist_add_va(ErrorList *list, const char *_fname,
     char scratch[128];
     va_list ap;
     va_copy(ap, va);
-    const int len = vsnprintf(scratch, sizeof (scratch), fmt, ap);
+    const uint len = vsnprintf(scratch, sizeof (scratch), fmt, ap);
     va_end(ap);
 
     char *failstr = (char *) list->m(len + 1, list->d);
-    if (failstr == NULL)
-    {
-        list->f(error, list->d);
-        list->f(fname, list->d);
-        return 0;
-    } // if
 
     // If we overflowed our scratch buffer, that's okay. We were going to
     //  allocate anyhow...the scratch buffer just lets us avoid a second
@@ -793,7 +776,7 @@ int buffer_append_va(Buffer *buffer, const char *fmt, va_list va)
 
     va_list ap;
     va_copy(ap, va);
-    const int len = vsnprintf(scratch, sizeof (scratch), fmt, ap);
+    const uint len = vsnprintf(scratch, sizeof (scratch), fmt, ap);
     va_end(ap);
 
     // If we overflowed our scratch buffer, heap allocate and try again.
@@ -804,8 +787,6 @@ int buffer_append_va(Buffer *buffer, const char *fmt, va_list va)
         return buffer_append(buffer, scratch, len);
 
     char *buf = (char *) buffer->m(len + 1, buffer->d);
-    if (buf == NULL)
-        return 0;
     va_copy(ap, va);
     vsnprintf(buf, len + 1, fmt, ap);  // rebuild it.
     va_end(ap);

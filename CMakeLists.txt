@@ -2,39 +2,24 @@ cmake_minimum_required(VERSION 2.6)
 project(d3dgl)
 
 
-add_library(mojoshader STATIC mojoshader/mojoshader_assembler.c
-                              mojoshader/mojoshader.c
-                              mojoshader/mojoshader_common.c
-                              mojoshader/mojoshader_compiler.c
-                              mojoshader/mojoshader_effects.c
-                              mojoshader/mojoshader.h
-                              mojoshader/mojoshader_internal.h
-                              mojoshader/mojoshader_lexer.c
-                              mojoshader/mojoshader_opengl.c
-                              mojoshader/mojoshader_parser_hlsl.h
-                              mojoshader/mojoshader_preprocessor.c
-                              mojoshader/mojoshader_version.h
-)
-
-
 if(WIN32)
     add_definitions("-D_WIN32 -D_WIN32_WINNT=0x0600")
 
-    if(MINGW)
-        if(NOT DLLTOOL)
-            if(HOST)
-                set(DLLTOOL "${HOST}-dlltool")
-            else()
-                set(DLLTOOL "dlltool")
-            endif()
+    if(MINGW AND NOT DLLTOOL)
+        if(HOST)
+            set(DLLTOOL "${HOST}-dlltool")
+        else()
+            set(DLLTOOL "dlltool")
         endif()
     endif()
 endif()
 
 
+include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 
 find_package(OpenGL REQUIRED)
+
 
 check_cxx_compiler_flag("-std=c++11" HAVE_STD_CXX11)
 if(HAVE_STD_CXX11)
@@ -48,6 +33,27 @@ check_cxx_compiler_flag("-Wextra" HAVE_WEXTRA_SWITCH)
 if(HAVE_WEXTRA_SWITCH)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
 endif()
+
+check_c_compiler_flag("-std=c99" HAVE_STD_C99)
+if(HAVE_STD_C99)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+endif()
+check_c_compiler_flag("-Wall" HAVE_C_WALL_SWITCH)
+if(HAVE_C_WALL_SWITCH)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
+endif()
+check_c_compiler_flag("-Wextra" HAVE_C_WEXTRA_SWITCH)
+if(HAVE_C_WEXTRA_SWITCH)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wextra")
+endif()
+
+
+add_library(mojoshader STATIC mojoshader/mojoshader.c
+                              mojoshader/mojoshader_common.c
+                              mojoshader/mojoshader.h
+                              mojoshader/mojoshader_internal.h
+                              mojoshader/mojoshader_version.h
+)
 
 
 set(LIBNAME d3d9)

@@ -18,14 +18,12 @@
 #define __MOJOSHADER_INTERNAL__ 1
 #include "mojoshader_internal.h"
 
-typedef struct ConstantsList
-{
+typedef struct ConstantsList {
     MOJOSHADER_constant constant;
     struct ConstantsList *next;
 } ConstantsList;
 
-typedef struct VariableList
-{
+typedef struct VariableList {
     MOJOSHADER_uniformType type;
     int index;
     int count;
@@ -35,8 +33,7 @@ typedef struct VariableList
     struct VariableList *next;
 } VariableList;
 
-typedef struct RegisterList
-{
+typedef struct RegisterList {
     RegisterType regtype;
     int regnum;
     MOJOSHADER_usage usage;
@@ -48,8 +45,7 @@ typedef struct RegisterList
     struct RegisterList *next;
 } RegisterList;
 
-typedef struct
-{
+typedef struct {
     const uint32 *token;   // this is the unmolested token in the stream.
     int regnum;
     int swizzle;  // xyzw (all four, not split out).
@@ -68,21 +64,9 @@ typedef struct
 
 struct Profile;  // predeclare.
 
-typedef struct CtabData
-{
-    int have_ctab;
-    int symbol_count;
-    MOJOSHADER_symbol *symbols;
-} CtabData;
-
 // Context...this is state that changes as we parse through a shader...
-typedef struct Context
-{
+typedef struct Context {
     int isfail;
-    int out_of_memory;
-    MOJOSHADER_malloc malloc;
-    MOJOSHADER_free free;
-    void *malloc_data;
     int current_position;
     const uint32 *orig_tokens;
     const uint32 *tokens;
@@ -148,7 +132,6 @@ typedef struct Context
     RegisterList samplers;
     VariableList *variables;  // variables to register mapping.
     int centroid_allowed;
-    CtabData ctab;
     int have_relative_input_registers;
     int have_multi_color_outputs;
     int determined_constants_arrays;
@@ -159,9 +142,7 @@ typedef struct Context
     int glsl_generated_texldd_setup;
     int glsl_generated_texm3x3spec_helper;
     int glsl_wrote_texregs;
-    int arb1_wrote_position;
     int have_preshader;
-    int ignores_ctab;
     int reset_texmpad;
     int texm3x2pad_dst0;
     int texm3x2pad_src0;
@@ -169,36 +150,7 @@ typedef struct Context
     int texm3x3pad_src0;
     int texm3x3pad_dst1;
     int texm3x3pad_src1;
-    MOJOSHADER_preshader *preshader;
-
-#if SUPPORT_PROFILE_ARB1_NV
-    int profile_supports_nv2;
-    int profile_supports_nv3;
-    int profile_supports_nv4;
-#endif
-#if SUPPORT_PROFILE_GLSL120
-    int profile_supports_glsl120;
-#endif
 } Context;
-
-
-// Use these macros so we can remove all bits of these profiles from the build.
-#if SUPPORT_PROFILE_ARB1_NV
-#define support_nv2(ctx) ((ctx)->profile_supports_nv2)
-#define support_nv3(ctx) ((ctx)->profile_supports_nv3)
-#define support_nv4(ctx) ((ctx)->profile_supports_nv4)
-#else
-#define support_nv2(ctx) (0)
-#define support_nv3(ctx) (0)
-#define support_nv4(ctx) (0)
-#endif
-
-#if SUPPORT_PROFILE_GLSL120
-#define support_glsl120(ctx) ((ctx)->profile_supports_glsl120)
-#else
-#define support_glsl120(ctx) (0)
-#endif
-
 
 // Profile entry points...
 
@@ -224,8 +176,7 @@ typedef void (*emit_global)(Context *ctx, RegisterType regtype, int regnum);
 typedef void (*emit_array)(Context *ctx, VariableList *var);
 
 // one emit function for relative constants arrays in each profile.
-typedef void (*emit_const_array)(Context *ctx,
-                                 const struct ConstantsList *constslist,
+typedef void (*emit_const_array)(Context *ctx, const struct ConstantsList *constslist,
                                  int base, int size);
 
 // one emit function for uniforms in each profile.
@@ -253,8 +204,7 @@ typedef const char *(*varname_function)(Context *c, RegisterType t, int num);
 // one function for const var array in each profile.
 typedef const char *(*const_array_varname_function)(Context *c, int base, int size);
 
-typedef struct Profile
-{
+typedef struct Profile {
     const char *name;
     emit_start start_emitter;
     emit_end end_emitter;
@@ -275,41 +225,11 @@ typedef struct Profile
 // !!! FIXME: We need to make some sort of ContextBase that applies to all
 // !!! FIXME:  files and move this stuff to mojoshader_common.c ...
 
-static inline void out_of_memory(Context *ctx)
-{
-    ctx->isfail = ctx->out_of_memory = 1;
-} // out_of_memory
-
-static inline void *Malloc(Context *ctx, const size_t len)
-{
-    void *retval = ctx->malloc((int) len, ctx->malloc_data);
-    if (retval == NULL)
-        out_of_memory(ctx);
-    return retval;
-} // Malloc
-
-static inline char *StrDup(Context *ctx, const char *str)
-{
-    char *retval = (char *) Malloc(ctx, strlen(str) + 1);
-    if (retval != NULL)
-        strcpy(retval, str);
-    return retval;
-} // StrDup
-
-static inline void Free(Context *ctx, void *ptr)
-{
-    ctx->free(ptr, ctx->malloc_data);
-} // Free
-
 static void *MallocBridge(int bytes, void *data)
-{
-    return Malloc((Context *) data, (size_t) bytes);
-} // MallocBridge
+{ return malloc((size_t)bytes); (void)data; }
 
 static void FreeBridge(void *ptr, void *data)
-{
-    Free((Context *) data, ptr);
-} // FreeBridge
+{ free(ptr); (void)data; }
 
 
 // jump between output sections in the context...
@@ -320,13 +240,12 @@ static int set_output(Context *ctx, Buffer **section)
     if (*section == NULL)
     {
         *section = buffer_create(256, MallocBridge, FreeBridge, ctx);
-        if (*section == NULL)
-            return 0;
-    } // if
+        if (*section == NULL) return 0;
+    }
 
     ctx->output = *section;
     return 1;
-} // set_output
+}
 
 static void push_output(Context *ctx, Buffer **section)
 {
@@ -337,7 +256,7 @@ static void push_output(Context *ctx, Buffer **section)
     if (!set_output(ctx, section))
         return;
     ctx->indent = 0;
-} // push_output
+}
 
 static inline void pop_output(Context *ctx)
 {
@@ -345,70 +264,47 @@ static inline void pop_output(Context *ctx)
     ctx->output_stack_len--;
     ctx->output = ctx->output_stack[ctx->output_stack_len];
     ctx->indent = ctx->indent_stack[ctx->output_stack_len];
-} // pop_output
-
+}
 
 
 // Shader model version magic...
 
 static inline uint32 ver_ui32(const uint8 major, const uint8 minor)
-{
-    return ( (((uint32) major) << 16) | (((minor) == 0xFF) ? 1 : (minor)) );
-} // version_ui32
+{ return (major << 16) | ((minor == 0xFF) ? 1 : minor); }
 
 static inline int shader_version_supported(const uint8 maj, const uint8 min)
-{
-    return (ver_ui32(maj,min) <= ver_ui32(MAX_SHADER_MAJOR, MAX_SHADER_MINOR));
-} // shader_version_supported
+{ return ver_ui32(maj,min) <= ver_ui32(MAX_SHADER_MAJOR,MAX_SHADER_MINOR); }
 
-static inline int shader_version_atleast(const Context *ctx, const uint8 maj,
-                                         const uint8 min)
-{
-    return (ver_ui32(ctx->major_ver, ctx->minor_ver) >= ver_ui32(maj, min));
-} // shader_version_atleast
+static inline int shader_version_atleast(const Context *ctx, const uint8 maj, const uint8 min)
+{ return ver_ui32(ctx->major_ver, ctx->minor_ver) >= ver_ui32(maj, min); }
 
-static inline int shader_version_exactly(const Context *ctx, const uint8 maj,
-                                         const uint8 min)
-{
-    return ((ctx->major_ver == maj) && (ctx->minor_ver == min));
-} // shader_version_exactly
+static inline int shader_version_exactly(const Context *ctx, const uint8 maj, const uint8 min)
+{ return (ctx->major_ver == maj) && (ctx->minor_ver == min); }
 
 static inline int shader_is_pixel(const Context *ctx)
-{
-    return (ctx->shader_type == MOJOSHADER_TYPE_PIXEL);
-} // shader_is_pixel
+{ return ctx->shader_type == MOJOSHADER_TYPE_PIXEL; }
 
 static inline int shader_is_vertex(const Context *ctx)
-{
-    return (ctx->shader_type == MOJOSHADER_TYPE_VERTEX);
-} // shader_is_vertex
+{ return (ctx->shader_type == MOJOSHADER_TYPE_VERTEX); }
 
 
 static inline int isfail(const Context *ctx)
-{
-    return ctx->isfail;
-} // isfail
-
+{ return ctx->isfail; }
 
 static void failf(Context *ctx, const char *fmt, ...) ISPRINTF(2,3);
 static void failf(Context *ctx, const char *fmt, ...)
 {
     ctx->isfail = 1;
-    if (ctx->out_of_memory)
-        return;
 
     // no filename at this level (we pass a NULL to errorlist_add_va()...)
     va_list ap;
     va_start(ap, fmt);
     errorlist_add_va(ctx->errors, NULL, ctx->current_position, fmt, ap);
     va_end(ap);
-} // failf
-
+}
 
 static inline void fail(Context *ctx, const char *reason)
-{
-    failf(ctx, "%s", reason);
-} // fail
+{ failf(ctx, "%s", reason); }
 
 
 static void output_line(Context *ctx, const char *fmt, ...) ISPRINTF(2,3);
@@ -418,29 +314,26 @@ static void output_line(Context *ctx, const char *fmt, ...)
     if (isfail(ctx))
         return;  // we failed previously, don't go on...
 
-    const int indent = ctx->indent;
-    if (indent > 0)
+    if(*fmt != '\0')
     {
-        char *indentbuf = (char *) alloca(indent);
-        memset(indentbuf, '\t', indent);
-        buffer_append(ctx->output, indentbuf, indent);
-    } // if
+        const int indent = ctx->indent;
+        if (indent > 0)
+        {
+            char *indentbuf = (char *) alloca(indent);
+            memset(indentbuf, '\t', indent);
+            buffer_append(ctx->output, indentbuf, indent);
+        }
 
-    va_list ap;
-    va_start(ap, fmt);
-    buffer_append_va(ctx->output, fmt, ap);
-    va_end(ap);
-
+        va_list ap;
+        va_start(ap, fmt);
+        buffer_append_va(ctx->output, fmt, ap);
+        va_end(ap);
+    }
     buffer_append(ctx->output, ctx->endline, ctx->endline_len);
-} // output_line
-
+}
 
 static inline void output_blank_line(Context *ctx)
-{
-    assert(ctx->output != NULL);
-    if (!isfail(ctx))
-        buffer_append(ctx->output, ctx->endline, ctx->endline_len);
-} // output_blank_line
+{ if(!isfail(ctx)) buffer_append(ctx->output, ctx->endline, ctx->endline_len); }
 
 
 // !!! FIXME: this is sort of nasty.
@@ -448,182 +341,165 @@ static void floatstr(Context *ctx, char *buf, size_t bufsize, float f,
                      int leavedecimal)
 {
     const size_t len = snprintf(buf, bufsize, "%f", f);
-    if ((len+2) >= bufsize)
-        fail(ctx, "BUG: internal buffer is too small");
-    else
+    if((len+2) >= bufsize)
     {
-        char *end = buf + len;
-        char *ptr = strchr(buf, '.');
-        if (ptr == NULL)
-        {
-            if (leavedecimal)
-                strcat(buf, ".0");
-            return;  // done.
-        } // if
+        fail(ctx, "BUG: internal buffer is too small");
+        return;
+    }
 
-        while (--end != ptr)
+    char *end = buf + len;
+    char *ptr = strchr(buf, '.');
+    if (ptr == NULL)
+    {
+        if(leavedecimal)
+            strcat(buf, ".0");
+        return;
+    }
+
+    while(--end != ptr)
+    {
+        if(*end != '0')
         {
-            if (*end != '0')
-            {
-                end++;
-                break;
-            } // if
-        } // while
-        if ((leavedecimal) && (end == ptr))
-            end += 2;
-        *end = '\0';  // chop extra '0' or all decimal places off.
-    } // else
-} // floatstr
+            end++;
+            break;
+        }
+    }
+    if(leavedecimal && end == ptr)
+        end += 2;
+    *end = '\0';
+}
 
 static inline TextureType cvtMojoToD3DSamplerType(const MOJOSHADER_samplerType type)
-{
-    return (TextureType) (((int) type) + 2);
-} // cvtMojoToD3DSamplerType
+{ return (TextureType) (((int) type) + 2); }
 
 static inline MOJOSHADER_samplerType cvtD3DToMojoSamplerType(const TextureType type)
-{
-    return (MOJOSHADER_samplerType) (((int) type) - 2);
-} // cvtD3DToMojoSamplerType
+{ return (MOJOSHADER_samplerType) (((int) type) - 2); }
 
 
 // Deal with register lists...  !!! FIXME: I sort of hate this.
 
-static void free_reglist(MOJOSHADER_free f, void *d, RegisterList *item)
+static void free_reglist(RegisterList *item)
 {
     while (item != NULL)
     {
         RegisterList *next = item->next;
-        f(item, d);
+        free(item);
         item = next;
-    } // while
-} // free_reglist
+    }
+}
 
 static inline uint32 reg_to_ui32(const RegisterType regtype, const int regnum)
-{
-    return ( ((uint32) regtype) | (((uint32) regnum) << 16) );
-} // reg_to_uint32
+{ return ((uint32)regtype) | (((uint32)regnum)<<16); }
 
 // !!! FIXME: ditch this for a hash table.
-static RegisterList *reglist_insert(Context *ctx, RegisterList *prev,
+static RegisterList *reglist_insert(RegisterList *prev,
                                     const RegisterType regtype,
                                     const int regnum)
 {
     const uint32 newval = reg_to_ui32(regtype, regnum);
     RegisterList *item = prev->next;
-    while (item != NULL)
+
+    while(item != NULL)
     {
         const uint32 val = reg_to_ui32(item->regtype, item->regnum);
-        if (newval == val)
-            return item;  // already set, so we're done.
-        else if (newval < val)  // insert it here.
-            break;
-        else // if (newval > val)
-        {
-            // keep going, we're not to the insertion point yet.
-            prev = item;
-            item = item->next;
-        } // else
-    } // while
+        if(newval == val) return item;  // already set, so we're done.
+        if(newval < val) break; // insert it here.
+
+        // keep going, we're not to the insertion point yet.
+        prev = item;
+        item = item->next;
+    }
 
     // we need to insert an entry after (prev).
-    item = (RegisterList *) Malloc(ctx, sizeof (RegisterList));
-    if (item != NULL)
-    {
-        item->regtype = regtype;
-        item->regnum = regnum;
-        item->usage = MOJOSHADER_USAGE_UNKNOWN;
-        item->index = 0;
-        item->writemask = 0;
-        item->misc = 0;
-        item->array = NULL;
-        item->next = prev->next;
-        prev->next = item;
-    } // if
+    item = malloc(sizeof(RegisterList));
+    item->regtype = regtype;
+    item->regnum = regnum;
+    item->usage = MOJOSHADER_USAGE_UNKNOWN;
+    item->index = 0;
+    item->writemask = 0;
+    item->misc = 0;
+    item->array = NULL;
+    item->next = prev->next;
+    prev->next = item;
 
     return item;
-} // reglist_insert
+}
 
 static RegisterList *reglist_find(const RegisterList *prev,
                                   const RegisterType rtype, const int regnum)
 {
     const uint32 newval = reg_to_ui32(rtype, regnum);
     RegisterList *item = prev->next;
-    while (item != NULL)
+    while(item != NULL)
     {
         const uint32 val = reg_to_ui32(item->regtype, item->regnum);
-        if (newval == val)
-            return item;  // here it is.
-        else if (newval < val)  // should have been here if it existed.
-            return NULL;
-        else // if (newval > val)
-            item = item->next;
-    } // while
+        if(newval == val) return item;  // here it is.
+        if(newval < val) return NULL;  // should have been here if it existed.
+        item = item->next;
+    }
 
-    return NULL;  // wasn't in the list.
-} // reglist_find
+    return NULL;
+}
 
 static inline const RegisterList *reglist_exists(RegisterList *prev,
                                                  const RegisterType regtype,
                                                  const int regnum)
 {
-    return (reglist_find(prev, regtype, regnum));
-} // reglist_exists
+    return reglist_find(prev, regtype, regnum);
+}
 
 static inline int register_was_written(Context *ctx, const RegisterType rtype,
                                        const int regnum)
 {
     RegisterList *reg = reglist_find(&ctx->used_registers, rtype, regnum);
-    return (reg && reg->written);
-} // register_was_written
+    return reg && reg->written;
+}
 
-static inline RegisterList *set_used_register(Context *ctx,
-                                              const RegisterType regtype,
-                                              const int regnum,
-                                              const int written)
+static inline RegisterList *set_used_register(Context *ctx, const RegisterType regtype,
+                                              const int regnum, const int written)
 {
     RegisterList *reg = NULL;
-    if ((regtype == REG_TYPE_COLOROUT) && (regnum > 0))
+    if(regtype == REG_TYPE_COLOROUT && regnum > 0)
         ctx->have_multi_color_outputs = 1;
 
-    reg = reglist_insert(ctx, &ctx->used_registers, regtype, regnum);
-    if (reg && written)
-        reg->written = 1;
+    reg = reglist_insert(&ctx->used_registers, regtype, regnum);
+    if(reg && written) reg->written = 1;
     return reg;
-} // set_used_register
+}
 
 static inline int get_used_register(Context *ctx, const RegisterType regtype,
                                     const int regnum)
 {
-    return (reglist_exists(&ctx->used_registers, regtype, regnum) != NULL);
-} // get_used_register
+    return reglist_exists(&ctx->used_registers, regtype, regnum) != NULL;
+}
 
 static inline void set_defined_register(Context *ctx, const RegisterType rtype,
                                         const int regnum)
 {
-    reglist_insert(ctx, &ctx->defined_registers, rtype, regnum);
-} // set_defined_register
+    reglist_insert(&ctx->defined_registers, rtype, regnum);
+}
 
 static inline int get_defined_register(Context *ctx, const RegisterType rtype,
                                        const int regnum)
 {
-    return (reglist_exists(&ctx->defined_registers, rtype, regnum) != NULL);
-} // get_defined_register
+    return reglist_exists(&ctx->defined_registers, rtype, regnum) != NULL;
+}
 
 static void add_attribute_register(Context *ctx, const RegisterType rtype,
-                                const int regnum, const MOJOSHADER_usage usage,
-                                const int index, const int writemask, int flags)
+                                   const int regnum, const MOJOSHADER_usage usage,
+                                   const int index, const int writemask, int flags)
 {
-    RegisterList *item = reglist_insert(ctx, &ctx->attributes, rtype, regnum);
+    RegisterList *item = reglist_insert(&ctx->attributes, rtype, regnum);
     item->usage = usage;
     item->index = index;
     item->writemask = writemask;
     item->misc = flags;
 
-    if ((rtype == REG_TYPE_OUTPUT) && (usage == MOJOSHADER_USAGE_POINTSIZE))
+    if(rtype == REG_TYPE_OUTPUT && usage == MOJOSHADER_USAGE_POINTSIZE)
         ctx->uses_pointsize = 1;  // note that we have to check this later.
-    else if ((rtype == REG_TYPE_OUTPUT) && (usage == MOJOSHADER_USAGE_FOG))
+    else if(rtype == REG_TYPE_OUTPUT && usage == MOJOSHADER_USAGE_FOG)
         ctx->uses_fog = 1;  // note that we have to check this later.
-} // add_attribute_register
+}
 
 static inline void add_sampler(Context *ctx, const int regnum,
                                TextureType ttype, const int texbem)
@@ -632,7 +508,7 @@ static inline void add_sampler(Context *ctx, const int regnum,
 
     // !!! FIXME: make sure it doesn't exist?
     // !!! FIXME:  (ps_1_1 assume we can add it multiple times...)
-    RegisterList *item = reglist_insert(ctx, &ctx->samplers, rtype, regnum);
+    RegisterList *item = reglist_insert(&ctx->samplers, rtype, regnum);
 
     if (ctx->samplermap != NULL)
     {
@@ -643,63 +519,51 @@ static inline void add_sampler(Context *ctx, const int regnum,
             {
                 ttype = cvtMojoToD3DSamplerType(ctx->samplermap[i].type);
                 break;
-            } // if
-        } // for
-    } // if
+            }
+        }
+    }
 
     item->index = (int) ttype;
     item->misc |= texbem;
-} // add_sampler
+}
 
 
 static inline int writemask_xyzw(const int writemask)
 {
     return (writemask == 0xF);  // 0xF == 1111. No explicit mask (full!).
-} // writemask_xyzw
-
-
+}
 static inline int writemask_xyz(const int writemask)
 {
     return (writemask == 0x7);  // 0x7 == 0111. (that is: xyz)
-} // writemask_xyz
-
-
+}
 static inline int writemask_xy(const int writemask)
 {
     return (writemask == 0x3);  // 0x3 == 0011. (that is: xy)
-} // writemask_xy
-
-
+}
 static inline int writemask_x(const int writemask)
 {
     return (writemask == 0x1);  // 0x1 == 0001. (that is: x)
-} // writemask_x
-
-
+}
 static inline int writemask_y(const int writemask)
 {
     return (writemask == 0x2);  // 0x1 == 0010. (that is: y)
-} // writemask_y
-
+}
 
 static inline int replicate_swizzle(const int swizzle)
 {
-    return ( (((swizzle >> 0) & 0x3) == ((swizzle >> 2) & 0x3)) &&
-             (((swizzle >> 2) & 0x3) == ((swizzle >> 4) & 0x3)) &&
-             (((swizzle >> 4) & 0x3) == ((swizzle >> 6) & 0x3)) );
-} // replicate_swizzle
-
-
+    return (((swizzle >> 0) & 0x3) == ((swizzle >> 2) & 0x3)) &&
+           (((swizzle >> 2) & 0x3) == ((swizzle >> 4) & 0x3)) &&
+           (((swizzle >> 4) & 0x3) == ((swizzle >> 6) & 0x3));
+}
 static inline int no_swizzle(const int swizzle)
 {
     return (swizzle == 0xE4);  // 0xE4 == 11100100 ... 0 1 2 3. No swizzle.
-} // no_swizzle
-
+}
 
 static inline int vecsize_from_writemask(const int m)
 {
-    return (m & 1) + ((m >> 1) & 1) + ((m >> 2) & 1) + ((m >> 3) & 1);
-} // vecsize_from_writemask
+    return (m&1) + ((m>>1)&1) + ((m>>2)&1) + ((m>>3)&1);
+}
 
 
 static inline void set_dstarg_writemask(DestArgInfo *dst, const int mask)
@@ -709,28 +573,15 @@ static inline void set_dstarg_writemask(DestArgInfo *dst, const int mask)
     dst->writemask1 = ((mask >> 1) & 1);
     dst->writemask2 = ((mask >> 2) & 1);
     dst->writemask3 = ((mask >> 3) & 1);
-} // set_dstarg_writemask
+}
 
-
-static int allocate_scratch_register(Context *ctx)
-{
-    const int retval = ctx->scratch_registers++;
-    if (retval >= ctx->max_scratch_registers)
-        ctx->max_scratch_registers = retval + 1;
-    return retval;
-} // allocate_scratch_register
-
-static int allocate_branch_label(Context *ctx)
-{
-    return ctx->assigned_branch_labels++;
-} // allocate_branch_label
 
 static inline void adjust_token_position(Context *ctx, const int incr)
 {
     ctx->tokens += incr;
     ctx->tokencount -= incr;
-    ctx->current_position += incr * sizeof (uint32);
-} // adjust_token_position
+    ctx->current_position += incr * sizeof(uint32);
+}
 
 
 // D3D stuff that's used in more than just the d3d profile...
@@ -740,38 +591,31 @@ static int isscalar(Context *ctx, const MOJOSHADER_shaderType shader_type,
 {
     const int uses_psize = ctx->uses_pointsize;
     const int uses_fog = ctx->uses_fog;
-    if ( (rtype == REG_TYPE_OUTPUT) && ((uses_psize) || (uses_fog)) )
+    if(rtype == REG_TYPE_OUTPUT && (uses_psize || uses_fog))
     {
         const RegisterList *reg = reglist_find(&ctx->attributes, rtype, rnum);
-        if (reg != NULL)
+        if(reg != NULL)
         {
             const MOJOSHADER_usage usage = reg->usage;
-            return ( (uses_psize && (usage == MOJOSHADER_USAGE_POINTSIZE)) ||
-                     (uses_fog && (usage == MOJOSHADER_USAGE_FOG)) );
-        } // if
-    } // if
+            return (uses_psize && (usage == MOJOSHADER_USAGE_POINTSIZE)) ||
+                   (uses_fog && (usage == MOJOSHADER_USAGE_FOG));
+        }
+    }
 
     return scalar_register(shader_type, rtype, rnum);
-} // isscalar
+}
 
 static const char swizzle_channels[] = { 'x', 'y', 'z', 'w' };
 
 
-static const char *usagestrs[] = {
-    "_position", "_blendweight", "_blendindices", "_normal", "_psize",
-    "_texcoord", "_tangent", "_binormal", "_tessfactor", "_positiont",
-    "_color", "_fog", "_depth", "_sample"
-};
-
-static const char *get_D3D_register_string(Context *ctx,
-                                           RegisterType regtype,
+static const char *get_D3D_register_string(Context *ctx, RegisterType regtype,
                                            int regnum, char *regnum_str,
                                            size_t regnum_size)
 {
     const char *retval = NULL;
     int has_number = 1;
 
-    switch (regtype)
+    switch(regtype)
     {
         case REG_TYPE_TEMP:
             retval = "r";
@@ -795,7 +639,7 @@ static const char *get_D3D_register_string(Context *ctx,
                 case RASTOUT_TYPE_POSITION: retval = "oPos"; break;
                 case RASTOUT_TYPE_FOG: retval = "oFog"; break;
                 case RASTOUT_TYPE_POINT_SIZE: retval = "oPts"; break;
-            } // switch
+            }
             has_number = 0;
             break;
 
@@ -841,7 +685,7 @@ static const char *get_D3D_register_string(Context *ctx,
             {
                 case MISCTYPE_TYPE_POSITION: retval = "vPos"; break;
                 case MISCTYPE_TYPE_FACE: retval = "vFace"; break;
-            } // switch
+            }
             has_number = 0;
             break;
 
@@ -859,7 +703,7 @@ static const char *get_D3D_register_string(Context *ctx,
             retval = "???";
             has_number = 0;
             break;
-    } // switch
+    }
 
     if (has_number)
         snprintf(regnum_str, regnum_size, "%u", (uint) regnum);
@@ -867,850 +711,14 @@ static const char *get_D3D_register_string(Context *ctx,
         regnum_str[0] = '\0';
 
     return retval;
-} // get_D3D_register_string
+}
 
 
 // !!! FIXME: can we split the profile code out to separate source files?
 
 #define AT_LEAST_ONE_PROFILE 0
 
-#if !SUPPORT_PROFILE_D3D
-#define PROFILE_EMITTER_D3D(op)
-#else
-#undef AT_LEAST_ONE_PROFILE
-#define AT_LEAST_ONE_PROFILE 1
-#define PROFILE_EMITTER_D3D(op) emit_D3D_##op,
-
-static const char *make_D3D_srcarg_string_in_buf(Context *ctx,
-                                                 const SourceArgInfo *arg,
-                                                 char *buf, size_t buflen)
-{
-    const char *premod_str = "";
-    const char *postmod_str = "";
-    switch (arg->src_mod)
-    {
-        case SRCMOD_NEGATE:
-            premod_str = "-";
-            break;
-
-        case SRCMOD_BIASNEGATE:
-            premod_str = "-";
-            // fall through.
-        case SRCMOD_BIAS:
-            postmod_str = "_bias";
-            break;
-
-        case SRCMOD_SIGNNEGATE:
-            premod_str = "-";
-            // fall through.
-        case SRCMOD_SIGN:
-            postmod_str = "_bx2";
-            break;
-
-        case SRCMOD_COMPLEMENT:
-            premod_str = "1-";
-            break;
-
-        case SRCMOD_X2NEGATE:
-            premod_str = "-";
-            // fall through.
-        case SRCMOD_X2:
-            postmod_str = "_x2";
-            break;
-
-        case SRCMOD_DZ:
-            postmod_str = "_dz";
-            break;
-
-        case SRCMOD_DW:
-            postmod_str = "_dw";
-            break;
-
-        case SRCMOD_ABSNEGATE:
-            premod_str = "-";
-            // fall through.
-        case SRCMOD_ABS:
-            postmod_str = "_abs";
-            break;
-
-        case SRCMOD_NOT:
-            premod_str = "!";
-            break;
-
-        case SRCMOD_NONE:
-        case SRCMOD_TOTAL:
-             break;  // stop compiler whining.
-    } // switch
-
-
-    char regnum_str[16];
-    const char *regtype_str = get_D3D_register_string(ctx, arg->regtype,
-                                                      arg->regnum, regnum_str,
-                                                      sizeof (regnum_str));
-
-    if (regtype_str == NULL)
-    {
-        fail(ctx, "Unknown source register type.");
-        *buf = '\0';
-        return buf;
-    } // if
-
-    const char *rel_lbracket = "";
-    const char *rel_rbracket = "";
-    char rel_swizzle[4] = { '\0' };
-    char rel_regnum_str[16] = { '\0' };
-    const char *rel_regtype_str = "";
-    if (arg->relative)
-    {
-        rel_swizzle[0] = '.';
-        rel_swizzle[1] = swizzle_channels[arg->relative_component];
-        rel_swizzle[2] = '\0';
-        rel_lbracket = "[";
-        rel_rbracket = "]";
-        rel_regtype_str = get_D3D_register_string(ctx, arg->relative_regtype,
-                                                  arg->relative_regnum,
-                                                  rel_regnum_str,
-                                                  sizeof (rel_regnum_str));
-
-        if (regtype_str == NULL)
-        {
-            fail(ctx, "Unknown relative source register type.");
-            *buf = '\0';
-            return buf;
-        } // if
-    } // if
-
-    char swizzle_str[6];
-    size_t i = 0;
-    const int scalar = isscalar(ctx, ctx->shader_type, arg->regtype, arg->regnum);
-    if (!scalar && !no_swizzle(arg->swizzle))
-    {
-        swizzle_str[i++] = '.';
-        swizzle_str[i++] = swizzle_channels[arg->swizzle_x];
-        swizzle_str[i++] = swizzle_channels[arg->swizzle_y];
-        swizzle_str[i++] = swizzle_channels[arg->swizzle_z];
-        swizzle_str[i++] = swizzle_channels[arg->swizzle_w];
-
-        // .xyzz is the same as .xyz, .z is the same as .zzzz, etc.
-        while (swizzle_str[i-1] == swizzle_str[i-2])
-            i--;
-    } // if
-    swizzle_str[i] = '\0';
-    assert(i < sizeof (swizzle_str));
-
-    // !!! FIXME: c12[a0.x] actually needs to be c[a0.x + 12]
-    snprintf(buf, buflen, "%s%s%s%s%s%s%s%s%s%s",
-             premod_str, regtype_str, regnum_str, postmod_str,
-             rel_lbracket, rel_regtype_str, rel_regnum_str, rel_swizzle,
-             rel_rbracket, swizzle_str);
-    // !!! FIXME: make sure the scratch buffer was large enough.
-    return buf;
-} // make_D3D_srcarg_string_in_buf
-
-
-static const char *make_D3D_destarg_string(Context *ctx, char *buf,
-                                           const size_t buflen)
-{
-    const DestArgInfo *arg = &ctx->dest_arg;
-
-    const char *result_shift_str = "";
-    switch (arg->result_shift)
-    {
-        case 0x1: result_shift_str = "_x2"; break;
-        case 0x2: result_shift_str = "_x4"; break;
-        case 0x3: result_shift_str = "_x8"; break;
-        case 0xD: result_shift_str = "_d8"; break;
-        case 0xE: result_shift_str = "_d4"; break;
-        case 0xF: result_shift_str = "_d2"; break;
-    } // switch
-
-    const char *sat_str = (arg->result_mod & MOD_SATURATE) ? "_sat" : "";
-    const char *pp_str = (arg->result_mod & MOD_PP) ? "_pp" : "";
-    const char *cent_str = (arg->result_mod & MOD_CENTROID) ? "_centroid" : "";
-
-    char regnum_str[16];
-    const char *regtype_str = get_D3D_register_string(ctx, arg->regtype,
-                                                      arg->regnum, regnum_str,
-                                                      sizeof (regnum_str));
-    if (regtype_str == NULL)
-    {
-        fail(ctx, "Unknown destination register type.");
-        *buf = '\0';
-        return buf;
-    } // if
-
-    char writemask_str[6];
-    size_t i = 0;
-    const int scalar = isscalar(ctx, ctx->shader_type, arg->regtype, arg->regnum);
-    if (!scalar && !writemask_xyzw(arg->writemask))
-    {
-        writemask_str[i++] = '.';
-        if (arg->writemask0) writemask_str[i++] = 'x';
-        if (arg->writemask1) writemask_str[i++] = 'y';
-        if (arg->writemask2) writemask_str[i++] = 'z';
-        if (arg->writemask3) writemask_str[i++] = 'w';
-    } // if
-    writemask_str[i] = '\0';
-    assert(i < sizeof (writemask_str));
-
-    const char *pred_left = "";
-    const char *pred_right = "";
-    char pred[32] = { '\0' };
-    if (ctx->predicated)
-    {
-        pred_left = "(";
-        pred_right = ") ";
-        make_D3D_srcarg_string_in_buf(ctx, &ctx->predicate_arg,
-                                      pred, sizeof (pred));
-    } // if
-
-    // may turn out something like "_x2_sat_pp_centroid (!p0.x) r0.xyzw" ...
-    snprintf(buf, buflen, "%s%s%s%s %s%s%s%s%s%s",
-             result_shift_str, sat_str, pp_str, cent_str,
-             pred_left, pred, pred_right,
-             regtype_str, regnum_str, writemask_str);
-    // !!! FIXME: make sure the scratch buffer was large enough.
-    return buf;
-} // make_D3D_destarg_string
-
-
-static const char *make_D3D_srcarg_string(Context *ctx, const size_t idx,
-                                          char *buf, size_t buflen)
-{
-    if (idx >= STATICARRAYLEN(ctx->source_args))
-    {
-        fail(ctx, "Too many source args");
-        *buf = '\0';
-        return buf;
-    } // if
-
-    const SourceArgInfo *arg = &ctx->source_args[idx];
-    return make_D3D_srcarg_string_in_buf(ctx, arg, buf, buflen);
-} // make_D3D_srcarg_string
-
-static const char *get_D3D_varname_in_buf(Context *ctx, RegisterType rt,
-                                           int regnum, char *buf,
-                                           const size_t len)
-{
-    char regnum_str[16];
-    const char *regtype_str = get_D3D_register_string(ctx, rt, regnum,
-                                              regnum_str, sizeof (regnum_str));
-    snprintf(buf,len,"%s%s", regtype_str, regnum_str);
-    return buf;
-} // get_D3D_varname_in_buf
-
-
-static const char *get_D3D_varname(Context *ctx, RegisterType rt, int regnum)
-{
-    char buf[64];
-    get_D3D_varname_in_buf(ctx, rt, regnum, buf, sizeof (buf));
-    return StrDup(ctx, buf);
-} // get_D3D_varname
-
-
-static const char *get_D3D_const_array_varname(Context *ctx, int base, int size)
-{
-    char buf[64];
-    snprintf(buf, sizeof (buf), "c_array_%d_%d", base, size);
-    return StrDup(ctx, buf);
-} // get_D3D_const_array_varname
-
-
-static void emit_D3D_start(Context *ctx, const char *profilestr)
-{
-    const uint major = (uint) ctx->major_ver;
-    const uint minor = (uint) ctx->minor_ver;
-    char minor_str[16];
-
-    ctx->ignores_ctab = 1;
-
-    if (minor == 0xFF)
-        strcpy(minor_str, "sw");
-    else if ((major > 1) && (minor == 1))
-        strcpy(minor_str, "x");  // for >= SM2, apparently this is "x". Weird.
-    else
-        snprintf(minor_str, sizeof (minor_str), "%u", (uint) minor);
-
-    output_line(ctx, "%s_%u_%s", ctx->shader_type_str, major, minor_str);
-} // emit_D3D_start
-
-
-static void emit_D3D_end(Context *ctx)
-{
-    output_line(ctx, "end");
-} // emit_D3D_end
-
-
-static void emit_D3D_phase(Context *ctx)
-{
-    output_line(ctx, "phase");
-} // emit_D3D_phase
-
-
-static void emit_D3D_finalize(Context *ctx)
-{
-    // no-op.
-} // emit_D3D_finalize
-
-
-static void emit_D3D_global(Context *ctx, RegisterType regtype, int regnum)
-{
-    // no-op.
-} // emit_D3D_global
-
-
-static void emit_D3D_array(Context *ctx, VariableList *var)
-{
-    // no-op.
-} // emit_D3D_array
-
-
-static void emit_D3D_const_array(Context *ctx, const ConstantsList *clist,
-                                 int base, int size)
-{
-    // no-op.
-} // emit_D3D_const_array
-
-
-static void emit_D3D_uniform(Context *ctx, RegisterType regtype, int regnum,
-                             const VariableList *var)
-{
-    // no-op.
-} // emit_D3D_uniform
-
-
-static void emit_D3D_sampler(Context *ctx, int s, TextureType ttype, int tb)
-{
-    // no-op.
-} // emit_D3D_sampler
-
-
-static void emit_D3D_attribute(Context *ctx, RegisterType regtype, int regnum,
-                               MOJOSHADER_usage usage, int index, int wmask,
-                               int flags)
-{
-    // no-op.
-} // emit_D3D_attribute
-
-
-static void emit_D3D_RESERVED(Context *ctx)
-{
-    // do nothing; fails in the state machine.
-} // emit_D3D_RESERVED
-
-
-// Generic D3D opcode emitters. A list of macros generate all the entry points
-//  that call into these...
-
-static char *lowercase(char *dst, const char *src)
-{
-    int i = 0;
-    do
-    {
-        const char ch = src[i];
-        dst[i] = (((ch >= 'A') && (ch <= 'Z')) ? (ch - ('A' - 'a')) : ch);
-    } while (src[i++]);
-    return dst;
-} // lowercase
-
-
-static void emit_D3D_opcode_d(Context *ctx, const char *opcode)
-{
-    char dst[64]; make_D3D_destarg_string(ctx, dst, sizeof (dst));
-    opcode = lowercase((char *) alloca(strlen(opcode) + 1), opcode);
-    output_line(ctx, "%s%s%s", ctx->coissue ? "+" : "", opcode, dst);
-} // emit_D3D_opcode_d
-
-
-static void emit_D3D_opcode_s(Context *ctx, const char *opcode)
-{
-    char src0[64]; make_D3D_srcarg_string(ctx, 0, src0, sizeof (src0));
-    opcode = lowercase((char *) alloca(strlen(opcode) + 1), opcode);
-    output_line(ctx, "%s%s %s", ctx->coissue ? "+" : "", opcode, src0);
-} // emit_D3D_opcode_s
-
-
-static void emit_D3D_opcode_ss(Context *ctx, const char *opcode)
-{
-    char src0[64]; make_D3D_srcarg_string(ctx, 0, src0, sizeof (src0));
-    char src1[64]; make_D3D_srcarg_string(ctx, 1, src1, sizeof (src1));
-    opcode = lowercase((char *) alloca(strlen(opcode) + 1), opcode);
-    output_line(ctx, "%s%s %s, %s", ctx->coissue ? "+" : "", opcode, src0, src1);
-} // emit_D3D_opcode_ss
-
-
-static void emit_D3D_opcode_ds(Context *ctx, const char *opcode)
-{
-    char dst[64]; make_D3D_destarg_string(ctx, dst, sizeof (dst));
-    char src0[64]; make_D3D_srcarg_string(ctx, 0, src0, sizeof (src0));
-    opcode = lowercase((char *) alloca(strlen(opcode) + 1), opcode);
-    output_line(ctx, "%s%s%s, %s", ctx->coissue ? "+" : "", opcode, dst, src0);
-} // emit_D3D_opcode_ds
-
-
-static void emit_D3D_opcode_dss(Context *ctx, const char *opcode)
-{
-    char dst[64]; make_D3D_destarg_string(ctx, dst, sizeof (dst));
-    char src0[64]; make_D3D_srcarg_string(ctx, 0, src0, sizeof (src0));
-    char src1[64]; make_D3D_srcarg_string(ctx, 1, src1, sizeof (src1));
-    opcode = lowercase((char *) alloca(strlen(opcode) + 1), opcode);
-    output_line(ctx, "%s%s%s, %s, %s", ctx->coissue ? "+" : "",
-                opcode, dst, src0, src1);
-} // emit_D3D_opcode_dss
-
-
-static void emit_D3D_opcode_dsss(Context *ctx, const char *opcode)
-{
-    char dst[64]; make_D3D_destarg_string(ctx, dst, sizeof (dst));
-    char src0[64]; make_D3D_srcarg_string(ctx, 0, src0, sizeof (src0));
-    char src1[64]; make_D3D_srcarg_string(ctx, 1, src1, sizeof (src1));
-    char src2[64]; make_D3D_srcarg_string(ctx, 2, src2, sizeof (src2));
-    opcode = lowercase((char *) alloca(strlen(opcode) + 1), opcode);
-    output_line(ctx, "%s%s%s, %s, %s, %s", ctx->coissue ? "+" : "", 
-                opcode, dst, src0, src1, src2);
-} // emit_D3D_opcode_dsss
-
-
-static void emit_D3D_opcode_dssss(Context *ctx, const char *opcode)
-{
-    char dst[64]; make_D3D_destarg_string(ctx, dst, sizeof (dst));
-    char src0[64]; make_D3D_srcarg_string(ctx, 0, src0, sizeof (src0));
-    char src1[64]; make_D3D_srcarg_string(ctx, 1, src1, sizeof (src1));
-    char src2[64]; make_D3D_srcarg_string(ctx, 2, src2, sizeof (src2));
-    char src3[64]; make_D3D_srcarg_string(ctx, 3, src3, sizeof (src3));
-    opcode = lowercase((char *) alloca(strlen(opcode) + 1), opcode);
-    output_line(ctx,"%s%s%s, %s, %s, %s, %s", ctx->coissue ? "+" : "",
-                opcode, dst, src0, src1, src2, src3);
-} // emit_D3D_opcode_dssss
-
-
-static void emit_D3D_opcode(Context *ctx, const char *opcode)
-{
-    opcode = lowercase((char *) alloca(strlen(opcode) + 1), opcode);
-    output_line(ctx, "%s%s", ctx->coissue ? "+" : "", opcode);
-} // emit_D3D_opcode
-
-
-#define EMIT_D3D_OPCODE_FUNC(op) \
-    static void emit_D3D_##op(Context *ctx) { \
-        emit_D3D_opcode(ctx, #op); \
-    }
-#define EMIT_D3D_OPCODE_D_FUNC(op) \
-    static void emit_D3D_##op(Context *ctx) { \
-        emit_D3D_opcode_d(ctx, #op); \
-    }
-#define EMIT_D3D_OPCODE_S_FUNC(op) \
-    static void emit_D3D_##op(Context *ctx) { \
-        emit_D3D_opcode_s(ctx, #op); \
-    }
-#define EMIT_D3D_OPCODE_SS_FUNC(op) \
-    static void emit_D3D_##op(Context *ctx) { \
-        emit_D3D_opcode_ss(ctx, #op); \
-    }
-#define EMIT_D3D_OPCODE_DS_FUNC(op) \
-    static void emit_D3D_##op(Context *ctx) { \
-        emit_D3D_opcode_ds(ctx, #op); \
-    }
-#define EMIT_D3D_OPCODE_DSS_FUNC(op) \
-    static void emit_D3D_##op(Context *ctx) { \
-        emit_D3D_opcode_dss(ctx, #op); \
-    }
-#define EMIT_D3D_OPCODE_DSSS_FUNC(op) \
-    static void emit_D3D_##op(Context *ctx) { \
-        emit_D3D_opcode_dsss(ctx, #op); \
-    }
-#define EMIT_D3D_OPCODE_DSSSS_FUNC(op) \
-    static void emit_D3D_##op(Context *ctx) { \
-        emit_D3D_opcode_dssss(ctx, #op); \
-    }
-
-EMIT_D3D_OPCODE_FUNC(NOP)
-EMIT_D3D_OPCODE_DS_FUNC(MOV)
-EMIT_D3D_OPCODE_DSS_FUNC(ADD)
-EMIT_D3D_OPCODE_DSS_FUNC(SUB)
-EMIT_D3D_OPCODE_DSSS_FUNC(MAD)
-EMIT_D3D_OPCODE_DSS_FUNC(MUL)
-EMIT_D3D_OPCODE_DS_FUNC(RCP)
-EMIT_D3D_OPCODE_DS_FUNC(RSQ)
-EMIT_D3D_OPCODE_DSS_FUNC(DP3)
-EMIT_D3D_OPCODE_DSS_FUNC(DP4)
-EMIT_D3D_OPCODE_DSS_FUNC(MIN)
-EMIT_D3D_OPCODE_DSS_FUNC(MAX)
-EMIT_D3D_OPCODE_DSS_FUNC(SLT)
-EMIT_D3D_OPCODE_DSS_FUNC(SGE)
-EMIT_D3D_OPCODE_DS_FUNC(EXP)
-EMIT_D3D_OPCODE_DS_FUNC(LOG)
-EMIT_D3D_OPCODE_DS_FUNC(LIT)
-EMIT_D3D_OPCODE_DSS_FUNC(DST)
-EMIT_D3D_OPCODE_DSSS_FUNC(LRP)
-EMIT_D3D_OPCODE_DS_FUNC(FRC)
-EMIT_D3D_OPCODE_DSS_FUNC(M4X4)
-EMIT_D3D_OPCODE_DSS_FUNC(M4X3)
-EMIT_D3D_OPCODE_DSS_FUNC(M3X4)
-EMIT_D3D_OPCODE_DSS_FUNC(M3X3)
-EMIT_D3D_OPCODE_DSS_FUNC(M3X2)
-EMIT_D3D_OPCODE_S_FUNC(CALL)
-EMIT_D3D_OPCODE_SS_FUNC(CALLNZ)
-EMIT_D3D_OPCODE_SS_FUNC(LOOP)
-EMIT_D3D_OPCODE_FUNC(RET)
-EMIT_D3D_OPCODE_FUNC(ENDLOOP)
-EMIT_D3D_OPCODE_S_FUNC(LABEL)
-EMIT_D3D_OPCODE_DSS_FUNC(POW)
-EMIT_D3D_OPCODE_DSS_FUNC(CRS)
-EMIT_D3D_OPCODE_DSSS_FUNC(SGN)
-EMIT_D3D_OPCODE_DS_FUNC(ABS)
-EMIT_D3D_OPCODE_DS_FUNC(NRM)
-EMIT_D3D_OPCODE_S_FUNC(REP)
-EMIT_D3D_OPCODE_FUNC(ENDREP)
-EMIT_D3D_OPCODE_S_FUNC(IF)
-EMIT_D3D_OPCODE_FUNC(ELSE)
-EMIT_D3D_OPCODE_FUNC(ENDIF)
-EMIT_D3D_OPCODE_FUNC(BREAK)
-EMIT_D3D_OPCODE_DS_FUNC(MOVA)
-EMIT_D3D_OPCODE_D_FUNC(TEXKILL)
-EMIT_D3D_OPCODE_DS_FUNC(TEXBEM)
-EMIT_D3D_OPCODE_DS_FUNC(TEXBEML)
-EMIT_D3D_OPCODE_DS_FUNC(TEXREG2AR)
-EMIT_D3D_OPCODE_DS_FUNC(TEXREG2GB)
-EMIT_D3D_OPCODE_DS_FUNC(TEXM3X2PAD)
-EMIT_D3D_OPCODE_DS_FUNC(TEXM3X2TEX)
-EMIT_D3D_OPCODE_DS_FUNC(TEXM3X3PAD)
-EMIT_D3D_OPCODE_DS_FUNC(TEXM3X3TEX)
-EMIT_D3D_OPCODE_DSS_FUNC(TEXM3X3SPEC)
-EMIT_D3D_OPCODE_DS_FUNC(TEXM3X3VSPEC)
-EMIT_D3D_OPCODE_DS_FUNC(EXPP)
-EMIT_D3D_OPCODE_DS_FUNC(LOGP)
-EMIT_D3D_OPCODE_DSSS_FUNC(CND)
-EMIT_D3D_OPCODE_DS_FUNC(TEXREG2RGB)
-EMIT_D3D_OPCODE_DS_FUNC(TEXDP3TEX)
-EMIT_D3D_OPCODE_DS_FUNC(TEXM3X2DEPTH)
-EMIT_D3D_OPCODE_DS_FUNC(TEXDP3)
-EMIT_D3D_OPCODE_DS_FUNC(TEXM3X3)
-EMIT_D3D_OPCODE_D_FUNC(TEXDEPTH)
-EMIT_D3D_OPCODE_DSSS_FUNC(CMP)
-EMIT_D3D_OPCODE_DSS_FUNC(BEM)
-EMIT_D3D_OPCODE_DSSS_FUNC(DP2ADD)
-EMIT_D3D_OPCODE_DS_FUNC(DSX)
-EMIT_D3D_OPCODE_DS_FUNC(DSY)
-EMIT_D3D_OPCODE_DSSSS_FUNC(TEXLDD)
-EMIT_D3D_OPCODE_DSS_FUNC(TEXLDL)
-EMIT_D3D_OPCODE_S_FUNC(BREAKP)
-
-// special cases for comparison opcodes...
-static const char *get_D3D_comparison_string(Context *ctx)
-{
-    static const char *comps[] = {
-        "", "_gt", "_eq", "_ge", "_lt", "_ne", "_le"
-    };
-
-    if (ctx->instruction_controls >= STATICARRAYLEN(comps))
-    {
-        fail(ctx, "unknown comparison control");
-        return "";
-    } // if
-
-    return comps[ctx->instruction_controls];
-} // get_D3D_comparison_string
-
-static void emit_D3D_BREAKC(Context *ctx)
-{
-    char op[16];
-    snprintf(op, sizeof (op), "break%s", get_D3D_comparison_string(ctx));
-    emit_D3D_opcode_ss(ctx, op);
-} // emit_D3D_BREAKC
-
-static void emit_D3D_IFC(Context *ctx)
-{
-    char op[16];
-    snprintf(op, sizeof (op), "if%s", get_D3D_comparison_string(ctx));
-    emit_D3D_opcode_ss(ctx, op);
-} // emit_D3D_IFC
-
-static void emit_D3D_SETP(Context *ctx)
-{
-    char op[16];
-    snprintf(op, sizeof (op), "setp%s", get_D3D_comparison_string(ctx));
-    emit_D3D_opcode_dss(ctx, op);
-} // emit_D3D_SETP
-
-static void emit_D3D_DEF(Context *ctx)
-{
-    char dst[64];
-    make_D3D_destarg_string(ctx, dst, sizeof (dst));
-    const float *val = (const float *) ctx->dwords; // !!! FIXME: could be int?
-    char val0[32];
-    char val1[32];
-    char val2[32];
-    char val3[32];
-    floatstr(ctx, val0, sizeof (val0), val[0], 0);
-    floatstr(ctx, val1, sizeof (val1), val[1], 0);
-    floatstr(ctx, val2, sizeof (val2), val[2], 0);
-    floatstr(ctx, val3, sizeof (val3), val[3], 0);
-    output_line(ctx, "def%s, %s, %s, %s, %s", dst, val0, val1, val2, val3);
-} // emit_D3D_DEF
-
-static void emit_D3D_DEFI(Context *ctx)
-{
-    char dst[64];
-    make_D3D_destarg_string(ctx, dst, sizeof (dst));
-    const int32 *x = (const int32 *) ctx->dwords;
-    output_line(ctx, "defi%s, %d, %d, %d, %d", dst,
-                (int) x[0], (int) x[1], (int) x[2], (int) x[3]);
-} // emit_D3D_DEFI
-
-static void emit_D3D_DEFB(Context *ctx)
-{
-    char dst[64];
-    make_D3D_destarg_string(ctx, dst, sizeof (dst));
-    output_line(ctx, "defb%s, %s", dst, ctx->dwords[0] ? "true" : "false");
-} // emit_D3D_DEFB
-
-
-static void emit_D3D_DCL(Context *ctx)
-{
-    char dst[64];
-    make_D3D_destarg_string(ctx, dst, sizeof (dst));
-    const DestArgInfo *arg = &ctx->dest_arg;
-    const char *usage_str = "";
-    char index_str[16] = { '\0' };
-
-    if (arg->regtype == REG_TYPE_SAMPLER)
-    {
-        switch ((const TextureType) ctx->dwords[0])
-        {
-            case TEXTURE_TYPE_2D: usage_str = "_2d"; break;
-            case TEXTURE_TYPE_CUBE: usage_str = "_cube"; break;
-            case TEXTURE_TYPE_VOLUME: usage_str = "_volume"; break;
-            default: fail(ctx, "unknown sampler texture type"); return;
-        } // switch
-    } // if
-
-    else if (arg->regtype == REG_TYPE_MISCTYPE)
-    {
-        switch ((const MiscTypeType) arg->regnum)
-        {
-            case MISCTYPE_TYPE_POSITION:
-            case MISCTYPE_TYPE_FACE:
-                usage_str = "";  // just become "dcl vFace" or whatever.
-                break;
-            default: fail(ctx, "unknown misc register type"); return;
-        } // switch
-    } // else if
-
-    else
-    {
-        const uint32 usage = ctx->dwords[0];
-        const uint32 index = ctx->dwords[1];
-        usage_str = usagestrs[usage];
-        if (index != 0)
-            snprintf(index_str, sizeof (index_str), "%u", (uint) index);
-    } // else
-
-    output_line(ctx, "dcl%s%s%s", usage_str, index_str, dst);
-} // emit_D3D_DCL
-
-
-static void emit_D3D_TEXCRD(Context *ctx)
-{
-    // this opcode looks and acts differently depending on the shader model.
-    if (shader_version_atleast(ctx, 1, 4))
-        emit_D3D_opcode_ds(ctx, "texcrd");
-    else
-        emit_D3D_opcode_d(ctx, "texcoord");
-} // emit_D3D_TEXCOORD
-
-static void emit_D3D_TEXLD(Context *ctx)
-{
-    // this opcode looks and acts differently depending on the shader model.
-    if (shader_version_atleast(ctx, 2, 0))
-    {
-        if (ctx->instruction_controls == CONTROL_TEXLD)
-           emit_D3D_opcode_dss(ctx, "texld");
-        else if (ctx->instruction_controls == CONTROL_TEXLDP)
-           emit_D3D_opcode_dss(ctx, "texldp");
-        else if (ctx->instruction_controls == CONTROL_TEXLDB)
-           emit_D3D_opcode_dss(ctx, "texldb");
-    } // if
-
-    else if (shader_version_atleast(ctx, 1, 4))
-    {
-        emit_D3D_opcode_ds(ctx, "texld");
-    } // else if
-
-    else
-    {
-        emit_D3D_opcode_d(ctx, "tex");
-    } // else
-} // emit_D3D_TEXLD
-
-static void emit_D3D_SINCOS(Context *ctx)
-{
-    // this opcode needs extra registers for sm2 and lower.
-    if (!shader_version_atleast(ctx, 3, 0))
-        emit_D3D_opcode_dsss(ctx, "sincos");
-    else
-        emit_D3D_opcode_ds(ctx, "sincos");
-} // emit_D3D_SINCOS
-
-
-#undef EMIT_D3D_OPCODE_FUNC
-#undef EMIT_D3D_OPCODE_D_FUNC
-#undef EMIT_D3D_OPCODE_S_FUNC
-#undef EMIT_D3D_OPCODE_SS_FUNC
-#undef EMIT_D3D_OPCODE_DS_FUNC
-#undef EMIT_D3D_OPCODE_DSS_FUNC
-#undef EMIT_D3D_OPCODE_DSSS_FUNC
-#undef EMIT_D3D_OPCODE_DSSSS_FUNC
-
-#endif  // SUPPORT_PROFILE_D3D
-
-
-#if !SUPPORT_PROFILE_BYTECODE
-#define PROFILE_EMITTER_BYTECODE(op)
-#else
-#undef AT_LEAST_ONE_PROFILE
-#define AT_LEAST_ONE_PROFILE 1
-#define PROFILE_EMITTER_BYTECODE(op) emit_BYTECODE_##op,
-
-static void emit_BYTECODE_start(Context *ctx, const char *profilestr)
-{
-    ctx->ignores_ctab = 1;
-} // emit_BYTECODE_start
-
-static void emit_BYTECODE_finalize(Context *ctx)
-{
-    // just copy the whole token stream and make all other emitters no-ops.
-    if (set_output(ctx, &ctx->mainline))
-    {
-        const size_t len = ((size_t) (ctx->tokens - ctx->orig_tokens)) * sizeof (uint32);
-        buffer_append(ctx->mainline, (const char *) ctx->tokens, len);
-    } // if
-} // emit_BYTECODE_finalize
-
-static void emit_BYTECODE_end(Context *ctx) {}
-static void emit_BYTECODE_phase(Context *ctx) {}
-static void emit_BYTECODE_global(Context *ctx, RegisterType t, int n) {}
-static void emit_BYTECODE_array(Context *ctx, VariableList *var) {}
-static void emit_BYTECODE_sampler(Context *c, int s, TextureType t, int tb) {}
-static void emit_BYTECODE_const_array(Context *ctx, const ConstantsList *c,
-                                         int base, int size) {}
-static void emit_BYTECODE_uniform(Context *ctx, RegisterType t, int n,
-                                  const VariableList *var) {}
-static void emit_BYTECODE_attribute(Context *ctx, RegisterType t, int n,
-                                       MOJOSHADER_usage u, int i, int w,
-                                       int f) {}
-
-static const char *get_BYTECODE_varname(Context *ctx, RegisterType rt, int regnum)
-{
-    char regnum_str[16];
-    const char *regtype_str = get_D3D_register_string(ctx, rt, regnum,
-                                              regnum_str, sizeof (regnum_str));
-    char buf[64];
-    snprintf(buf, sizeof (buf), "%s%s", regtype_str, regnum_str);
-    return StrDup(ctx, buf);
-} // get_BYTECODE_varname
-
-static const char *get_BYTECODE_const_array_varname(Context *ctx, int base, int size)
-{
-    char buf[64];
-    snprintf(buf, sizeof (buf), "c_array_%d_%d", base, size);
-    return StrDup(ctx, buf);
-} // get_BYTECODE_const_array_varname
-
-#define EMIT_BYTECODE_OPCODE_FUNC(op) \
-    static void emit_BYTECODE_##op(Context *ctx) {}
-
-EMIT_BYTECODE_OPCODE_FUNC(RESERVED)
-EMIT_BYTECODE_OPCODE_FUNC(NOP)
-EMIT_BYTECODE_OPCODE_FUNC(MOV)
-EMIT_BYTECODE_OPCODE_FUNC(ADD)
-EMIT_BYTECODE_OPCODE_FUNC(SUB)
-EMIT_BYTECODE_OPCODE_FUNC(MAD)
-EMIT_BYTECODE_OPCODE_FUNC(MUL)
-EMIT_BYTECODE_OPCODE_FUNC(RCP)
-EMIT_BYTECODE_OPCODE_FUNC(RSQ)
-EMIT_BYTECODE_OPCODE_FUNC(DP3)
-EMIT_BYTECODE_OPCODE_FUNC(DP4)
-EMIT_BYTECODE_OPCODE_FUNC(MIN)
-EMIT_BYTECODE_OPCODE_FUNC(MAX)
-EMIT_BYTECODE_OPCODE_FUNC(SLT)
-EMIT_BYTECODE_OPCODE_FUNC(SGE)
-EMIT_BYTECODE_OPCODE_FUNC(EXP)
-EMIT_BYTECODE_OPCODE_FUNC(LOG)
-EMIT_BYTECODE_OPCODE_FUNC(LIT)
-EMIT_BYTECODE_OPCODE_FUNC(DST)
-EMIT_BYTECODE_OPCODE_FUNC(LRP)
-EMIT_BYTECODE_OPCODE_FUNC(FRC)
-EMIT_BYTECODE_OPCODE_FUNC(M4X4)
-EMIT_BYTECODE_OPCODE_FUNC(M4X3)
-EMIT_BYTECODE_OPCODE_FUNC(M3X4)
-EMIT_BYTECODE_OPCODE_FUNC(M3X3)
-EMIT_BYTECODE_OPCODE_FUNC(M3X2)
-EMIT_BYTECODE_OPCODE_FUNC(CALL)
-EMIT_BYTECODE_OPCODE_FUNC(CALLNZ)
-EMIT_BYTECODE_OPCODE_FUNC(LOOP)
-EMIT_BYTECODE_OPCODE_FUNC(RET)
-EMIT_BYTECODE_OPCODE_FUNC(ENDLOOP)
-EMIT_BYTECODE_OPCODE_FUNC(LABEL)
-EMIT_BYTECODE_OPCODE_FUNC(POW)
-EMIT_BYTECODE_OPCODE_FUNC(CRS)
-EMIT_BYTECODE_OPCODE_FUNC(SGN)
-EMIT_BYTECODE_OPCODE_FUNC(ABS)
-EMIT_BYTECODE_OPCODE_FUNC(NRM)
-EMIT_BYTECODE_OPCODE_FUNC(SINCOS)
-EMIT_BYTECODE_OPCODE_FUNC(REP)
-EMIT_BYTECODE_OPCODE_FUNC(ENDREP)
-EMIT_BYTECODE_OPCODE_FUNC(IF)
-EMIT_BYTECODE_OPCODE_FUNC(ELSE)
-EMIT_BYTECODE_OPCODE_FUNC(ENDIF)
-EMIT_BYTECODE_OPCODE_FUNC(BREAK)
-EMIT_BYTECODE_OPCODE_FUNC(MOVA)
-EMIT_BYTECODE_OPCODE_FUNC(TEXKILL)
-EMIT_BYTECODE_OPCODE_FUNC(TEXBEM)
-EMIT_BYTECODE_OPCODE_FUNC(TEXBEML)
-EMIT_BYTECODE_OPCODE_FUNC(TEXREG2AR)
-EMIT_BYTECODE_OPCODE_FUNC(TEXREG2GB)
-EMIT_BYTECODE_OPCODE_FUNC(TEXM3X2PAD)
-EMIT_BYTECODE_OPCODE_FUNC(TEXM3X2TEX)
-EMIT_BYTECODE_OPCODE_FUNC(TEXM3X3PAD)
-EMIT_BYTECODE_OPCODE_FUNC(TEXM3X3TEX)
-EMIT_BYTECODE_OPCODE_FUNC(TEXM3X3SPEC)
-EMIT_BYTECODE_OPCODE_FUNC(TEXM3X3VSPEC)
-EMIT_BYTECODE_OPCODE_FUNC(EXPP)
-EMIT_BYTECODE_OPCODE_FUNC(LOGP)
-EMIT_BYTECODE_OPCODE_FUNC(CND)
-EMIT_BYTECODE_OPCODE_FUNC(TEXREG2RGB)
-EMIT_BYTECODE_OPCODE_FUNC(TEXDP3TEX)
-EMIT_BYTECODE_OPCODE_FUNC(TEXM3X2DEPTH)
-EMIT_BYTECODE_OPCODE_FUNC(TEXDP3)
-EMIT_BYTECODE_OPCODE_FUNC(TEXM3X3)
-EMIT_BYTECODE_OPCODE_FUNC(TEXDEPTH)
-EMIT_BYTECODE_OPCODE_FUNC(CMP)
-EMIT_BYTECODE_OPCODE_FUNC(BEM)
-EMIT_BYTECODE_OPCODE_FUNC(DP2ADD)
-EMIT_BYTECODE_OPCODE_FUNC(DSX)
-EMIT_BYTECODE_OPCODE_FUNC(DSY)
-EMIT_BYTECODE_OPCODE_FUNC(TEXLDD)
-EMIT_BYTECODE_OPCODE_FUNC(TEXLDL)
-EMIT_BYTECODE_OPCODE_FUNC(BREAKP)
-EMIT_BYTECODE_OPCODE_FUNC(BREAKC)
-EMIT_BYTECODE_OPCODE_FUNC(IFC)
-EMIT_BYTECODE_OPCODE_FUNC(SETP)
-EMIT_BYTECODE_OPCODE_FUNC(DEF)
-EMIT_BYTECODE_OPCODE_FUNC(DEFI)
-EMIT_BYTECODE_OPCODE_FUNC(DEFB)
-EMIT_BYTECODE_OPCODE_FUNC(DCL)
-EMIT_BYTECODE_OPCODE_FUNC(TEXCRD)
-EMIT_BYTECODE_OPCODE_FUNC(TEXLD)
-
-#undef EMIT_BYTECODE_OPCODE_FUNC
-
-#endif  // SUPPORT_PROFILE_BYTECODE
-
-
-#if !SUPPORT_PROFILE_GLSL
-#define PROFILE_EMITTER_GLSL(op)
-#else
+#if SUPPORT_PROFILE_GLSL
 #undef AT_LEAST_ONE_PROFILE
 #define AT_LEAST_ONE_PROFILE 1
 #define PROFILE_EMITTER_GLSL(op) emit_GLSL_##op,
@@ -1757,8 +765,8 @@ static const char *get_GLSL_varname(Context *ctx, RegisterType rt, int regnum)
 {
     char buf[64];
     get_GLSL_varname_in_buf(ctx, rt, regnum, buf, sizeof (buf));
-    return StrDup(ctx, buf);
-} // get_GLSL_varname
+    return strdup(buf);
+}
 
 
 static inline const char *get_GLSL_const_array_varname_in_buf(Context *ctx,
@@ -1774,12 +782,11 @@ static const char *get_GLSL_const_array_varname(Context *ctx, int base, int size
 {
     char buf[64];
     get_GLSL_const_array_varname_in_buf(ctx, base, size, buf, sizeof (buf));
-    return StrDup(ctx, buf);
+    return strdup(buf);
 } // get_GLSL_const_array_varname
 
 
-static inline const char *get_GLSL_input_array_varname(Context *ctx,
-                                                char *buf, const size_t buflen)
+static inline const char *get_GLSL_input_array_varname(char *buf, const size_t buflen)
 {
     snprintf(buf, buflen, "%s", "vertex_input_array");
     return buf;
@@ -1831,7 +838,7 @@ static const char *make_GLSL_destarg_assign(Context *ctx, char *buf,
     {
         *buf = '\0';
         return buf;  // no writemask? It's a no-op.
-    } // if
+    }
 
     char clampbuf[32] = { '\0' };
     const char *clampleft = "";
@@ -1847,8 +854,8 @@ static const char *make_GLSL_destarg_assign(Context *ctx, char *buf,
             snprintf(clampbuf, sizeof (clampbuf),
                      ", vec%d(0.0), vec%d(1.0))", vecsize, vecsize);
             clampright = clampbuf;
-        } // else
-    } // if
+        }
+    }
 
     // MSDN says MOD_PP is a hint and many implementations ignore it. So do we.
 
@@ -1860,19 +867,19 @@ static const char *make_GLSL_destarg_assign(Context *ctx, char *buf,
         fail(ctx, "predicated destinations unsupported");  // !!! FIXME
         *buf = '\0';
         return buf;
-    } // if
+    }
 
     char operation[256];
     va_list ap;
     va_start(ap, fmt);
-    const int len = vsnprintf(operation, sizeof (operation), fmt, ap);
+    const size_t len = vsnprintf(operation, sizeof (operation), fmt, ap);
     va_end(ap);
     if (len >= sizeof (operation))
     {
         fail(ctx, "operation string too large");  // I'm lazy.  :P
         *buf = '\0';
         return buf;
-    } // if
+    }
 
     const char *result_shift_str = "";
     switch (arg->result_shift)
@@ -1883,7 +890,7 @@ static const char *make_GLSL_destarg_assign(Context *ctx, char *buf,
         case 0xD: result_shift_str = " / 8.0"; break;
         case 0xE: result_shift_str = " / 4.0"; break;
         case 0xF: result_shift_str = " / 2.0"; break;
-    } // switch
+    }
     need_parens |= (result_shift_str[0] != '\0');
 
     char regnum_str[16];
@@ -1900,7 +907,7 @@ static const char *make_GLSL_destarg_assign(Context *ctx, char *buf,
         if (arg->writemask1) writemask_str[i++] = 'y';
         if (arg->writemask2) writemask_str[i++] = 'z';
         if (arg->writemask3) writemask_str[i++] = 'w';
-    } // if
+    }
     writemask_str[i] = '\0';
     assert(i < sizeof (writemask_str));
 
@@ -1913,11 +920,10 @@ static const char *make_GLSL_destarg_assign(Context *ctx, char *buf,
              clampright);
     // !!! FIXME: make sure the scratch buffer was large enough.
     return buf;
-} // make_GLSL_destarg_assign
+}
 
 
-static char *make_GLSL_swizzle_string(char *swiz_str, const size_t strsize,
-                                      const int swizzle, const int writemask)
+static char *make_GLSL_swizzle_string(char *swiz_str, const int swizzle, const int writemask)
 {
     size_t i = 0;
     if ( (!no_swizzle(swizzle)) || (!writemask_xyzw(writemask)) )
@@ -1937,11 +943,10 @@ static char *make_GLSL_swizzle_string(char *swiz_str, const size_t strsize,
         if (writemask1) swiz_str[i++] = swizzle_channels[swizzle_y];
         if (writemask2) swiz_str[i++] = swizzle_channels[swizzle_z];
         if (writemask3) swiz_str[i++] = swizzle_channels[swizzle_w];
-    } // if
-    assert(i < strsize);
+    }
     swiz_str[i] = '\0';
     return swiz_str;
-} // make_GLSL_swizzle_string
+}
 
 
 static const char *make_GLSL_srcarg_string(Context *ctx, const size_t idx,
@@ -1950,11 +955,11 @@ static const char *make_GLSL_srcarg_string(Context *ctx, const size_t idx,
 {
     *buf = '\0';
 
-    if (idx >= STATICARRAYLEN(ctx->source_args))
+    if(idx >= STATICARRAYLEN(ctx->source_args))
     {
         fail(ctx, "Too many source args");
         return buf;
-    } // if
+    }
 
     const SourceArgInfo *arg = &ctx->source_args[idx];
 
@@ -2027,16 +1032,15 @@ static const char *make_GLSL_srcarg_string(Context *ctx, const size_t idx,
 
         case SRCMOD_NONE:
         case SRCMOD_TOTAL:
-             break;  // stop compiler whining.
-    } // switch
+             break;
+    }
 
     const char *regtype_str = NULL;
-
     if (!arg->relative)
     {
         regtype_str = get_GLSL_varname_in_buf(ctx, arg->regtype, arg->regnum,
                                               (char *) alloca(64), 64);
-    } // if
+    }
 
     const char *rel_lbracket = "";
     char rel_offset[32] = { '\0' };
@@ -2046,37 +1050,53 @@ static const char *make_GLSL_srcarg_string(Context *ctx, const size_t idx,
     if (arg->relative)
     {
         if (arg->regtype == REG_TYPE_INPUT)
-            regtype_str=get_GLSL_input_array_varname(ctx,(char*)alloca(64),64);
+            regtype_str = get_GLSL_input_array_varname((char*)alloca(64), 64);
         else
         {
             assert(arg->regtype == REG_TYPE_CONST);
-            const int arrayidx = arg->relative_array->index;
-            const int offset = arg->regnum - arrayidx;
-            assert(offset >= 0);
-            if (arg->relative_array->constant)
+            if(!arg->relative_array)
             {
-                const int arraysize = arg->relative_array->count;
-                regtype_str = get_GLSL_const_array_varname_in_buf(ctx,
-                                arrayidx, arraysize, (char *) alloca(64), 64);
-                if (offset != 0)
-                    snprintf(rel_offset, sizeof (rel_offset), "%d + ", offset);
-            } // if
+                const int offset = arg->regnum;
+                assert(offset >= 0);
+
+                regtype_str = get_GLSL_uniform_array_varname(ctx,
+                    arg->regtype, (char*)alloca(64), 64
+                );
+                if(offset == 0)
+                    rel_offset[0] = '\0';
+                else
+                    snprintf(rel_offset, sizeof(rel_offset), "%d + ", offset);
+            }
             else
             {
-                regtype_str = get_GLSL_uniform_array_varname(ctx, arg->regtype,
-                                                      (char *) alloca(64), 64);
-                if (offset == 0)
+                const int arrayidx = arg->relative_array->index;
+                const int offset = arg->regnum - arrayidx;
+                assert(offset >= 0);
+                if (arg->relative_array->constant)
                 {
-                    snprintf(rel_offset, sizeof (rel_offset),
-                             "ARRAYBASE_%d + ", arrayidx);
-                } // if
+                    const int arraysize = arg->relative_array->count;
+                    regtype_str = get_GLSL_const_array_varname_in_buf(ctx,
+                                    arrayidx, arraysize, (char *) alloca(64), 64);
+                    if (offset != 0)
+                        snprintf(rel_offset, sizeof (rel_offset), "%d + ", offset);
+                }
                 else
                 {
-                    snprintf(rel_offset, sizeof (rel_offset),
-                             "(ARRAYBASE_%d + %d) + ", arrayidx, offset);
-                } // else
-            } // else
-        } // else
+                    regtype_str = get_GLSL_uniform_array_varname(ctx, arg->regtype,
+                                                        (char *) alloca(64), 64);
+                    if (offset == 0)
+                    {
+                        snprintf(rel_offset, sizeof (rel_offset),
+                                 "ARRAYBASE_%d + ", arrayidx);
+                    }
+                    else
+                    {
+                        snprintf(rel_offset, sizeof (rel_offset),
+                                 "(ARRAYBASE_%d + %d) + ", arrayidx, offset);
+                    }
+                }
+            }
+        }
 
         rel_lbracket = "[";
 
@@ -2087,20 +1107,17 @@ static const char *make_GLSL_srcarg_string(Context *ctx, const size_t idx,
         rel_swizzle[1] = swizzle_channels[arg->relative_component];
         rel_swizzle[2] = '\0';
         rel_rbracket = "]";
-    } // if
+    }
 
     char swiz_str[6] = { '\0' };
     if (!isscalar(ctx, ctx->shader_type, arg->regtype, arg->regnum))
-    {
-        make_GLSL_swizzle_string(swiz_str, sizeof (swiz_str),
-                                 arg->swizzle, writemask);
-    } // if
+        make_GLSL_swizzle_string(swiz_str, arg->swizzle, writemask);
 
     if (regtype_str == NULL)
     {
         fail(ctx, "Unknown source register type.");
         return buf;
-    } // if
+    }
 
     snprintf(buf, buflen, "%s%s%s%s%s%s%s%s%s",
              premod_str, regtype_str, rel_lbracket, rel_offset,
@@ -2108,7 +1125,7 @@ static const char *make_GLSL_srcarg_string(Context *ctx, const size_t idx,
              postmod_str);
     // !!! FIXME: make sure the scratch buffer was large enough.
     return buf;
-} // make_GLSL_srcarg_string
+}
 
 // generate some convenience functions.
 #define MAKE_GLSL_SRCARG_STRING_(mask, bitmask) \
@@ -2180,42 +1197,28 @@ static void emit_GLSL_start(Context *ctx, const char *profilestr)
         failf(ctx, "Shader type %u unsupported in this profile.",
               (uint) ctx->shader_type);
         return;
-    } // if
+    }
 
-    else if (strcmp(profilestr, MOJOSHADER_PROFILE_GLSL) == 0)
-    {
-        // No gl_FragData[] before GLSL 1.10, so we have to force the version.
-        push_output(ctx, &ctx->preflight);
-        output_line(ctx, "#version 110");
-        pop_output(ctx);
-    } // else if
-
-    #if SUPPORT_PROFILE_GLSL120
-    else if (strcmp(profilestr, MOJOSHADER_PROFILE_GLSL120) == 0)
-    {
-        ctx->profile_supports_glsl120 = 1;
-        push_output(ctx, &ctx->preflight);
-        output_line(ctx, "#version 120");
-        pop_output(ctx);
-    } // else if
-    #endif
-
-    else
+    if (strcmp(profilestr, MOJOSHADER_PROFILE_GLSL120) != 0)
     {
         failf(ctx, "Profile '%s' unsupported or unknown.", profilestr);
         return;
-    } // else
+    }
 
     push_output(ctx, &ctx->preflight);
     // Require UBOs to attach the D3D constants' uniform arrays, and set a projection matrix fixup
+    output_line(ctx, "#version 120");
     output_line(ctx, "#extension GL_ARB_uniform_buffer_object : enable");
+    pop_output(ctx);
+
     if (shader_is_vertex(ctx))
     {
         // NOTE: TMP_OUT to replace gl_Position, and PROJ_FIXUP to fix D3D/GL projection differences
-        output_line(ctx, "vec4 TMP_OUT;");
+        push_output(ctx, &ctx->globals);
         output_line(ctx, "layout(std140) uniform proj_fixup { mat4 PROJ_FIXUP; };");
+        output_line(ctx, "vec4 TMP_OUT;");
+        pop_output(ctx);
     }
-    pop_output(ctx);
 
     push_output(ctx, &ctx->mainline_intro);
     output_line(ctx, "void main()");
@@ -2241,7 +1244,6 @@ static void emit_GLSL_end(Context *ctx)
     else if(shader_is_vertex(ctx))
     {
         // NOTE: Write the real vertex position output now
-        const char *shstr = ctx->shader_type_str;
         output_line(ctx, "gl_Position = PROJ_FIXUP * TMP_OUT;");
     }
     // force a RET opcode if we're at the end of the stream without one.
@@ -2252,6 +1254,7 @@ static void emit_GLSL_end(Context *ctx)
 static void emit_GLSL_phase(Context *ctx)
 {
     // no-op in GLSL.
+    (void)ctx;
 } // emit_GLSL_phase
 
 static void output_GLSL_uniform_array(Context *ctx, const RegisterType regtype,
@@ -2276,7 +1279,7 @@ static void output_GLSL_uniform_array(Context *ctx, const RegisterType regtype,
                     pre = "layout(std140) uniform ps_vec4b {\n";
                     post = "\n};"; break;
                 default: fail(ctx, "BUG: used a uniform we don't know how to define.");
-            } // switch
+            }
         }
         else if(shader_is_vertex(ctx))
         {
@@ -2292,10 +1295,10 @@ static void output_GLSL_uniform_array(Context *ctx, const RegisterType regtype,
                     pre = "layout(std140) uniform vs_vec4b {\n";
                     post = "\n};"; break;
                 default: fail(ctx, "BUG: used a uniform we don't know how to define.");
-            } // switch
+            }
         }
         output_line(ctx, "%suniform vec4 %s[%d];%s", pre, buf, size, post);
-    } // if
+    }
 } // output_GLSL_uniform_array
 
 static void emit_GLSL_finalize(Context *ctx)
@@ -2346,8 +1349,8 @@ static void emit_GLSL_global(Context *ctx, RegisterType regtype, int regnum)
                         output_line(ctx, "vec4 %s = TexCoord[%d];",
                                     varname, regnum-8);
                     }
-                } // if
-            } // else if
+                }
+            }
             break;
         case REG_TYPE_PREDICATE:
             output_line(ctx, "bvec4 %s;", varname);
@@ -2362,7 +1365,7 @@ static void emit_GLSL_global(Context *ctx, RegisterType regtype, int regnum)
         default:
             fail(ctx, "BUG: we used a register we don't know how to define.");
             break;
-    } // switch
+    }
     pop_output(ctx);
 } // emit_GLSL_global
 
@@ -2386,15 +1389,13 @@ static void emit_GLSL_const_array(Context *ctx, const ConstantsList *clist,
                                   int base, int size)
 {
     char varname[64];
-    get_GLSL_const_array_varname_in_buf(ctx,base,size,varname,sizeof(varname));
+    get_GLSL_const_array_varname_in_buf(ctx, base, size, varname, sizeof(varname));
 
-#if 0
     // !!! FIXME: fails on Nvidia's and Apple's GL, even with #version 120.
     // !!! FIXME:  (the 1.20 spec says it should work, though, I think...)
-    if (support_glsl120(ctx))
+    if(0)
     {
         // GLSL 1.20 can do constant arrays.
-        const char *cstr = NULL;
         push_output(ctx, &ctx->globals);
         output_line(ctx, "const vec4 %s[%d] = vec4[%d](", varname, size, size);
         ctx->indent++;
@@ -2419,32 +1420,25 @@ static void emit_GLSL_const_array(Context *ctx, const ConstantsList *clist,
                         (i < (size-1)) ? "," : "");
 
             clist = clist->next;
-        } // for
+        }
 
         ctx->indent--;
         output_line(ctx, ");");
         pop_output(ctx);
-    } // if
-
+    }
     else
-#endif
     {
         // stock GLSL 1.0 can't do constant arrays, so make a uniform array
         //  and have the OpenGL glue assign it at link time. Lame!
         push_output(ctx, &ctx->globals);
         output_line(ctx, "uniform vec4 %s[%d];", varname, size);
         pop_output(ctx);
-    } // else
-} // emit_GLSL_const_array
+    }
+}
 
 static void emit_GLSL_uniform(Context *ctx, RegisterType regtype, int regnum,
                               const VariableList *var)
 {
-    // Now that we're pushing all the uniforms as one big array, pack these
-    //  down, so if we only use register c439, it'll actually map to
-    //  glsl_uniforms_vec4[0]. As we push one big array, this will prevent
-    //  uploading unused data.
-
     char varname[64];
     char name[64];
     int index = 0;
@@ -2452,44 +1446,30 @@ static void emit_GLSL_uniform(Context *ctx, RegisterType regtype, int regnum,
     get_GLSL_varname_in_buf(ctx, regtype, regnum, varname, sizeof (varname));
 
     push_output(ctx, &ctx->globals);
-
     if (var == NULL)
     {
         get_GLSL_uniform_array_varname(ctx, regtype, name, sizeof (name));
-
-        if (regtype == REG_TYPE_CONST)
-            index = ctx->uniform_float4_count;
-        else if (regtype == REG_TYPE_CONSTINT)
-            index = ctx->uniform_int4_count;
-        else if (regtype == REG_TYPE_CONSTBOOL)
-            index = ctx->uniform_bool_count;
-        else  // get_GLSL_uniform_array_varname() would have called fail().
-            assert(isfail(ctx));
-
-        output_line(ctx, "#define %s %s[%d]", varname, name, index);
-    } // if
-
+        index = regnum;
+    }
     else
     {
         const int arraybase = var->index;
-        if (var->constant)
+        if(var->constant)
         {
             get_GLSL_const_array_varname_in_buf(ctx, arraybase, var->count,
                                                 name, sizeof (name));
             index = (regnum - arraybase);
-        } // if
+        }
         else
         {
             assert(var->emit_position != -1);
             get_GLSL_uniform_array_varname(ctx, regtype, name, sizeof (name));
             index = (regnum - arraybase) + var->emit_position;
-        } // else
-
-        output_line(ctx, "#define %s %s[%d]", varname, name, index);
-    } // else
-
+        }
+    }
+    output_line(ctx, "#define %s %s[%d]", varname, name, index);
     pop_output(ctx);
-} // emit_GLSL_uniform
+}
 
 static void emit_GLSL_sampler(Context *ctx,int stage,TextureType ttype,int tb)
 {
@@ -2529,8 +1509,9 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
     const char *arrayright = "";
     char index_str[16] = { '\0' };
     char var[64];
+    (void)wmask;
 
-    get_GLSL_varname_in_buf(ctx, regtype, regnum, var, sizeof (var));
+    get_GLSL_varname_in_buf(ctx, regtype, regnum, var, sizeof(var));
 
     //assert((flags & MOD_PP) == 0);  // !!! FIXME: is PP allowed?
 
@@ -2559,23 +1540,21 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                     case RASTOUT_TYPE_POINT_SIZE:
                         usage = MOJOSHADER_USAGE_POINTSIZE;
                         break;
-                } // switch
-            } // if
-
+                }
+            }
             else if (regtype == REG_TYPE_ATTROUT)
             {
                 regtype = REG_TYPE_OUTPUT;
                 usage = MOJOSHADER_USAGE_COLOR;
                 index = regnum;
-            } // else if
-
+            }
             else if (regtype == REG_TYPE_TEXCRDOUT)
             {
                 regtype = REG_TYPE_OUTPUT;
                 usage = MOJOSHADER_USAGE_TEXCOORD;
                 index = regnum;
-            } // else if
-        } // if
+            }
+        }
 
         // to avoid limitations of various GL entry points for input
         // attributes (glSecondaryColorPointer() can only take 3 component
@@ -2591,8 +1570,7 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
             push_output(ctx, &ctx->globals);
             output_line(ctx, "attribute vec4 %s;", var);
             pop_output(ctx);
-        } // if
-
+        }
         else if (regtype == REG_TYPE_OUTPUT)
         {
             switch (usage)
@@ -2605,9 +1583,9 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                     break;
                 case MOJOSHADER_USAGE_COLOR:
                     index_str[0] = '\0';  // no explicit number.
-                    if (index == 0)
+                    if(index == 0)
                         usage_str = "gl_FrontColor";
-                    else if (index == 1)
+                    else if(index == 1)
                         usage_str = "gl_FrontSecondaryColor";
                     break;
                 case MOJOSHADER_USAGE_FOG:
@@ -2631,7 +1609,7 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                 default:
                     // !!! FIXME: we need to deal with some more built-in varyings here.
                     break;
-            } // switch
+            }
 
             // !!! FIXME: the #define is a little hacky, but it means we don't
             // !!! FIXME:  have to track these separately if this works.
@@ -2643,16 +1621,14 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
             {
                 output_line(ctx, "#define %s %s%s%s%s", var, usage_str,
                             arrayleft, index_str, arrayright);
-            } // else
+            }
             pop_output(ctx);
-        } // else if
-
+        }
         else
         {
             fail(ctx, "unknown vertex shader attribute register");
-        } // else
-    } // if
-
+        }
+    }
     else if (shader_is_pixel(ctx))
     {
         // samplers DCLs get handled in emit_GLSL_sampler().
@@ -2661,7 +1637,7 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
         {
             failf(ctx, "centroid unsupported in %s profile", ctx->profile->name);
             return;
-        } // if
+        }
 
         if (regtype == REG_TYPE_COLOROUT)
         {
@@ -2673,15 +1649,13 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                 usage_str = "gl_FragData";
                 arrayleft = "[";
                 arrayright = "]";
-            } // else
-        } // if
-
+            }
+        }
         else if (regtype == REG_TYPE_DEPTHOUT)
             usage_str = "gl_FragDepth";
-
-        // !!! FIXME: can you actualy have a texture register with COLOR usage?
-        else if ((regtype == REG_TYPE_TEXTURE) || (regtype == REG_TYPE_INPUT))
+        else if(regtype == REG_TYPE_TEXTURE || regtype == REG_TYPE_INPUT)
         {
+            // !!! FIXME: can you actualy have a texture register with COLOR usage?
             if (usage == MOJOSHADER_USAGE_TEXCOORD)
             {
                 // ps_1_1 does a different hack for this attribute.
@@ -2701,21 +1675,19 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                     }
                     arrayleft = "[";
                     arrayright = "]";
-                } // if
-            } // if
-
+                }
+            }
             else if (usage == MOJOSHADER_USAGE_COLOR)
             {
                 index_str[0] = '\0';  // no explicit number.
-                if (index == 0)
+                if(index == 0)
                     usage_str = "gl_Color";
-                else if (index == 1)
+                else if(index == 1)
                     usage_str = "gl_SecondaryColor";
                 else
                     fail(ctx, "unsupported color index");
-            } // else if
-        } // else if
-
+            }
+        }
         else if (regtype == REG_TYPE_MISCTYPE)
         {
             const MiscTypeType mt = (MiscTypeType) regnum;
@@ -2724,22 +1696,21 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                 push_output(ctx, &ctx->globals);
                 output_line(ctx, "float %s = gl_FrontFacing ? 1.0 : -1.0;", var);
                 pop_output(ctx);
-            } // if
+            }
             else if (mt == MISCTYPE_TYPE_POSITION)
             {
                 index_str[0] = '\0';  // no explicit number.
                 usage_str = "gl_FragCoord";  // !!! FIXME: is this the same coord space as D3D?
-            } // else if
+            }
             else
             {
                 fail(ctx, "BUG: unhandled misc register");
-            } // else
-        } // else if
-
+            }
+        }
         else
         {
             fail(ctx, "unknown pixel shader attribute register");
-        } // else
+        }
 
         if (usage_str != NULL)
         {
@@ -2747,18 +1718,18 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
             output_line(ctx, "#define %s %s%s%s%s", var, usage_str,
                         arrayleft, index_str, arrayright);
             pop_output(ctx);
-        } // if
-    } // else if
-
+        }
+    }
     else
     {
         fail(ctx, "Unknown shader type");  // state machine should catch this.
-    } // else
-} // emit_GLSL_attribute
+    }
+}
 
 static void emit_GLSL_NOP(Context *ctx)
 {
     // no-op is a no-op.  :)
+    (void)ctx;
 } // emit_GLSL_NOP
 
 static void emit_GLSL_MOV(Context *ctx)
@@ -2887,7 +1858,7 @@ static void emit_GLSL_SLT(Context *ctx)
         make_GLSL_destarg_assign(ctx, code, sizeof (code),
                                  "vec%d(lessThan(%s, %s))",
                                  vecsize, src0, src1);
-    } // else
+    }
     output_line(ctx, "%s", code);
 } // emit_GLSL_SLT
 
@@ -2903,13 +1874,13 @@ static void emit_GLSL_SGE(Context *ctx)
     {
         make_GLSL_destarg_assign(ctx, code, sizeof (code),
                                  "float(%s >= %s)", src0, src1);
-    } // if
+    }
     else
     {
         make_GLSL_destarg_assign(ctx, code, sizeof (code),
                                  "vec%d(greaterThanEqual(%s, %s))",
                                  vecsize, src0, src1);
-    } // else
+    }
     output_line(ctx, "%s", code);
 } // emit_GLSL_SGE
 
@@ -3146,6 +2117,7 @@ static void emit_GLSL_LABEL(Context *ctx)
 static void emit_GLSL_DCL(Context *ctx)
 {
     // no-op. We do this in our emit_attribute() and emit_uniform().
+    (void)ctx;
 } // emit_GLSL_DCL
 
 static void emit_GLSL_POW(Context *ctx)
@@ -3370,16 +2342,15 @@ static void glsl_texld(Context *ctx, const int texldd)
         else
         {
             fail(ctx, "unexpected texture type");
-        } // else
+        }
         output_line(ctx, "%s", code);
-    } // if
-
+    }
     else if (!shader_version_atleast(ctx, 2, 0))
     {
         // ps_1_4 is different, too!
         fail(ctx, "TEXLD == Shader Model 1.4 unimplemented.");  // !!! FIXME
         return;
-    } // else if
+    }
 
     else
     {
@@ -3396,13 +2367,13 @@ static void glsl_texld(Context *ctx, const int texldd)
         {
             fail(ctx, "TEXLD using undeclared sampler");
             return;
-        } // if
+        }
 
         if (texldd)
         {
             make_GLSL_srcarg_string_vec2(ctx, 2, src2, sizeof (src2));
             make_GLSL_srcarg_string_vec2(ctx, 3, src3, sizeof (src3));
-        } // if
+        }
 
         // !!! FIXME: can TEXLDD set instruction_controls?
         // !!! FIXME: does the d3d bias value map directly to GLSL?
@@ -3412,7 +2383,7 @@ static void glsl_texld(Context *ctx, const int texldd)
         {
             biassep = ", ";
             make_GLSL_srcarg_string_w(ctx, 0, bias, sizeof (bias));
-        } // if
+        }
 
         switch ((const TextureType) sreg->index)
         {
@@ -3421,12 +2392,12 @@ static void glsl_texld(Context *ctx, const int texldd)
                 {
                     funcname = "texture2DProj";
                     make_GLSL_srcarg_string_full(ctx, 0, src0, sizeof (src0));
-                } // if
+                }
                 else  // texld/texldb
                 {
                     funcname = "texture2D";
                     make_GLSL_srcarg_string_vec2(ctx, 0, src0, sizeof (src0));
-                } // else
+                }
                 break;
             case TEXTURE_TYPE_CUBE:
                 if (ctx->instruction_controls == CONTROL_TEXLDP)
@@ -3439,22 +2410,21 @@ static void glsl_texld(Context *ctx, const int texldd)
                 {
                     funcname = "texture3DProj";
                     make_GLSL_srcarg_string_full(ctx, 0, src0, sizeof (src0));
-                } // if
+                }
                 else  // texld/texldb
                 {
                     funcname = "texture3D";
                     make_GLSL_srcarg_string_vec3(ctx, 0, src0, sizeof (src0));
-                } // else
+                }
                 break;
             default:
                 fail(ctx, "unknown texture type");
                 return;
-        } // switch
+        }
 
         assert(!isscalar(ctx, ctx->shader_type, samp_arg->regtype, samp_arg->regnum));
         char swiz_str[6] = { '\0' };
-        make_GLSL_swizzle_string(swiz_str, sizeof (swiz_str),
-                                 samp_arg->swizzle, ctx->dest_arg.writemask);
+        make_GLSL_swizzle_string(swiz_str, samp_arg->swizzle, ctx->dest_arg.writemask);
 
         char code[128];
         if (texldd)
@@ -3462,7 +2432,7 @@ static void glsl_texld(Context *ctx, const int texldd)
             make_GLSL_destarg_assign(ctx, code, sizeof (code),
                                      "%sGrad(%s, %s, %s, %s)%s", funcname,
                                      src1, src0, src2, src3, swiz_str);
-        } // if
+        }
         else
         {
             make_GLSL_destarg_assign(ctx, code, sizeof (code),
@@ -3534,6 +2504,7 @@ EMIT_GLSL_OPCODE_UNIMPLEMENTED_FUNC(TEXREG2GB) // !!! FIXME
 static void emit_GLSL_TEXM3X2PAD(Context *ctx)
 {
     // no-op ... work happens in emit_GLSL_TEXM3X2TEX().
+    (void)ctx;
 } // emit_GLSL_TEXM3X2PAD
 
 static void emit_GLSL_TEXM3X2TEX(Context *ctx)
@@ -3570,6 +2541,7 @@ static void emit_GLSL_TEXM3X2TEX(Context *ctx)
 static void emit_GLSL_TEXM3X3PAD(Context *ctx)
 {
     // no-op ... work happens in emit_GLSL_TEXM3X3*().
+    (void)ctx;
 } // emit_GLSL_TEXM3X3PAD
 
 static void emit_GLSL_TEXM3X3TEX(Context *ctx)
@@ -3774,20 +2746,20 @@ static void emit_GLSL_comparison_operations(Context *ctx, const char *cmp)
     {
         int mask = (1 << i);
 
-        if (!writemask[i]) continue;
-        if (used_swiz[i]) continue;
+        if(!writemask[i]) continue;
+        if(used_swiz[i]) continue;
 
         // This is a swizzle we haven't checked yet.
         used_swiz[i] = 1;
 
         // see if there are any other elements swizzled to match (.yyyy)
-        for (j = i + 1; j < 4; j++)
+        for(j = i + 1; j < 4; j++)
         {
             if (!writemask[j]) continue;
             if (src0swiz[i] != src0swiz[j]) continue;
             mask |= (1 << j);
             used_swiz[j] = 1;
-        } // for
+        }
 
         // okay, (mask) should be the writemask of swizzles we like.
 
@@ -3807,7 +2779,7 @@ static void emit_GLSL_comparison_operations(Context *ctx, const char *cmp)
                                  "((%s %s) ? %s : %s)",
                                  src0, cmp, src1, src2);
         output_line(ctx, "%s", code);
-    } // for
+    }
 
     set_dstarg_writemask(dst, origmask);
 } // emit_GLSL_comparison_operations
@@ -3930,7 +2902,7 @@ static void emit_GLSL_TEXLDD(Context *ctx)
         output_line(ctx, "#endif");
         output_blank_line(ctx);
         pop_output(ctx);
-    } // if
+    }
 
     glsl_texld(ctx, 1);
 } // emit_GLSL_TEXLDD
@@ -3943,18 +2915,18 @@ static void emit_GLSL_SETP(Context *ctx)
     char code[128];
 
     // destination is always predicate register (which is type bvec4).
-    if (vecsize == 1)
+    if(vecsize == 1)
     {
         const char *comp = get_GLSL_comparison_string_scalar(ctx);
         make_GLSL_destarg_assign(ctx, code, sizeof (code),
                                  "(%s %s %s)", src0, comp, src1);
-    } // if
+    }
     else
     {
         const char *comp = get_GLSL_comparison_string_vector(ctx);
         make_GLSL_destarg_assign(ctx, code, sizeof (code),
                                  "%s(%s, %s)", comp, src0, src1);
-    } // else
+    }
 
     output_line(ctx, "%s", code);
 } // emit_GLSL_SETP
@@ -3977,2230 +2949,10 @@ static void emit_GLSL_BREAKP(Context *ctx)
 static void emit_GLSL_RESERVED(Context *ctx)
 {
     // do nothing; fails in the state machine.
+    (void)ctx;
 } // emit_GLSL_RESERVED
 
 #endif  // SUPPORT_PROFILE_GLSL
-
-
-
-#if !SUPPORT_PROFILE_ARB1
-#define PROFILE_EMITTER_ARB1(op)
-#else
-#undef AT_LEAST_ONE_PROFILE
-#define AT_LEAST_ONE_PROFILE 1
-#define PROFILE_EMITTER_ARB1(op) emit_ARB1_##op,
-
-static inline const char *get_ARB1_register_string(Context *ctx,
-                        const RegisterType regtype, const int regnum,
-                        char *regnum_str, const size_t regnum_size)
-{
-    // turns out these are identical at the moment.
-    return get_D3D_register_string(ctx,regtype,regnum,regnum_str,regnum_size);
-} // get_ARB1_register_string
-
-static const char *allocate_ARB1_scratch_reg_name(Context *ctx, char *buf,
-                                                  const size_t buflen)
-{
-    const int scratch = allocate_scratch_register(ctx);
-    snprintf(buf, buflen, "scratch%d", scratch);
-    return buf;
-} // allocate_ARB1_scratch_reg_name
-
-static inline const char *get_ARB1_branch_label_name(Context *ctx, const int id,
-                                                char *buf, const size_t buflen)
-{
-    snprintf(buf, buflen, "branch_label%d", id);
-    return buf;
-} // get_ARB1_branch_label_name
-
-static const char *get_ARB1_varname_in_buf(Context *ctx, const RegisterType rt,
-                                           const int regnum, char *buf,
-                                           const size_t buflen)
-{
-    // turns out these are identical at the moment.
-    return get_D3D_varname_in_buf(ctx, rt, regnum, buf, buflen);
-} // get_ARB1_varname_in_buf
-
-static const char *get_ARB1_varname(Context *ctx, const RegisterType rt,
-                                    const int regnum)
-{
-    // turns out these are identical at the moment.
-    return get_D3D_varname(ctx, rt, regnum);
-} // get_ARB1_varname
-
-
-static inline const char *get_ARB1_const_array_varname_in_buf(Context *ctx,
-                                                const int base, const int size,
-                                                char *buf, const size_t buflen)
-{
-    snprintf(buf, buflen, "c_array_%d_%d", base, size);
-    return buf;
-} // get_ARB1_const_array_varname_in_buf
-
-
-static const char *get_ARB1_const_array_varname(Context *ctx, int base, int size)
-{
-    char buf[64];
-    get_ARB1_const_array_varname_in_buf(ctx, base, size, buf, sizeof (buf));
-    return StrDup(ctx, buf);
-} // get_ARB1_const_array_varname
-
-
-static const char *make_ARB1_srcarg_string_in_buf(Context *ctx,
-                                                  const SourceArgInfo *arg,
-                                                  char *buf, size_t buflen)
-{
-    // !!! FIXME: this can hit pathological cases where we look like this...
-    //
-    //    dp3 r1.xyz, t0_bx2, t0_bx2
-    //    mad r1.xyz, t0_bias, 1-r1, t0_bx2
-    //
-    // ...which do a lot of duplicate work in arb1...
-    //
-    //    SUB scratch0, t0, { 0.5, 0.5, 0.5, 0.5 };
-    //    MUL scratch0, scratch0, { 2.0, 2.0, 2.0, 2.0 };
-    //    SUB scratch1, t0, { 0.5, 0.5, 0.5, 0.5 };
-    //    MUL scratch1, scratch1, { 2.0, 2.0, 2.0, 2.0 };
-    //    DP3 r1.xyz, scratch0, scratch1;
-    //    SUB scratch0, t0, { 0.5, 0.5, 0.5, 0.5 };
-    //    SUB scratch1, { 1.0, 1.0, 1.0, 1.0 }, r1;
-    //    SUB scratch2, t0, { 0.5, 0.5, 0.5, 0.5 };
-    //    MUL scratch2, scratch2, { 2.0, 2.0, 2.0, 2.0 };
-    //    MAD r1.xyz, scratch0, scratch1, scratch2;
-    //
-    // ...notice that the dp3 calculates the same value into two scratch
-    //  registers. This case is easier to handle; just see if multiple
-    //  source args are identical, build it up once, and use the same
-    //  scratch register for multiple arguments in that opcode.
-    //  Even better still, only calculate things once across instructions,
-    //  and be smart about letting it linger in a scratch register until we
-    //  definitely don't need the calculation anymore. That's harder to
-    //  write, though.
-
-    char regnum_str[16] = { '\0' };
-
-    // !!! FIXME: use get_ARB1_varname_in_buf() instead?
-    const char *regtype_str = NULL;
-    if (!arg->relative)
-    {
-        regtype_str = get_ARB1_register_string(ctx, arg->regtype,
-                                               arg->regnum, regnum_str,
-                                               sizeof (regnum_str));
-    } // if
-
-    const char *rel_lbracket = "";
-    char rel_offset[32] = { '\0' };
-    const char *rel_rbracket = "";
-    char rel_swizzle[4] = { '\0' };
-    const char *rel_regtype_str = "";
-    if (arg->relative)
-    {
-        rel_regtype_str = get_ARB1_varname_in_buf(ctx, arg->relative_regtype,
-                                                  arg->relative_regnum,
-                                                  (char *) alloca(64), 64);
-
-        rel_swizzle[0] = '.';
-        rel_swizzle[1] = swizzle_channels[arg->relative_component];
-        rel_swizzle[2] = '\0';
-
-        if (!support_nv2(ctx))
-        {
-            // The address register in ARB1 only allows the '.x' component, so
-            //  we need to load the component we need from a temp vector
-            //  register into .x as needed.
-            assert(arg->relative_regtype == REG_TYPE_ADDRESS);
-            assert(arg->relative_regnum == 0);
-            if (ctx->last_address_reg_component != arg->relative_component)
-            {
-                output_line(ctx, "ARL %s.x, addr%d.%c;", rel_regtype_str,
-                            arg->relative_regnum,
-                            swizzle_channels[arg->relative_component]);
-                ctx->last_address_reg_component = arg->relative_component;
-            } // if
-
-            rel_swizzle[1] = 'x';
-        } // if
-
-        if (arg->regtype == REG_TYPE_INPUT)
-            regtype_str = "vertex.attrib";
-        else
-        {
-            assert(arg->regtype == REG_TYPE_CONST);
-            const int arrayidx = arg->relative_array->index;
-            const int arraysize = arg->relative_array->count;
-            const int offset = arg->regnum - arrayidx;
-            assert(offset >= 0);
-            regtype_str = get_ARB1_const_array_varname_in_buf(ctx, arrayidx,
-                                           arraysize, (char *) alloca(64), 64);
-            if (offset != 0)
-                snprintf(rel_offset, sizeof (rel_offset), " + %d", offset);
-        } // else
-
-        rel_lbracket = "[";
-        rel_rbracket = "]";
-    } // if
-
-    // This is the source register with everything but swizzle and source mods.
-    snprintf(buf, buflen, "%s%s%s%s%s%s%s", regtype_str, regnum_str,
-             rel_lbracket, rel_regtype_str, rel_swizzle, rel_offset,
-             rel_rbracket);
-
-    // Some of the source mods need to generate instructions to a temp
-    //  register, in which case we'll replace the register name.
-    const SourceMod mod = arg->src_mod;
-    const int inplace = ( (mod == SRCMOD_NONE) || (mod == SRCMOD_NEGATE) ||
-                          ((mod == SRCMOD_ABS) && support_nv2(ctx)) );
-
-    if (!inplace)
-    {
-        const size_t len = 64;
-        char *stackbuf = (char *) alloca(len);
-        regtype_str = allocate_ARB1_scratch_reg_name(ctx, stackbuf, len);
-        regnum_str[0] = '\0'; // move value to scratch register.
-        rel_lbracket = "";   // scratch register won't use array.
-        rel_rbracket = "";
-        rel_offset[0] = '\0';
-        rel_swizzle[0] = '\0';
-        rel_regtype_str = "";
-    } // if
-
-    const char *premod_str = "";
-    const char *postmod_str = "";
-    switch (mod)
-    {
-        case SRCMOD_NEGATE:
-            premod_str = "-";
-            break;
-
-        case SRCMOD_BIASNEGATE:
-            premod_str = "-";
-            // fall through.
-        case SRCMOD_BIAS:
-            output_line(ctx, "SUB %s, %s, { 0.5, 0.5, 0.5, 0.5 };",
-                        regtype_str, buf);
-            break;
-
-        case SRCMOD_SIGNNEGATE:
-            premod_str = "-";
-            // fall through.
-        case SRCMOD_SIGN:
-            output_line(ctx,
-                "MAD %s, %s, { 2.0, 2.0, 2.0, 2.0 }, { -1.0, -1.0, -1.0, -1.0 };",
-                regtype_str, buf);
-            break;
-
-        case SRCMOD_COMPLEMENT:
-            output_line(ctx, "SUB %s, { 1.0, 1.0, 1.0, 1.0 }, %s;",
-                        regtype_str, buf);
-            break;
-
-        case SRCMOD_X2NEGATE:
-            premod_str = "-";
-            // fall through.
-        case SRCMOD_X2:
-            output_line(ctx, "MUL %s, %s, { 2.0, 2.0, 2.0, 2.0 };",
-                        regtype_str, buf);
-            break;
-
-        case SRCMOD_DZ:
-            fail(ctx, "SRCMOD_DZ currently unsupported in arb1");
-            postmod_str = "_dz";
-            break;
-
-        case SRCMOD_DW:
-            fail(ctx, "SRCMOD_DW currently unsupported in arb1");
-            postmod_str = "_dw";
-            break;
-
-        case SRCMOD_ABSNEGATE:
-            premod_str = "-";
-            // fall through.
-        case SRCMOD_ABS:
-            if (!support_nv2(ctx))  // GL_NV_vertex_program2_option adds this.
-                output_line(ctx, "ABS %s, %s;", regtype_str, buf);
-            else
-            {
-                premod_str = (mod == SRCMOD_ABSNEGATE) ? "-|" : "|";
-                postmod_str = "|";
-            } // else
-            break;
-
-        case SRCMOD_NOT:
-            fail(ctx, "SRCMOD_NOT currently unsupported in arb1");
-            premod_str = "!";
-            break;
-
-        case SRCMOD_NONE:
-        case SRCMOD_TOTAL:
-             break;  // stop compiler whining.
-    } // switch
-
-    char swizzle_str[6];
-    size_t i = 0;
-
-    if (support_nv4(ctx))  // vFace must be output as "vFace.x" in nv4.
-    {
-        if (arg->regtype == REG_TYPE_MISCTYPE)
-        {
-            if ( ((const MiscTypeType) arg->regnum) == MISCTYPE_TYPE_FACE )
-            {
-                swizzle_str[i++] = '.';
-                swizzle_str[i++] = 'x';
-            } // if
-        } // if
-    } // if
-
-    const int scalar = isscalar(ctx, ctx->shader_type, arg->regtype, arg->regnum);
-    if (!scalar && !no_swizzle(arg->swizzle))
-    {
-        swizzle_str[i++] = '.';
-
-        // .xxxx is the same as .x, but .xx is illegal...scalar or full!
-        if (replicate_swizzle(arg->swizzle))
-            swizzle_str[i++] = swizzle_channels[arg->swizzle_x];
-        else
-        {
-            swizzle_str[i++] = swizzle_channels[arg->swizzle_x];
-            swizzle_str[i++] = swizzle_channels[arg->swizzle_y];
-            swizzle_str[i++] = swizzle_channels[arg->swizzle_z];
-            swizzle_str[i++] = swizzle_channels[arg->swizzle_w];
-        } // else
-    } // if
-    swizzle_str[i] = '\0';
-    assert(i < sizeof (swizzle_str));
-
-    snprintf(buf, buflen, "%s%s%s%s%s%s%s%s%s%s", premod_str,
-             regtype_str, regnum_str, rel_lbracket,
-             rel_regtype_str, rel_swizzle, rel_offset, rel_rbracket,
-             swizzle_str, postmod_str);
-    // !!! FIXME: make sure the scratch buffer was large enough.
-    return buf;
-} // make_ARB1_srcarg_string_in_buf
-
-static const char *get_ARB1_destarg_varname(Context *ctx, char *buf,
-                                            const size_t buflen)
-{
-    const DestArgInfo *arg = &ctx->dest_arg;
-    return get_ARB1_varname_in_buf(ctx, arg->regtype, arg->regnum, buf, buflen);
-} // get_ARB1_destarg_varname
-
-static const char *get_ARB1_srcarg_varname(Context *ctx, const size_t idx,
-                                           char *buf, const size_t buflen)
-{
-    if (idx >= STATICARRAYLEN(ctx->source_args))
-    {
-        fail(ctx, "Too many source args");
-        *buf = '\0';
-        return buf;
-    } // if
-
-    const SourceArgInfo *arg = &ctx->source_args[idx];
-    return get_ARB1_varname_in_buf(ctx, arg->regtype, arg->regnum, buf, buflen);
-} // get_ARB1_srcarg_varname
-
-
-static const char *make_ARB1_destarg_string(Context *ctx, char *buf,
-                                            const size_t buflen)
-{
-    const DestArgInfo *arg = &ctx->dest_arg;
-
-    *buf = '\0';
-
-    const char *sat_str = "";
-    if (arg->result_mod & MOD_SATURATE)
-    {
-        // nv4 can use ".SAT" in all program types.
-        // For less than nv4, the "_SAT" modifier is only available in
-        //  fragment shaders. Every thing else will fake it later in
-        //  emit_ARB1_dest_modifiers() ...
-        if (support_nv4(ctx))
-            sat_str = ".SAT";
-        else if (shader_is_pixel(ctx))
-            sat_str = "_SAT";
-    } // if
-
-    const char *pp_str = "";
-    if (arg->result_mod & MOD_PP)
-    {
-        // Most ARB1 profiles can't do partial precision (MOD_PP), but that's
-        //  okay. The spec says lots of Direct3D implementations ignore the
-        //  flag anyhow.
-        if (support_nv4(ctx))
-            pp_str = "H";
-    } // if
-
-    // CENTROID only allowed in DCL opcodes, which shouldn't come through here.
-    assert((arg->result_mod & MOD_CENTROID) == 0);
-
-    char regnum_str[16];
-    const char *regtype_str = get_ARB1_register_string(ctx, arg->regtype,
-                                                       arg->regnum, regnum_str,
-                                                       sizeof (regnum_str));
-    if (regtype_str == NULL)
-    {
-        fail(ctx, "Unknown destination register type.");
-        return buf;
-    } // if
-
-    char writemask_str[6];
-    size_t i = 0;
-    const int scalar = isscalar(ctx, ctx->shader_type, arg->regtype, arg->regnum);
-    if (!scalar && !writemask_xyzw(arg->writemask))
-    {
-        writemask_str[i++] = '.';
-        if (arg->writemask0) writemask_str[i++] = 'x';
-        if (arg->writemask1) writemask_str[i++] = 'y';
-        if (arg->writemask2) writemask_str[i++] = 'z';
-        if (arg->writemask3) writemask_str[i++] = 'w';
-    } // if
-    writemask_str[i] = '\0';
-    assert(i < sizeof (writemask_str));
-
-    //const char *pred_left = "";
-    //const char *pred_right = "";
-    char pred[32] = { '\0' };
-    if (ctx->predicated)
-    {
-        fail(ctx, "dest register predication currently unsupported in arb1");
-        return buf;
-        //pred_left = "(";
-        //pred_right = ") ";
-        make_ARB1_srcarg_string_in_buf(ctx, &ctx->predicate_arg,
-                                       pred, sizeof (pred));
-    } // if
-
-    snprintf(buf, buflen, "%s%s %s%s%s", pp_str, sat_str,
-             regtype_str, regnum_str, writemask_str);
-    // !!! FIXME: make sure the scratch buffer was large enough.
-    return buf;
-} // make_ARB1_destarg_string
-
-
-static void emit_ARB1_dest_modifiers(Context *ctx)
-{
-    const DestArgInfo *arg = &ctx->dest_arg;
-
-    if (arg->result_shift != 0x0)
-    {
-        char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-        const char *multiplier = NULL;
-
-        switch (arg->result_shift)
-        {
-            case 0x1: multiplier = "2.0"; break;
-            case 0x2: multiplier = "4.0"; break;
-            case 0x3: multiplier = "8.0"; break;
-            case 0xD: multiplier = "0.125"; break;
-            case 0xE: multiplier = "0.25"; break;
-            case 0xF: multiplier = "0.5"; break;
-        } // switch
-
-        if (multiplier != NULL)
-        {
-            char var[64]; get_ARB1_destarg_varname(ctx, var, sizeof (var));
-            output_line(ctx, "MUL%s, %s, %s;", dst, var, multiplier);
-        } // if
-    } // if
-
-    if (arg->result_mod & MOD_SATURATE)
-    {
-        // nv4 and/or pixel shaders just used the "SAT" modifier, instead.
-        if ( (!support_nv4(ctx)) && (!shader_is_pixel(ctx)) )
-        {
-            char var[64]; get_ARB1_destarg_varname(ctx, var, sizeof (var));
-            char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-            output_line(ctx, "MIN%s, %s, 1.0;", dst, var);
-            output_line(ctx, "MAX%s, %s, 0.0;", dst, var);
-        } // if
-    } // if
-} // emit_ARB1_dest_modifiers
-
-
-static const char *make_ARB1_srcarg_string(Context *ctx, const size_t idx,
-                                           char *buf, const size_t buflen)
-{
-    if (idx >= STATICARRAYLEN(ctx->source_args))
-    {
-        fail(ctx, "Too many source args");
-        *buf = '\0';
-        return buf;
-    } // if
-
-    const SourceArgInfo *arg = &ctx->source_args[idx];
-    return make_ARB1_srcarg_string_in_buf(ctx, arg, buf, buflen);
-} // make_ARB1_srcarg_string
-
-static void emit_ARB1_opcode_ds(Context *ctx, const char *opcode)
-{
-    char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-    char src0[64]; make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-    output_line(ctx, "%s%s, %s;", opcode, dst, src0);
-    emit_ARB1_dest_modifiers(ctx);
-} // emit_ARB1_opcode_ds
-
-static void emit_ARB1_opcode_dss(Context *ctx, const char *opcode)
-{
-    char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-    char src0[64]; make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-    char src1[64]; make_ARB1_srcarg_string(ctx, 1, src1, sizeof (src1));
-    output_line(ctx, "%s%s, %s, %s;", opcode, dst, src0, src1);
-    emit_ARB1_dest_modifiers(ctx);
-} // emit_ARB1_opcode_dss
-
-static void emit_ARB1_opcode_dsss(Context *ctx, const char *opcode)
-{
-    char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-    char src0[64]; make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-    char src1[64]; make_ARB1_srcarg_string(ctx, 1, src1, sizeof (src1));
-    char src2[64]; make_ARB1_srcarg_string(ctx, 2, src2, sizeof (src2));
-    output_line(ctx, "%s%s, %s, %s, %s;", opcode, dst, src0, src1, src2);
-    emit_ARB1_dest_modifiers(ctx);
-} // emit_ARB1_opcode_dsss
-
-
-#define EMIT_ARB1_OPCODE_FUNC(op) \
-    static void emit_ARB1_##op(Context *ctx) { \
-        emit_ARB1_opcode(ctx, #op); \
-    }
-#define EMIT_ARB1_OPCODE_D_FUNC(op) \
-    static void emit_ARB1_##op(Context *ctx) { \
-        emit_ARB1_opcode_d(ctx, #op); \
-    }
-#define EMIT_ARB1_OPCODE_S_FUNC(op) \
-    static void emit_ARB1_##op(Context *ctx) { \
-        emit_ARB1_opcode_s(ctx, #op); \
-    }
-#define EMIT_ARB1_OPCODE_SS_FUNC(op) \
-    static void emit_ARB1_##op(Context *ctx) { \
-        emit_ARB1_opcode_ss(ctx, #op); \
-    }
-#define EMIT_ARB1_OPCODE_DS_FUNC(op) \
-    static void emit_ARB1_##op(Context *ctx) { \
-        emit_ARB1_opcode_ds(ctx, #op); \
-    }
-#define EMIT_ARB1_OPCODE_DSS_FUNC(op) \
-    static void emit_ARB1_##op(Context *ctx) { \
-        emit_ARB1_opcode_dss(ctx, #op); \
-    }
-#define EMIT_ARB1_OPCODE_DSSS_FUNC(op) \
-    static void emit_ARB1_##op(Context *ctx) { \
-        emit_ARB1_opcode_dsss(ctx, #op); \
-    }
-#define EMIT_ARB1_OPCODE_DSSSS_FUNC(op) \
-    static void emit_ARB1_##op(Context *ctx) { \
-        emit_ARB1_opcode_dssss(ctx, #op); \
-    }
-#define EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(op) \
-    static void emit_ARB1_##op(Context *ctx) { \
-        failf(ctx, #op " unimplemented in %s profile", ctx->profile->name); \
-    }
-
-
-static void emit_ARB1_start(Context *ctx, const char *profilestr)
-{
-    const char *shader_str = NULL;
-    const char *shader_full_str = NULL;
-    if (shader_is_vertex(ctx))
-    {
-        shader_str = "vp";
-        shader_full_str = "vertex";
-    } // if
-    else if (shader_is_pixel(ctx))
-    {
-        shader_str = "fp";
-        shader_full_str = "fragment";
-    } // else if
-    else
-    {
-        failf(ctx, "Shader type %u unsupported in this profile.",
-              (uint) ctx->shader_type);
-        return;
-    } // if
-
-    set_output(ctx, &ctx->preflight);
-
-    if (strcmp(profilestr, MOJOSHADER_PROFILE_ARB1) == 0)
-        output_line(ctx, "!!ARB%s1.0", shader_str);
-
-    #if SUPPORT_PROFILE_ARB1_NV
-    else if (strcmp(profilestr, MOJOSHADER_PROFILE_NV2) == 0)
-    {
-        ctx->profile_supports_nv2 = 1;
-        output_line(ctx, "!!ARB%s1.0", shader_str);
-        output_line(ctx, "OPTION NV_%s_program2;", shader_full_str);
-    } // else if
-
-    else if (strcmp(profilestr, MOJOSHADER_PROFILE_NV3) == 0)
-    {
-        // there's no NV_fragment_program3, so just use 2.
-        const int ver = shader_is_pixel(ctx) ? 2 : 3;
-        ctx->profile_supports_nv2 = 1;
-        ctx->profile_supports_nv3 = 1;
-        output_line(ctx, "!!ARB%s1.0", shader_str);
-        output_line(ctx, "OPTION NV_%s_program%d;", shader_full_str, ver);
-    } // else if
-
-    else if (strcmp(profilestr, MOJOSHADER_PROFILE_NV4) == 0)
-    {
-        ctx->profile_supports_nv2 = 1;
-        ctx->profile_supports_nv3 = 1;
-        ctx->profile_supports_nv4 = 1;
-        output_line(ctx, "!!NV%s4.0", shader_str);
-    } // else if
-    #endif
-
-    else
-    {
-        failf(ctx, "Profile '%s' unsupported or unknown.", profilestr);
-    } // else
-
-    set_output(ctx, &ctx->mainline);
-} // emit_ARB1_start
-
-static void emit_ARB1_end(Context *ctx)
-{
-    // ps_1_* writes color to r0 instead oC0. We move it to the right place.
-    // We don't have to worry about a RET opcode messing this up, since
-    //  RET isn't available before ps_2_0.
-    if (shader_is_pixel(ctx) && !shader_version_atleast(ctx, 2, 0))
-    {
-        set_used_register(ctx, REG_TYPE_COLOROUT, 0, 1);
-        output_line(ctx, "MOV oC0, r0;");
-    } // if
-
-    output_line(ctx, "END");
-} // emit_ARB1_end
-
-static void emit_ARB1_phase(Context *ctx)
-{
-    // no-op in arb1.
-} // emit_ARB1_phase
-
-static inline const char *arb1_float_temp(const Context *ctx)
-{
-    // nv4 lets you specify data type.
-    return (support_nv4(ctx)) ? "FLOAT TEMP" : "TEMP";
-} // arb1_float_temp
-
-static void emit_ARB1_finalize(Context *ctx)
-{
-    push_output(ctx, &ctx->preflight);
-
-    if (shader_is_vertex(ctx) && !ctx->arb1_wrote_position)
-        output_line(ctx, "OPTION ARB_position_invariant;");
-
-    if (shader_is_pixel(ctx) && ctx->have_multi_color_outputs)
-        output_line(ctx, "OPTION ARB_draw_buffers;");
-
-    pop_output(ctx);
-
-    const char *tmpstr = arb1_float_temp(ctx);
-    int i;
-    push_output(ctx, &ctx->globals);
-    for (i = 0; i < ctx->max_scratch_registers; i++)
-    {
-        char buf[64];
-        allocate_ARB1_scratch_reg_name(ctx, buf, sizeof (buf));
-        output_line(ctx, "%s %s;", tmpstr, buf);
-    } // for
-
-    // nv2 fragment programs (and anything nv4) have a real REP/ENDREP.
-    if ( (support_nv2(ctx)) && (!shader_is_pixel(ctx)) && (!support_nv4(ctx)) )
-    {
-        // set up temps for nv2 REP/ENDREP emulation through branching.
-        for (i = 0; i < ctx->max_reps; i++)
-            output_line(ctx, "TEMP rep%d;", i);
-    } // if
-
-    pop_output(ctx);
-    assert(ctx->scratch_registers == ctx->max_scratch_registers);
-} // emit_ARB1_finalize
-
-static void emit_ARB1_global(Context *ctx, RegisterType regtype, int regnum)
-{
-    // !!! FIXME: dependency on ARB1 profile.  // !!! FIXME about FIXME: huh?
-    char varname[64];
-    get_ARB1_varname_in_buf(ctx, regtype, regnum, varname, sizeof (varname));
-
-    push_output(ctx, &ctx->globals);
-    switch (regtype)
-    {
-        case REG_TYPE_ADDRESS:
-            if (shader_is_pixel(ctx))  // actually REG_TYPE_TEXTURE.
-            {
-                // We have to map texture registers to temps for ps_1_1, since
-                //  they work like temps, initialize with tex coords, and the
-                //  ps_1_1 TEX opcode expects to overwrite it.
-                if (!shader_version_atleast(ctx, 1, 4))
-                {
-                    output_line(ctx, "%s %s;", arb1_float_temp(ctx), varname);
-                    push_output(ctx, &ctx->mainline_intro);
-                    output_line(ctx, "MOV %s, fragment.texcoord[%d];",
-                                varname, regnum);
-                    pop_output(ctx);
-                } // if
-                break;
-            } // if
-
-            // nv4 replaced address registers with generic int registers.
-            if (support_nv4(ctx))
-                output_line(ctx, "INT TEMP %s;", varname);
-            else
-            {
-                // nv2 has four-component address already, but stock arb1 has
-                //  to emulate it in a temporary, and move components to the
-                //  scalar ADDRESS register on demand.
-                output_line(ctx, "ADDRESS %s;", varname);
-                if (!support_nv2(ctx))
-                    output_line(ctx, "TEMP addr%d;", regnum);
-            } // else
-            break;
-
-        //case REG_TYPE_PREDICATE:
-        //    output_line(ctx, "bvec4 %s;", varname);
-        //    break;
-        case REG_TYPE_TEMP:
-            output_line(ctx, "%s %s;", arb1_float_temp(ctx), varname);
-            break;
-        //case REG_TYPE_LOOP:
-        //    break; // no-op. We declare these in for loops at the moment.
-        //case REG_TYPE_LABEL:
-        //    break; // no-op. If we see it here, it means we optimized it out.
-        default:
-            fail(ctx, "BUG: we used a register we don't know how to define.");
-            break;
-    } // switch
-    pop_output(ctx);
-} // emit_ARB1_global
-
-static void emit_ARB1_array(Context *ctx, VariableList *var)
-{
-    // All uniforms are now packed tightly into the program.local array,
-    //  instead of trying to map them to the d3d registers. So this needs to
-    //  map to the next piece of the array we haven't used yet. Thankfully,
-    //  arb1 lets you make a PARAM array that maps to a subset of another
-    //  array; we don't need to do offsets, since myarray[0] can map to
-    //  program.local[5] without any extra math from us.
-    const int base = var->index;
-    const int size = var->count;
-    const int arb1base = ctx->uniform_float4_count +
-                         ctx->uniform_int4_count +
-                         ctx->uniform_bool_count;
-    char varname[64];
-    get_ARB1_const_array_varname_in_buf(ctx, base, size, varname, sizeof (varname));
-    push_output(ctx, &ctx->globals);
-    output_line(ctx, "PARAM %s[%d] = { program.local[%d..%d] };", varname,
-                size, arb1base, (arb1base + size) - 1);
-    pop_output(ctx);
-    var->emit_position = arb1base;
-} // emit_ARB1_array
-
-static void emit_ARB1_const_array(Context *ctx, const ConstantsList *clist,
-                                  int base, int size)
-{
-    char varname[64];
-    get_ARB1_const_array_varname_in_buf(ctx, base, size, varname, sizeof (varname));
-    int i;
-
-    push_output(ctx, &ctx->globals);
-    output_line(ctx, "PARAM %s[%d] = {", varname, size);
-    ctx->indent++;
-
-    for (i = 0; i < size; i++)
-    {
-        while (clist->constant.type != MOJOSHADER_UNIFORM_FLOAT)
-            clist = clist->next;
-        assert(clist->constant.index == (base + i));
-
-        char val0[32];
-        char val1[32];
-        char val2[32];
-        char val3[32];
-        floatstr(ctx, val0, sizeof (val0), clist->constant.value.f[0], 1);
-        floatstr(ctx, val1, sizeof (val1), clist->constant.value.f[1], 1);
-        floatstr(ctx, val2, sizeof (val2), clist->constant.value.f[2], 1);
-        floatstr(ctx, val3, sizeof (val3), clist->constant.value.f[3], 1);
-
-        output_line(ctx, "{ %s, %s, %s, %s }%s", val0, val1, val2, val3,
-                    (i < (size-1)) ? "," : "");
-
-        clist = clist->next;
-    } // for
-
-    ctx->indent--;
-    output_line(ctx, "};");
-    pop_output(ctx);
-} // emit_ARB1_const_array
-
-static void emit_ARB1_uniform(Context *ctx, RegisterType regtype, int regnum,
-                              const VariableList *var)
-{
-    // We pack these down into the program.local array, so if we only use
-    //  register c439, it'll actually map to program.local[0]. This will
-    //  prevent overflows when we actually have enough resources to run.
-
-    const char *arrayname = "program.local";
-    int index = 0;
-
-    char varname[64];
-    get_ARB1_varname_in_buf(ctx, regtype, regnum, varname, sizeof (varname));
-
-    push_output(ctx, &ctx->globals);
-
-    if (var == NULL)
-    {
-        // all types share one array (rather, all types convert to float4).
-        index = ctx->uniform_float4_count + ctx->uniform_int4_count +
-                ctx->uniform_bool_count;
-    } // if
-
-    else
-    {
-        const int arraybase = var->index;
-        if (var->constant)
-        {
-            const int arraysize = var->count;
-            arrayname = get_ARB1_const_array_varname_in_buf(ctx, arraybase,
-                                        arraysize, (char *) alloca(64), 64);
-            index = (regnum - arraybase);
-        } // if
-        else
-        {
-            assert(var->emit_position != -1);
-            index = (regnum - arraybase) + var->emit_position;
-        } // else
-    } // else
-
-    output_line(ctx, "PARAM %s = %s[%d];", varname, arrayname, index);
-    pop_output(ctx);
-} // emit_ARB1_uniform
-
-static void emit_ARB1_sampler(Context *ctx,int stage,TextureType ttype,int tb)
-{
-    // this is mostly a no-op...you don't predeclare samplers in arb1.
-
-    if (tb)  // This sampler used a ps_1_1 TEXBEM opcode?
-    {
-        const int index = ctx->uniform_float4_count + ctx->uniform_int4_count +
-                          ctx->uniform_bool_count;
-        char var[64];
-        get_ARB1_varname_in_buf(ctx, REG_TYPE_SAMPLER, stage, var, sizeof(var));
-        push_output(ctx, &ctx->globals);
-        output_line(ctx, "PARAM %s_texbem = program.local[%d];", var, index);
-        output_line(ctx, "PARAM %s_texbeml = program.local[%d];", var, index+1);
-        pop_output(ctx);
-        ctx->uniform_float4_count += 2;
-    } // if
-} // emit_ARB1_sampler
-
-// !!! FIXME: a lot of cut-and-paste here from emit_GLSL_attribute().
-static void emit_ARB1_attribute(Context *ctx, RegisterType regtype, int regnum,
-                                MOJOSHADER_usage usage, int index, int wmask,
-                                int flags)
-{
-    // !!! FIXME: this function doesn't deal with write masks at all yet!
-    const char *usage_str = NULL;
-    const char *arrayleft = "";
-    const char *arrayright = "";
-    char index_str[16] = { '\0' };
-
-    char varname[64];
-    get_ARB1_varname_in_buf(ctx, regtype, regnum, varname, sizeof (varname));
-
-    //assert((flags & MOD_PP) == 0);  // !!! FIXME: is PP allowed?
-
-    if (index != 0)  // !!! FIXME: a lot of these MUST be zero.
-        snprintf(index_str, sizeof (index_str), "%u", (uint) index);
-
-    if (shader_is_vertex(ctx))
-    {
-        // pre-vs3 output registers.
-        // these don't ever happen in DCL opcodes, I think. Map to vs_3_*
-        //  output registers.
-        if (!shader_version_atleast(ctx, 3, 0))
-        {
-            if (regtype == REG_TYPE_RASTOUT)
-            {
-                regtype = REG_TYPE_OUTPUT;
-                index = regnum;
-                switch ((const RastOutType) regnum)
-                {
-                    case RASTOUT_TYPE_POSITION:
-                        usage = MOJOSHADER_USAGE_POSITION;
-                        break;
-                    case RASTOUT_TYPE_FOG:
-                        usage = MOJOSHADER_USAGE_FOG;
-                        break;
-                    case RASTOUT_TYPE_POINT_SIZE:
-                        usage = MOJOSHADER_USAGE_POINTSIZE;
-                        break;
-                } // switch
-            } // if
-
-            else if (regtype == REG_TYPE_ATTROUT)
-            {
-                regtype = REG_TYPE_OUTPUT;
-                usage = MOJOSHADER_USAGE_COLOR;
-                index = regnum;
-            } // else if
-
-            else if (regtype == REG_TYPE_TEXCRDOUT)
-            {
-                regtype = REG_TYPE_OUTPUT;
-                usage = MOJOSHADER_USAGE_TEXCOORD;
-                index = regnum;
-            } // else if
-        } // if
-
-        // to avoid limitations of various GL entry points for input
-        // attributes (glSecondaryColorPointer() can only take 3 component
-        // items, glVertexPointer() can't do GL_UNSIGNED_BYTE, many other
-        // issues), we set up all inputs as generic vertex attributes, so we
-        // can pass data in just about any form, and ignore the built-in GLSL
-        // attributes like gl_SecondaryColor. Output needs to use the the
-        // built-ins, though, but we don't have to worry about the GL entry
-        // point limitations there.
-
-        if (regtype == REG_TYPE_INPUT)
-        {
-            const int attr = ctx->assigned_vertex_attributes++;
-            push_output(ctx, &ctx->globals);
-            output_line(ctx, "ATTRIB %s = vertex.attrib[%d];", varname, attr);
-            pop_output(ctx);
-        } // if
-
-        else if (regtype == REG_TYPE_OUTPUT)
-        {
-            switch (usage)
-            {
-                case MOJOSHADER_USAGE_POSITION:
-                    ctx->arb1_wrote_position = 1;
-                    usage_str = "result.position";
-                    break;
-                case MOJOSHADER_USAGE_POINTSIZE:
-                    usage_str = "result.pointsize";
-                    break;
-                case MOJOSHADER_USAGE_COLOR:
-                    index_str[0] = '\0';  // no explicit number.
-                    if (index == 0)
-                        usage_str = "result.color.primary";
-                    else if (index == 1)
-                        usage_str = "result.color.secondary";
-                    break;
-                case MOJOSHADER_USAGE_FOG:
-                    usage_str = "result.fogcoord";
-                    break;
-                case MOJOSHADER_USAGE_TEXCOORD:
-                    snprintf(index_str, sizeof (index_str), "%u", (uint) index);
-                    usage_str = "result.texcoord";
-                    arrayleft = "[";
-                    arrayright = "]";
-                    break;
-                default:
-                    // !!! FIXME: we need to deal with some more built-in varyings here.
-                    break;
-            } // switch
-
-            // !!! FIXME: the #define is a little hacky, but it means we don't
-            // !!! FIXME:  have to track these separately if this works.
-            push_output(ctx, &ctx->globals);
-            // no mapping to built-in var? Just make it a regular global, pray.
-            if (usage_str == NULL)
-                output_line(ctx, "%s %s;", arb1_float_temp(ctx), varname);
-            else
-            {
-                output_line(ctx, "OUTPUT %s = %s%s%s%s;", varname, usage_str,
-                            arrayleft, index_str, arrayright);
-            } // else
-            pop_output(ctx);
-        } // else if
-
-        else
-        {
-            fail(ctx, "unknown vertex shader attribute register");
-        } // else
-    } // if
-
-    else if (shader_is_pixel(ctx))
-    {
-        const char *paramtype_str = "ATTRIB";
-
-        // samplers DCLs get handled in emit_ARB1_sampler().
-
-        if (flags & MOD_CENTROID)
-        {
-            if (!support_nv4(ctx))  // GL_NV_fragment_program4 adds centroid.
-            {
-                // !!! FIXME: should we just wing it without centroid here?
-                failf(ctx, "centroid unsupported in %s profile",
-                      ctx->profile->name);
-                return;
-            } // if
-
-            paramtype_str = "CENTROID ATTRIB";
-        } // if
-
-        if (regtype == REG_TYPE_COLOROUT)
-        {
-            paramtype_str = "OUTPUT";
-            usage_str = "result.color";
-            if (ctx->have_multi_color_outputs)
-            {
-                // We have to gamble that you have GL_ARB_draw_buffers.
-                // You probably do at this point if you have a sane setup.
-                snprintf(index_str, sizeof (index_str), "%u", (uint) regnum);
-                arrayleft = "[";
-                arrayright = "]";
-            } // if
-        } // if
-
-        else if (regtype == REG_TYPE_DEPTHOUT)
-        {
-            paramtype_str = "OUTPUT";
-            usage_str = "result.depth";
-        } // else if
-
-        // !!! FIXME: can you actualy have a texture register with COLOR usage?
-        else if ((regtype == REG_TYPE_TEXTURE) || (regtype == REG_TYPE_INPUT))
-        {
-            if (usage == MOJOSHADER_USAGE_TEXCOORD)
-            {
-                // ps_1_1 does a different hack for this attribute.
-                //  Refer to emit_ARB1_global()'s REG_TYPE_TEXTURE code.
-                if (shader_version_atleast(ctx, 1, 4))
-                {
-                    snprintf(index_str, sizeof (index_str), "%u", (uint) index);
-                    usage_str = "fragment.texcoord";
-                    arrayleft = "[";
-                    arrayright = "]";
-                } // if
-            } // if
-
-            else if (usage == MOJOSHADER_USAGE_COLOR)
-            {
-                index_str[0] = '\0';  // no explicit number.
-                if (index == 0)
-                    usage_str = "fragment.color.primary";
-                else if (index == 1)
-                    usage_str = "fragment.color.secondary";
-                else
-                    fail(ctx, "unsupported color index");
-            } // else if
-        } // else if
-
-        else if (regtype == REG_TYPE_MISCTYPE)
-        {
-            const MiscTypeType mt = (MiscTypeType) regnum;
-            if (mt == MISCTYPE_TYPE_FACE)
-            {
-                if (support_nv4(ctx))  // FINALLY, a vFace equivalent in nv4!
-                {
-                    index_str[0] = '\0';  // no explicit number.
-                    usage_str = "fragment.facing";
-                } // if
-                else
-                {
-                    failf(ctx, "vFace unsupported in %s profile",
-                          ctx->profile->name);
-                } // else
-            } // if
-            else if (mt == MISCTYPE_TYPE_POSITION)
-            {
-                index_str[0] = '\0';  // no explicit number.
-                usage_str = "fragment.position";  // !!! FIXME: is this the same coord space as D3D?
-            } // else if
-            else
-            {
-                fail(ctx, "BUG: unhandled misc register");
-            } // else
-        } // else if
-
-        else
-        {
-            fail(ctx, "unknown pixel shader attribute register");
-        } // else
-
-        if (usage_str != NULL)
-        {
-            push_output(ctx, &ctx->globals);
-            output_line(ctx, "%s %s = %s%s%s%s;", paramtype_str, varname,
-                        usage_str, arrayleft, index_str, arrayright);
-            pop_output(ctx);
-        } // if
-    } // else if
-
-    else
-    {
-        fail(ctx, "Unknown shader type");  // state machine should catch this.
-    } // else
-} // emit_ARB1_attribute
-
-static void emit_ARB1_RESERVED(Context *ctx) { /* no-op. */ }
-
-static void emit_ARB1_NOP(Context *ctx)
-{
-    // There is no NOP in arb1. Just don't output anything here.
-} // emit_ARB1_NOP
-
-EMIT_ARB1_OPCODE_DS_FUNC(MOV)
-EMIT_ARB1_OPCODE_DSS_FUNC(ADD)
-EMIT_ARB1_OPCODE_DSS_FUNC(SUB)
-EMIT_ARB1_OPCODE_DSSS_FUNC(MAD)
-EMIT_ARB1_OPCODE_DSS_FUNC(MUL)
-EMIT_ARB1_OPCODE_DS_FUNC(RCP)
-
-static void emit_ARB1_RSQ(Context *ctx)
-{
-    // nv4 doesn't force abs() on this, so negative values will generate NaN.
-    // The spec says you should force the abs() yourself.
-    if (!support_nv4(ctx))
-    {
-        emit_ARB1_opcode_ds(ctx, "RSQ");  // pre-nv4 implies ABS.
-        return;
-    } // if
-
-    // we can optimize this to use nv2's |abs| construct in some cases.
-    if ( (ctx->source_args[0].src_mod == SRCMOD_NONE) ||
-         (ctx->source_args[0].src_mod == SRCMOD_NEGATE) ||
-         (ctx->source_args[0].src_mod == SRCMOD_ABSNEGATE) )
-        ctx->source_args[0].src_mod = SRCMOD_ABS;
-
-    char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-    char src0[64]; make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-
-    if (ctx->source_args[0].src_mod == SRCMOD_ABS)
-        output_line(ctx, "RSQ%s, %s;", dst, src0);
-    else
-    {
-        char buf[64]; allocate_ARB1_scratch_reg_name(ctx, buf, sizeof (buf));
-        output_line(ctx, "ABS %s, %s;", buf, src0);
-        output_line(ctx, "RSQ%s, %s.x;", dst, buf);
-    } // else
-
-    emit_ARB1_dest_modifiers(ctx);
-} // emit_ARB1_RSQ
-
-EMIT_ARB1_OPCODE_DSS_FUNC(DP3)
-EMIT_ARB1_OPCODE_DSS_FUNC(DP4)
-EMIT_ARB1_OPCODE_DSS_FUNC(MIN)
-EMIT_ARB1_OPCODE_DSS_FUNC(MAX)
-EMIT_ARB1_OPCODE_DSS_FUNC(SLT)
-EMIT_ARB1_OPCODE_DSS_FUNC(SGE)
-
-static void emit_ARB1_EXP(Context *ctx) { emit_ARB1_opcode_ds(ctx, "EX2"); }
-
-static void arb1_log(Context *ctx, const char *opcode)
-{
-    // !!! FIXME: SRCMOD_NEGATE can be made into SRCMOD_ABS here, too
-    // we can optimize this to use nv2's |abs| construct in some cases.
-    if ( (ctx->source_args[0].src_mod == SRCMOD_NONE) ||
-         (ctx->source_args[0].src_mod == SRCMOD_ABSNEGATE) )
-        ctx->source_args[0].src_mod = SRCMOD_ABS;
-
-    char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-    char src0[64]; make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-
-    if (ctx->source_args[0].src_mod == SRCMOD_ABS)
-        output_line(ctx, "%s%s, %s;", opcode, dst, src0);
-    else
-    {
-        char buf[64]; allocate_ARB1_scratch_reg_name(ctx, buf, sizeof (buf));
-        output_line(ctx, "ABS %s, %s;", buf, src0);
-        output_line(ctx, "%s%s, %s.x;", opcode, dst, buf);
-    } // else
-
-    emit_ARB1_dest_modifiers(ctx);
-} // arb1_log
-
-
-static void emit_ARB1_LOG(Context *ctx)
-{
-    arb1_log(ctx, "LG2");
-} // emit_ARB1_LOG
-
-
-EMIT_ARB1_OPCODE_DS_FUNC(LIT)
-EMIT_ARB1_OPCODE_DSS_FUNC(DST)
-
-static void emit_ARB1_LRP(Context *ctx)
-{
-    if (shader_is_pixel(ctx))  // fragment shaders have a matching LRP opcode.
-        emit_ARB1_opcode_dsss(ctx, "LRP");
-    else
-    {
-        char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-        char src0[64]; make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-        char src1[64]; make_ARB1_srcarg_string(ctx, 1, src1, sizeof (src1));
-        char src2[64]; make_ARB1_srcarg_string(ctx, 2, src2, sizeof (src2));
-        char buf[64]; allocate_ARB1_scratch_reg_name(ctx, buf, sizeof (buf));
-
-        // LRP is: dest = src2 + src0 * (src1 - src2)
-        output_line(ctx, "SUB %s, %s, %s;", buf, src1, src2);
-        output_line(ctx, "MAD%s, %s, %s, %s;", dst, buf, src0, src2);
-        emit_ARB1_dest_modifiers(ctx);
-    } // else
-} // emit_ARB1_LRP
-
-EMIT_ARB1_OPCODE_DS_FUNC(FRC)
-
-static void arb1_MxXy(Context *ctx, const int x, const int y)
-{
-    DestArgInfo *dstarg = &ctx->dest_arg;
-    const int origmask = dstarg->writemask;
-    char src0[64];
-    int i;
-
-    make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-
-    for (i = 0; i < y; i++)
-    {
-        char dst[64];
-        char row[64];
-        make_ARB1_srcarg_string(ctx, i + 1, row, sizeof (row));
-        set_dstarg_writemask(dstarg, 1 << i);
-        make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-        output_line(ctx, "DP%d%s, %s, %s;", x, dst, src0, row);
-    } // for
-
-    set_dstarg_writemask(dstarg, origmask);
-    emit_ARB1_dest_modifiers(ctx);
-} // arb1_MxXy
-
-static void emit_ARB1_M4X4(Context *ctx) { arb1_MxXy(ctx, 4, 4); }
-static void emit_ARB1_M4X3(Context *ctx) { arb1_MxXy(ctx, 4, 3); }
-static void emit_ARB1_M3X4(Context *ctx) { arb1_MxXy(ctx, 3, 4); }
-static void emit_ARB1_M3X3(Context *ctx) { arb1_MxXy(ctx, 3, 3); }
-static void emit_ARB1_M3X2(Context *ctx) { arb1_MxXy(ctx, 3, 2); }
-
-static void emit_ARB1_CALL(Context *ctx)
-{
-    if (!support_nv2(ctx))  // no branching in stock ARB1.
-    {
-        failf(ctx, "branching unsupported in %s profile", ctx->profile->name);
-        return;
-    } // if
-
-    char labelstr[64];
-    get_ARB1_srcarg_varname(ctx, 0, labelstr, sizeof (labelstr));
-    output_line(ctx, "CAL %s;", labelstr);
-} // emit_ARB1_CALL
-
-static void emit_ARB1_CALLNZ(Context *ctx)
-{
-    // !!! FIXME: if src1 is a constbool that's true, we can remove the
-    // !!! FIXME:  if. If it's false, we can make this a no-op.
-
-    if (!support_nv2(ctx))  // no branching in stock ARB1.
-        failf(ctx, "branching unsupported in %s profile", ctx->profile->name);
-    else
-    {
-        // !!! FIXME: double-check this.
-        char labelstr[64];
-        char scratch[64];
-        char src1[64];
-        get_ARB1_srcarg_varname(ctx, 0, labelstr, sizeof (labelstr));
-        get_ARB1_srcarg_varname(ctx, 1, src1, sizeof (src1));
-        allocate_ARB1_scratch_reg_name(ctx, scratch, sizeof (scratch));
-        output_line(ctx, "MOVC %s, %s;", scratch, src1);
-        output_line(ctx, "CAL %s (NE.x);", labelstr);
-    } // else
-} // emit_ARB1_CALLNZ
-
-// !!! FIXME: needs BRA in nv2, LOOP in nv2 fragment progs, and REP in nv4.
-EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(LOOP)
-
-static void emit_ARB1_RET(Context *ctx)
-{
-    // don't fail() if no nv2...maybe we're just ending the mainline?
-    //  if we're ending a LABEL that had no CALL, this would all be written
-    //  to ctx->ignore anyhow, so this should be "safe" ... arb1 profile will
-    //  just end up throwing all this code out.
-    if (support_nv2(ctx))  // no branching in stock ARB1.
-        output_line(ctx, "RET;");
-    set_output(ctx, &ctx->mainline); // in case we were ignoring this function.
-} // emit_ARB1_RET
-
-
-EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(ENDLOOP)
-
-static void emit_ARB1_LABEL(Context *ctx)
-{
-    if (!support_nv2(ctx))  // no branching in stock ARB1.
-        return;  // don't fail()...maybe we never use it, but do fail in CALL.
-
-    const int label = ctx->source_args[0].regnum;
-    RegisterList *reg = reglist_find(&ctx->used_registers, REG_TYPE_LABEL, label);
-
-    // MSDN specs say CALL* has to come before the LABEL, so we know if we
-    //  can ditch the entire function here as unused.
-    if (reg == NULL)
-        set_output(ctx, &ctx->ignore);  // Func not used. Parse, but don't output.
-
-    // !!! FIXME: it would be nice if we could determine if a function is
-    // !!! FIXME:  only called once and, if so, forcibly inline it.
-
-    //const char *uses_loopreg = ((reg) && (reg->misc == 1)) ? "int aL" : "";
-    char labelstr[64];
-    get_ARB1_srcarg_varname(ctx, 0, labelstr, sizeof (labelstr));
-    output_line(ctx, "%s:", labelstr);
-} // emit_ARB1_LABEL
-
-
-static void emit_ARB1_POW(Context *ctx)
-{
-    // we can optimize this to use nv2's |abs| construct in some cases.
-    if ( (ctx->source_args[0].src_mod == SRCMOD_NONE) ||
-         (ctx->source_args[0].src_mod == SRCMOD_ABSNEGATE) )
-        ctx->source_args[0].src_mod = SRCMOD_ABS;
-
-    char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-    char src0[64]; make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-    char src1[64]; make_ARB1_srcarg_string(ctx, 1, src1, sizeof (src1));
-
-    if (ctx->source_args[0].src_mod == SRCMOD_ABS)
-        output_line(ctx, "POW%s, %s, %s;", dst, src0, src1);
-    else
-    {
-        char buf[64]; allocate_ARB1_scratch_reg_name(ctx, buf, sizeof (buf));
-        output_line(ctx, "ABS %s, %s;", buf, src0);
-        output_line(ctx, "POW%s, %s.x, %s;", dst, buf, src1);
-    } // else
-
-    emit_ARB1_dest_modifiers(ctx);
-} // emit_ARB1_POW
-
-static void emit_ARB1_CRS(Context *ctx) { emit_ARB1_opcode_dss(ctx, "XPD"); }
-
-static void emit_ARB1_SGN(Context *ctx)
-{
-    if (support_nv2(ctx))
-        emit_ARB1_opcode_ds(ctx, "SSG");
-    else
-    {
-        char dst[64];
-        char src0[64];
-        char scratch1[64];
-        char scratch2[64];
-        make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-        make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-        allocate_ARB1_scratch_reg_name(ctx, scratch1, sizeof (scratch1));
-        allocate_ARB1_scratch_reg_name(ctx, scratch2, sizeof (scratch2));
-        output_line(ctx, "SLT %s, %s, 0.0;", scratch1, src0);
-        output_line(ctx, "SLT %s, -%s, 0.0;", scratch2, src0);
-        output_line(ctx, "ADD%s -%s, %s;", dst, scratch1, scratch2);
-        emit_ARB1_dest_modifiers(ctx);
-    } // else
-} // emit_ARB1_SGN
-
-EMIT_ARB1_OPCODE_DS_FUNC(ABS)
-
-static void emit_ARB1_NRM(Context *ctx)
-{
-    // nv2 fragment programs (and anything nv4) have a real NRM.
-    if ( (support_nv4(ctx)) || ((support_nv2(ctx)) && (shader_is_pixel(ctx))) )
-        emit_ARB1_opcode_ds(ctx, "NRM");
-    else
-    {
-        char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-        char src0[64]; make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-        char buf[64]; allocate_ARB1_scratch_reg_name(ctx, buf, sizeof (buf));
-        output_line(ctx, "DP3 %s.w, %s, %s;", buf, src0, src0);
-        output_line(ctx, "RSQ %s.w, %s.w;", buf, buf);
-        output_line(ctx, "MUL%s, %s.w, %s;", dst, buf, src0);
-        emit_ARB1_dest_modifiers(ctx);
-    } // else
-} // emit_ARB1_NRM
-
-
-static void emit_ARB1_SINCOS(Context *ctx)
-{
-    // we don't care about the temp registers that <= sm2 demands; ignore them.
-    const int mask = ctx->dest_arg.writemask;
-
-    // arb1 fragment programs and everything nv4 have sin/cos/sincos opcodes.
-    if ((shader_is_pixel(ctx)) || (support_nv4(ctx)))
-    {
-        char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-        char src0[64]; make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-        if (writemask_x(mask))
-            output_line(ctx, "COS%s, %s;", dst, src0);
-        else if (writemask_y(mask))
-            output_line(ctx, "SIN%s, %s;", dst, src0);
-        else if (writemask_xy(mask))
-            output_line(ctx, "SCS%s, %s;", dst, src0);
-    } // if
-
-    // nv2+ profiles have sin and cos opcodes.
-    else if (support_nv2(ctx))
-    {
-        char dst[64]; get_ARB1_destarg_varname(ctx, dst, sizeof (dst));
-        char src0[64]; make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-        if (writemask_x(mask))
-            output_line(ctx, "COS %s.x, %s;", dst, src0);
-        else if (writemask_y(mask))
-            output_line(ctx, "SIN %s.y, %s;", dst, src0);
-        else if (writemask_xy(mask))
-        {
-            output_line(ctx, "SIN %s.x, %s;", dst, src0);
-            output_line(ctx, "COS %s.y, %s;", dst, src0);
-        } // else if
-    } // if
-
-    else  // big nasty.
-    {
-        char dst[64]; get_ARB1_destarg_varname(ctx, dst, sizeof (dst));
-        char src0[64]; get_ARB1_srcarg_varname(ctx, 0, src0, sizeof (src0));
-        const int need_sin = (writemask_x(mask) || writemask_xy(mask));
-        const int need_cos = (writemask_y(mask) || writemask_xy(mask));
-        char scratch[64];
-
-        if (need_sin || need_cos)
-            allocate_ARB1_scratch_reg_name(ctx, scratch, sizeof (scratch));
-
-        // These sin() and cos() approximations originally found here:
-        //    http://www.devmaster.net/forums/showthread.php?t=5784
-        //
-        // const float B = 4.0f / M_PI;
-        // const float C = -4.0f / (M_PI * M_PI);
-        // float y = B * x + C * x * fabs(x);
-        //
-        // // optional better precision...
-        // const float P = 0.225f;
-        // y = P * (y * fabs(y) - y) + y;
-        //
-        //
-        // That first thing can be reduced to:
-        // const float y = ((1.2732395447351626861510701069801f * x) +
-        //             ((-0.40528473456935108577551785283891f * x) * fabs(x)));
-
-        if (need_sin)
-        {
-            // !!! FIXME: use SRCMOD_ABS here?
-            output_line(ctx, "ABS %s.x, %s.x;", dst, src0);
-            output_line(ctx, "MUL %s.x, %s.x, -0.40528473456935108577551785283891;", dst, dst);
-            output_line(ctx, "MUL %s.x, %s.x, 1.2732395447351626861510701069801;", scratch, src0);
-            output_line(ctx, "MAD %s.x, %s.x, %s.x, %s.x;", dst, dst, src0, scratch);
-        } // if
-
-        // cosine is sin(x + M_PI/2), but you have to wrap x to pi:
-        //  if (x+(M_PI/2) > M_PI)
-        //      x -= 2 * M_PI;
-        //
-        // which is...
-        //  if (x+(1.57079637050628662109375) > 3.1415927410125732421875)
-        //      x += -6.283185482025146484375;
-
-        if (need_cos)
-        {
-            output_line(ctx, "ADD %s.x, %s.x, 1.57079637050628662109375;", scratch, src0);
-            output_line(ctx, "SGE %s.y, %s.x, 3.1415927410125732421875;", scratch, scratch);
-            output_line(ctx, "MAD %s.x, %s.y, -6.283185482025146484375, %s.x;", scratch, scratch, scratch);
-            output_line(ctx, "ABS %s.x, %s.x;", dst, src0);
-            output_line(ctx, "MUL %s.x, %s.x, -0.40528473456935108577551785283891;", dst, dst);
-            output_line(ctx, "MUL %s.x, %s.x, 1.2732395447351626861510701069801;", scratch, src0);
-            output_line(ctx, "MAD %s.y, %s.x, %s.x, %s.x;", dst, dst, src0, scratch);
-        } // if
-    } // else
-
-    // !!! FIXME: might not have done anything. Don't emit if we didn't.
-    if (!isfail(ctx))
-        emit_ARB1_dest_modifiers(ctx);
-} // emit_ARB1_SINCOS
-
-
-static void emit_ARB1_REP(Context *ctx)
-{
-    char src0[64]; make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-
-    // nv2 fragment programs (and everything nv4) have a real REP.
-    if ( (support_nv4(ctx)) || ((support_nv2(ctx)) && (shader_is_pixel(ctx))) )
-        output_line(ctx, "REP %s;", src0);
-
-    else if (support_nv2(ctx))
-    {
-        // no REP, but we can use branches.
-        char failbranch[32];
-        char topbranch[32];
-        const int toplabel = allocate_branch_label(ctx);
-        const int faillabel = allocate_branch_label(ctx);
-        get_ARB1_branch_label_name(ctx,faillabel,failbranch,sizeof(failbranch));
-        get_ARB1_branch_label_name(ctx,toplabel,topbranch,sizeof(topbranch));
-
-        assert(((size_t) ctx->branch_labels_stack_index) <
-                STATICARRAYLEN(ctx->branch_labels_stack)-1);
-
-        ctx->branch_labels_stack[ctx->branch_labels_stack_index++] = toplabel;
-        ctx->branch_labels_stack[ctx->branch_labels_stack_index++] = faillabel;
-
-        char scratch[32];
-        snprintf(scratch, sizeof (scratch), "rep%d", ctx->reps);
-        output_line(ctx, "MOVC %s.x, %s;", scratch, src0);
-        output_line(ctx, "BRA %s (LE.x);", failbranch);
-        output_line(ctx, "%s:", topbranch);
-    } // else if
-
-    else  // stock ARB1 has no branching.
-    {
-        fail(ctx, "branching unsupported in this profile");
-    } // else
-} // emit_ARB1_REP
-
-
-static void emit_ARB1_ENDREP(Context *ctx)
-{
-    // nv2 fragment programs (and everything nv4) have a real ENDREP.
-    if ( (support_nv4(ctx)) || ((support_nv2(ctx)) && (shader_is_pixel(ctx))) )
-        output_line(ctx, "ENDREP;");
-
-    else if (support_nv2(ctx))
-    {
-        // no ENDREP, but we can use branches.
-        assert(ctx->branch_labels_stack_index >= 2);
-
-        char failbranch[32];
-        char topbranch[32];
-        const int faillabel = ctx->branch_labels_stack[--ctx->branch_labels_stack_index];
-        const int toplabel = ctx->branch_labels_stack[--ctx->branch_labels_stack_index];
-        get_ARB1_branch_label_name(ctx,faillabel,failbranch,sizeof(failbranch));
-        get_ARB1_branch_label_name(ctx,toplabel,topbranch,sizeof(topbranch));
-
-        char scratch[32];
-        snprintf(scratch, sizeof (scratch), "rep%d", ctx->reps);
-        output_line(ctx, "SUBC %s.x, %s.x, 1.0;", scratch, scratch);
-        output_line(ctx, "BRA %s (GT.x);", topbranch);
-        output_line(ctx, "%s:", failbranch);
-    } // else if
-
-    else  // stock ARB1 has no branching.
-    {
-        fail(ctx, "branching unsupported in this profile");
-    } // else
-} // emit_ARB1_ENDREP
-
-
-static void nv2_if(Context *ctx)
-{
-    // The condition code register MUST be set up before this!
-    // nv2 fragment programs (and everything nv4) have a real IF.
-    if ( (support_nv4(ctx)) || (shader_is_pixel(ctx)) )
-        output_line(ctx, "IF EQ.x;");
-    else
-    {
-        // there's no IF construct, but we can use a branch to a label.
-        char failbranch[32];
-        const int label = allocate_branch_label(ctx);
-        get_ARB1_branch_label_name(ctx, label, failbranch, sizeof (failbranch));
-
-        assert(((size_t) ctx->branch_labels_stack_index)
-                 < STATICARRAYLEN(ctx->branch_labels_stack));
-
-        ctx->branch_labels_stack[ctx->branch_labels_stack_index++] = label;
-
-        // !!! FIXME: should this be NE? (EQ would jump to the ELSE for the IF condition, right?).
-        output_line(ctx, "BRA %s (EQ.x);", failbranch);
-    } // else
-} // nv2_if
-
-
-static void emit_ARB1_IF(Context *ctx)
-{
-    if (support_nv2(ctx))
-    {
-        char buf[64]; allocate_ARB1_scratch_reg_name(ctx, buf, sizeof (buf));
-        char src0[64]; get_ARB1_srcarg_varname(ctx, 0, src0, sizeof (src0));
-        output_line(ctx, "MOVC %s.x, %s;", buf, src0);
-        nv2_if(ctx);
-    } // if
-
-    else  // stock ARB1 has no branching.
-    {
-        failf(ctx, "branching unsupported in %s profile", ctx->profile->name);
-    } // else
-} // emit_ARB1_IF
-
-
-static void emit_ARB1_ELSE(Context *ctx)
-{
-    // nv2 fragment programs (and everything nv4) have a real ELSE.
-    if ( (support_nv4(ctx)) || ((support_nv2(ctx)) && (shader_is_pixel(ctx))) )
-        output_line(ctx, "ELSE;");
-
-    else if (support_nv2(ctx))
-    {
-        // there's no ELSE construct, but we can use a branch to a label.
-        assert(ctx->branch_labels_stack_index > 0);
-
-        // At the end of the IF block, unconditionally jump to the ENDIF.
-        const int endlabel = allocate_branch_label(ctx);
-        char endbranch[32];
-        get_ARB1_branch_label_name(ctx,endlabel,endbranch,sizeof (endbranch));
-        output_line(ctx, "BRA %s;", endbranch);
-
-        // Now mark the ELSE section with a lable.
-        const int elselabel = ctx->branch_labels_stack[ctx->branch_labels_stack_index-1];
-        char elsebranch[32];
-        get_ARB1_branch_label_name(ctx,elselabel,elsebranch,sizeof(elsebranch));
-        output_line(ctx, "%s:", elsebranch);
-
-        // Replace the ELSE label with the ENDIF on the label stack.
-        ctx->branch_labels_stack[ctx->branch_labels_stack_index-1] = endlabel;
-    } // else if
-
-    else  // stock ARB1 has no branching.
-    {
-        failf(ctx, "branching unsupported in %s profile", ctx->profile->name);
-    } // else
-} // emit_ARB1_ELSE
-
-
-static void emit_ARB1_ENDIF(Context *ctx)
-{
-    // nv2 fragment programs (and everything nv4) have a real ENDIF.
-    if ( (support_nv4(ctx)) || ((support_nv2(ctx)) && (shader_is_pixel(ctx))) )
-        output_line(ctx, "ENDIF;");
-
-    else if (support_nv2(ctx))
-    {
-        // there's no ENDIF construct, but we can use a branch to a label.
-        assert(ctx->branch_labels_stack_index > 0);
-        const int endlabel = ctx->branch_labels_stack[--ctx->branch_labels_stack_index];
-        char endbranch[32];
-        get_ARB1_branch_label_name(ctx,endlabel,endbranch,sizeof (endbranch));
-        output_line(ctx, "%s:", endbranch);
-    } // if
-
-    else  // stock ARB1 has no branching.
-    {
-        failf(ctx, "branching unsupported in %s profile", ctx->profile->name);
-    } // else
-} // emit_ARB1_ENDIF
-
-
-static void emit_ARB1_BREAK(Context *ctx)
-{
-    // nv2 fragment programs (and everything nv4) have a real BREAK.
-    if ( (support_nv4(ctx)) || ((support_nv2(ctx)) && (shader_is_pixel(ctx))) )
-        output_line(ctx, "BRK;");
-
-    else if (support_nv2(ctx))
-    {
-        // no BREAK, but we can use branches.
-        assert(ctx->branch_labels_stack_index >= 2);
-        const int faillabel = ctx->branch_labels_stack[ctx->branch_labels_stack_index];
-        char failbranch[32];
-        get_ARB1_branch_label_name(ctx,faillabel,failbranch,sizeof(failbranch));
-        output_line(ctx, "BRA %s;", failbranch);
-    } // else if
-
-    else  // stock ARB1 has no branching.
-    {
-        failf(ctx, "branching unsupported in %s profile", ctx->profile->name);
-    } // else
-} // emit_ARB1_BREAK
-
-
-static void emit_ARB1_MOVA(Context *ctx)
-{
-    // nv2 and nv3 can use the ARR opcode.
-    // But nv4 removed ARR (and ADDRESS registers!). Just ROUND to an INT.
-    if (support_nv4(ctx))
-        emit_ARB1_opcode_ds(ctx, "ROUND.S");  // !!! FIXME: don't use a modifier here.
-    else if ((support_nv2(ctx)) || (support_nv3(ctx)))
-        emit_ARB1_opcode_ds(ctx, "ARR");
-    else
-    {
-        char src0[64];
-        char scratch[64];
-        char addr[32];
-
-        make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-        allocate_ARB1_scratch_reg_name(ctx, scratch, sizeof (scratch));
-        snprintf(addr, sizeof (addr), "addr%d", ctx->dest_arg.regnum);
-
-        // !!! FIXME: we can optimize this if src_mod is ABS or ABSNEGATE.
-
-        // ARL uses floor(), but D3D expects round-to-nearest.
-        // There is probably a more efficient way to do this.
-        if (shader_is_pixel(ctx))  // CMP only exists in fragment programs.  :/
-            output_line(ctx, "CMP %s, %s, -1.0, 1.0;", scratch, src0);
-        else
-        {
-            output_line(ctx, "SLT %s, %s, 0.0;", scratch, src0);
-            output_line(ctx, "MAD %s, %s, -2.0, 1.0;", scratch, scratch);
-        } // else
-
-        output_line(ctx, "ABS %s, %s;", addr, src0);
-        output_line(ctx, "ADD %s, %s, 0.5;", addr, addr);
-        output_line(ctx, "FLR %s, %s;", addr, addr);
-        output_line(ctx, "MUL %s, %s, %s;", addr, addr, scratch);
-
-        // we don't handle these right now, since emit_ARB1_dest_modifiers(ctx)
-        //  wants to look at dest_arg, not our temp register.
-        assert(ctx->dest_arg.result_mod == 0);
-        assert(ctx->dest_arg.result_shift == 0);
-
-        // we assign to the actual address register as needed.
-        ctx->last_address_reg_component = -1;
-    } // else
-} // emit_ARB1_MOVA
-
-
-static void emit_ARB1_TEXKILL(Context *ctx)
-{
-    // d3d kills on xyz, arb1 kills on xyzw. Fix the swizzle.
-    //  We just map the x component to w. If it's negative, the fragment
-    //  would discard anyhow, otherwise, it'll pass through okay. This saves
-    //  us a temp register.
-    char dst[64];
-    get_ARB1_destarg_varname(ctx, dst, sizeof (dst));
-    output_line(ctx, "KIL %s.xyzx;", dst);
-} // emit_ARB1_TEXKILL
-
-static void arb1_texbem(Context *ctx, const int luminance)
-{
-    // !!! FIXME: this code counts on the register not having swizzles, etc.
-    const int stage = ctx->dest_arg.regnum;
-    char dst[64]; get_ARB1_destarg_varname(ctx, dst, sizeof (dst));
-    char src[64]; get_ARB1_srcarg_varname(ctx, 0, src, sizeof (src));
-    char tmp[64]; allocate_ARB1_scratch_reg_name(ctx, tmp, sizeof (tmp));
-    char sampler[64];
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_SAMPLER, stage,
-                            sampler, sizeof (sampler));
-
-    output_line(ctx, "MUL %s, %s_texbem.xzyw, %s.xyxy;", tmp, sampler, src);
-    output_line(ctx, "ADD %s.xy, %s.xzxx, %s.ywxx;", tmp, tmp, tmp);
-    output_line(ctx, "ADD %s.xy, %s, %s;", tmp, tmp, dst);
-    output_line(ctx, "TEX %s, %s, texture[%d], 2D;", dst, tmp, stage);
-
-    if (luminance)  // TEXBEML, not just TEXBEM?
-    {
-        output_line(ctx, "MAD %s, %s.zzzz, %s_texbeml.xxxx, %s_texbeml.yyyy;",
-                    tmp, src, sampler, sampler);
-        output_line(ctx, "MUL %s, %s, %s;", dst, dst, tmp);
-    } // if
-
-    emit_ARB1_dest_modifiers(ctx);
-} // arb1_texbem
-
-static void emit_ARB1_TEXBEM(Context *ctx)
-{
-    arb1_texbem(ctx, 0);
-} // emit_ARB1_TEXBEM
-
-static void emit_ARB1_TEXBEML(Context *ctx)
-{
-    arb1_texbem(ctx, 1);
-} // emit_ARB1_TEXBEML
-
-EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(TEXREG2AR)
-EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(TEXREG2GB)
-
-
-static void emit_ARB1_TEXM3X2PAD(Context *ctx)
-{
-    // no-op ... work happens in emit_ARB1_TEXM3X2TEX().
-} // emit_ARB1_TEXM3X2PAD
-
-static void emit_ARB1_TEXM3X2TEX(Context *ctx)
-{
-    if (ctx->texm3x2pad_src0 == -1)
-        return;
-
-    char dst[64];
-    char src0[64];
-    char src1[64];
-    char src2[64];
-
-    // !!! FIXME: this code counts on the register not having swizzles, etc.
-    const int stage = ctx->dest_arg.regnum;
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x2pad_src0,
-                            src0, sizeof (src0));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x2pad_dst0,
-                            src1, sizeof (src1));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum,
-                            src2, sizeof (src2));
-    get_ARB1_destarg_varname(ctx, dst, sizeof (dst));
-
-    output_line(ctx, "DP3 %s.y, %s, %s;", dst, src2, dst);
-    output_line(ctx, "DP3 %s.x, %s, %s;", dst, src0, src1);
-    output_line(ctx, "TEX %s, %s, texture[%d], 2D;", dst, dst, stage);
-    emit_ARB1_dest_modifiers(ctx);
-} // emit_ARB1_TEXM3X2TEX
-
-
-static void emit_ARB1_TEXM3X3PAD(Context *ctx)
-{
-    // no-op ... work happens in emit_ARB1_TEXM3X3*().
-} // emit_ARB1_TEXM3X3PAD
-
-
-static void emit_ARB1_TEXM3X3TEX(Context *ctx)
-{
-    if (ctx->texm3x3pad_src1 == -1)
-        return;
-
-    char dst[64];
-    char src0[64];
-    char src1[64];
-    char src2[64];
-    char src3[64];
-    char src4[64];
-
-    // !!! FIXME: this code counts on the register not having swizzles, etc.
-    const int stage = ctx->dest_arg.regnum;
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst0,
-                            src0, sizeof (src0));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src0,
-                            src1, sizeof (src1));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst1,
-                            src2, sizeof (src2));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src1,
-                            src3, sizeof (src3));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum,
-                            src4, sizeof (src4));
-    get_ARB1_destarg_varname(ctx, dst, sizeof (dst));
-
-    RegisterList *sreg = reglist_find(&ctx->samplers, REG_TYPE_SAMPLER, stage);
-    const TextureType ttype = (TextureType) (sreg ? sreg->index : 0);
-    const char *ttypestr = (ttype == TEXTURE_TYPE_CUBE) ? "CUBE" : "3D";
-
-    output_line(ctx, "DP3 %s.z, %s, %s;", dst, dst, src4);
-    output_line(ctx, "DP3 %s.x, %s, %s;", dst, src0, src1);
-    output_line(ctx, "DP3 %s.y, %s, %s;", dst, src2, src3);
-    output_line(ctx, "TEX %s, %s, texture[%d], %s;", dst, dst, stage, ttypestr);
-    emit_ARB1_dest_modifiers(ctx);
-} // emit_ARB1_TEXM3X3TEX
-
-static void emit_ARB1_TEXM3X3SPEC(Context *ctx)
-{
-    if (ctx->texm3x3pad_src1 == -1)
-        return;
-
-    char dst[64];
-    char src0[64];
-    char src1[64];
-    char src2[64];
-    char src3[64];
-    char src4[64];
-    char src5[64];
-    char tmp[64];
-    char tmp2[64];
-
-    // !!! FIXME: this code counts on the register not having swizzles, etc.
-    const int stage = ctx->dest_arg.regnum;
-    allocate_ARB1_scratch_reg_name(ctx, tmp, sizeof (tmp));
-    allocate_ARB1_scratch_reg_name(ctx, tmp2, sizeof (tmp2));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst0,
-                            src0, sizeof (src0));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src0,
-                            src1, sizeof (src1));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst1,
-                            src2, sizeof (src2));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src1,
-                            src3, sizeof (src3));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum,
-                            src4, sizeof (src4));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[1].regnum,
-                            src5, sizeof (src5));
-    get_ARB1_destarg_varname(ctx, dst, sizeof (dst));
-
-    RegisterList *sreg = reglist_find(&ctx->samplers, REG_TYPE_SAMPLER, stage);
-    const TextureType ttype = (TextureType) (sreg ? sreg->index : 0);
-    const char *ttypestr = (ttype == TEXTURE_TYPE_CUBE) ? "CUBE" : "3D";
-
-    output_line(ctx, "DP3 %s.z, %s, %s;", dst, dst, src4);
-    output_line(ctx, "DP3 %s.x, %s, %s;", dst, src0, src1);
-    output_line(ctx, "DP3 %s.y, %s, %s;", dst, src2, src3);
-    output_line(ctx, "MUL %s, %s, %s;", tmp, dst, dst);    // normal * normal
-    output_line(ctx, "MUL %s, %s, %s;", tmp2, dst, src5);  // normal * eyeray
-
-    // !!! FIXME: This is goofy. There's got to be a way to do vector-wide
-    // !!! FIXME:  divides or reciprocals...right?
-    output_line(ctx, "RCP %s.x, %s.x;", tmp2, tmp2);
-    output_line(ctx, "RCP %s.y, %s.y;", tmp2, tmp2);
-    output_line(ctx, "RCP %s.z, %s.z;", tmp2, tmp2);
-    output_line(ctx, "RCP %s.w, %s.w;", tmp2, tmp2);
-    output_line(ctx, "MUL %s, %s, %s;", tmp, tmp, tmp2);
-
-    output_line(ctx, "MUL %s, %s, { 2.0, 2.0, 2.0, 2.0 };", tmp, tmp);
-    output_line(ctx, "MAD %s, %s, %s, -%s;", tmp, tmp, dst, src5);
-    output_line(ctx, "TEX %s, %s, texture[%d], %s;", dst, tmp, stage, ttypestr);
-    emit_ARB1_dest_modifiers(ctx);
-} // emit_ARB1_TEXM3X3SPEC
-
-static void emit_ARB1_TEXM3X3VSPEC(Context *ctx)
-{
-    if (ctx->texm3x3pad_src1 == -1)
-        return;
-
-    char dst[64];
-    char src0[64];
-    char src1[64];
-    char src2[64];
-    char src3[64];
-    char src4[64];
-    char tmp[64];
-    char tmp2[64];
-    char tmp3[64];
-
-    // !!! FIXME: this code counts on the register not having swizzles, etc.
-    const int stage = ctx->dest_arg.regnum;
-    allocate_ARB1_scratch_reg_name(ctx, tmp, sizeof (tmp));
-    allocate_ARB1_scratch_reg_name(ctx, tmp2, sizeof (tmp2));
-    allocate_ARB1_scratch_reg_name(ctx, tmp3, sizeof (tmp3));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst0,
-                            src0, sizeof (src0));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src0,
-                            src1, sizeof (src1));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst1,
-                            src2, sizeof (src2));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src1,
-                            src3, sizeof (src3));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum,
-                            src4, sizeof (src4));
-    get_ARB1_destarg_varname(ctx, dst, sizeof (dst));
-
-    RegisterList *sreg = reglist_find(&ctx->samplers, REG_TYPE_SAMPLER, stage);
-    const TextureType ttype = (TextureType) (sreg ? sreg->index : 0);
-    const char *ttypestr = (ttype == TEXTURE_TYPE_CUBE) ? "CUBE" : "3D";
-
-    output_line(ctx, "MOV %s.x, %s.w;", tmp3, src0);
-    output_line(ctx, "MOV %s.y, %s.w;", tmp3, src2);
-    output_line(ctx, "MOV %s.z, %s.w;", tmp3, dst);
-    output_line(ctx, "DP3 %s.z, %s, %s;", dst, dst, src4);
-    output_line(ctx, "DP3 %s.x, %s, %s;", dst, src0, src1);
-    output_line(ctx, "DP3 %s.y, %s, %s;", dst, src2, src3);
-    output_line(ctx, "MUL %s, %s, %s;", tmp, dst, dst);    // normal * normal
-    output_line(ctx, "MUL %s, %s, %s;", tmp2, dst, tmp3);  // normal * eyeray
-
-    // !!! FIXME: This is goofy. There's got to be a way to do vector-wide
-    // !!! FIXME:  divides or reciprocals...right?
-    output_line(ctx, "RCP %s.x, %s.x;", tmp2, tmp2);
-    output_line(ctx, "RCP %s.y, %s.y;", tmp2, tmp2);
-    output_line(ctx, "RCP %s.z, %s.z;", tmp2, tmp2);
-    output_line(ctx, "RCP %s.w, %s.w;", tmp2, tmp2);
-    output_line(ctx, "MUL %s, %s, %s;", tmp, tmp, tmp2);
-
-    output_line(ctx, "MUL %s, %s, { 2.0, 2.0, 2.0, 2.0 };", tmp, tmp);
-    output_line(ctx, "MAD %s, %s, %s, -%s;", tmp, tmp, dst, tmp3);
-    output_line(ctx, "TEX %s, %s, texture[%d], %s;", dst, tmp, stage, ttypestr);
-    emit_ARB1_dest_modifiers(ctx);
-} // emit_ARB1_TEXM3X3VSPEC
-
-static void emit_ARB1_EXPP(Context *ctx) { emit_ARB1_opcode_ds(ctx, "EX2"); }
-static void emit_ARB1_LOGP(Context *ctx) { arb1_log(ctx, "LG2"); }
-
-static void emit_ARB1_CND(Context *ctx)
-{
-    char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-    char src0[64]; make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-    char src1[64]; make_ARB1_srcarg_string(ctx, 1, src1, sizeof (src1));
-    char src2[64]; make_ARB1_srcarg_string(ctx, 2, src2, sizeof (src2));
-    char tmp[64]; allocate_ARB1_scratch_reg_name(ctx, tmp, sizeof (tmp));
-
-    // CND compares against 0.5, but we need to compare against 0.0...
-    //  ...subtract to make up the difference.
-    output_line(ctx, "SUB %s, %s, { 0.5, 0.5, 0.5, 0.5 };", tmp, src0);
-    // D3D tests (src0 >= 0.0), but ARB1 tests (src0 < 0.0) ... so just
-    //  switch src1 and src2 to get the same results.
-    output_line(ctx, "CMP%s, %s, %s, %s;", dst, tmp, src2, src1);
-    emit_ARB1_dest_modifiers(ctx);
-} // emit_ARB1_CND
-
-EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(TEXREG2RGB)
-EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(TEXDP3TEX)
-EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(TEXM3X2DEPTH)
-EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(TEXDP3)
-
-static void emit_ARB1_TEXM3X3(Context *ctx)
-{
-    if (ctx->texm3x3pad_src1 == -1)
-        return;
-
-    char dst[64];
-    char src0[64];
-    char src1[64];
-    char src2[64];
-    char src3[64];
-    char src4[64];
-
-    // !!! FIXME: this code counts on the register not having swizzles, etc.
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst0,
-                            src0, sizeof (src0));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src0,
-                            src1, sizeof (src1));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst1,
-                            src2, sizeof (src2));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src1,
-                            src3, sizeof (src3));
-    get_ARB1_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum,
-                            src4, sizeof (src4));
-    get_ARB1_destarg_varname(ctx, dst, sizeof (dst));
-
-    output_line(ctx, "DP3 %s.z, %s, %s;", dst, dst, src4);
-    output_line(ctx, "DP3 %s.x, %s, %s;", dst, src0, src1);
-    output_line(ctx, "DP3 %s.y, %s, %s;", dst, src2, src3);
-    output_line(ctx, "MOV %s.w, { 1.0, 1.0, 1.0, 1.0 };", dst);
-    emit_ARB1_dest_modifiers(ctx);
-} // emit_ARB1_TEXM3X3
-
-EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(TEXDEPTH)
-
-static void emit_ARB1_CMP(Context *ctx)
-{
-    char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-    char src0[64]; make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-    char src1[64]; make_ARB1_srcarg_string(ctx, 1, src1, sizeof (src1));
-    char src2[64]; make_ARB1_srcarg_string(ctx, 2, src2, sizeof (src2));
-    // D3D tests (src0 >= 0.0), but ARB1 tests (src0 < 0.0) ... so just
-    //  switch src1 and src2 to get the same results.
-    output_line(ctx, "CMP%s, %s, %s, %s;", dst, src0, src2, src1);
-    emit_ARB1_dest_modifiers(ctx);
-} // emit_ARB1_CMP
-
-EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(BEM)
-
-
-static void emit_ARB1_DP2ADD(Context *ctx)
-{
-    if (support_nv4(ctx))  // nv4 has a built-in equivalent to DP2ADD.
-        emit_ARB1_opcode_dsss(ctx, "DP2A");
-    else
-    {
-        char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-        char src0[64]; make_ARB1_srcarg_string(ctx, 0, src0, sizeof (src0));
-        char src1[64]; make_ARB1_srcarg_string(ctx, 1, src1, sizeof (src1));
-        char src2[64]; make_ARB1_srcarg_string(ctx, 2, src2, sizeof (src2));
-        char scratch[64];
-
-        // DP2ADD is:
-        //  dst = (src0.r * src1.r) + (src0.g * src1.g) + src2.replicate_swiz
-        allocate_ARB1_scratch_reg_name(ctx, scratch, sizeof (scratch));
-        output_line(ctx, "MUL %s, %s, %s;", scratch, src0, src1);
-        output_line(ctx, "ADD %s, %s.x, %s.y;", scratch, scratch, scratch);
-        output_line(ctx, "ADD%s, %s.x, %s;", dst, scratch, src2);
-        emit_ARB1_dest_modifiers(ctx);
-    } // else
-} // emit_ARB1_DP2ADD
-
-
-static void emit_ARB1_DSX(Context *ctx)
-{
-    if (support_nv2(ctx))  // nv2 has a built-in equivalent to DSX.
-        emit_ARB1_opcode_ds(ctx, "DDX");
-    else
-        failf(ctx, "DSX unsupported in %s profile", ctx->profile->name);
-} // emit_ARB1_DSX
-
-
-static void emit_ARB1_DSY(Context *ctx)
-{
-    if (support_nv2(ctx))  // nv2 has a built-in equivalent to DSY.
-        emit_ARB1_opcode_ds(ctx, "DDY");
-    else
-        failf(ctx, "DSY unsupported in %s profile", ctx->profile->name);
-} // emit_ARB1_DSY
-
-static void arb1_texld(Context *ctx, const char *opcode, const int texldd)
-{
-    // !!! FIXME: Hack: "TEXH" is invalid in nv4. Fix this more cleanly.
-    if ((ctx->dest_arg.result_mod & MOD_PP) && (support_nv4(ctx)))
-        ctx->dest_arg.result_mod &= ~MOD_PP;
-
-    char dst[64]; make_ARB1_destarg_string(ctx, dst, sizeof (dst));
-
-    const int sm1 = !shader_version_atleast(ctx, 1, 4);
-    const int regnum = sm1 ? ctx->dest_arg.regnum : ctx->source_args[1].regnum;
-    RegisterList *sreg = reglist_find(&ctx->samplers, REG_TYPE_SAMPLER, regnum);
-
-    const char *ttype = NULL;
-    char src0[64];
-    if (sm1)
-        get_ARB1_destarg_varname(ctx, src0, sizeof (src0));
-    else
-        get_ARB1_srcarg_varname(ctx, 0, src0, sizeof (src0));
-    //char src1[64]; get_ARB1_srcarg_varname(ctx, 1, src1, sizeof (src1));  // !!! FIXME: SRC_MOD?
-
-    char src2[64] = { 0 };
-    char src3[64] = { 0 };
-
-    if (texldd)
-    {
-        make_ARB1_srcarg_string(ctx, 2, src2, sizeof (src2));
-        make_ARB1_srcarg_string(ctx, 3, src3, sizeof (src3));
-    } // if
-
-    // !!! FIXME: this should be in state_TEXLD, not in the arb1/glsl emitters.
-    if (sreg == NULL)
-    {
-        fail(ctx, "TEXLD using undeclared sampler");
-        return;
-    } // if
-
-    // SM1 only specifies dst, so don't check swizzle there.
-    if ( !sm1 && (!no_swizzle(ctx->source_args[1].swizzle)) )
-    {
-        // !!! FIXME: does this ever actually happen?
-        fail(ctx, "BUG: can't handle TEXLD with sampler swizzle at the moment");
-    } // if
-
-    switch ((const TextureType) sreg->index)
-    {
-        case TEXTURE_TYPE_2D: ttype = "2D"; break; // !!! FIXME: "RECT"?
-        case TEXTURE_TYPE_CUBE: ttype = "CUBE"; break;
-        case TEXTURE_TYPE_VOLUME: ttype = "3D"; break;
-        default: fail(ctx, "unknown texture type"); return;
-    } // switch
-
-    if (texldd)
-    {
-        output_line(ctx, "%s%s, %s, %s, %s, texture[%d], %s;", opcode, dst,
-                    src0, src2, src3, regnum, ttype);
-    } // if
-    else
-    {
-        output_line(ctx, "%s%s, %s, texture[%d], %s;", opcode, dst, src0,
-                    regnum, ttype);
-    } // else
-} // arb1_texld
-
-
-static void emit_ARB1_TEXLDD(Context *ctx)
-{
-    // With GL_NV_fragment_program2, we can use the TXD opcode.
-    //  In stock arb1, we can settle for a standard texld, which isn't
-    //  perfect, but oh well.
-    if (support_nv2(ctx))
-        arb1_texld(ctx, "TXD", 1);
-    else
-        arb1_texld(ctx, "TEX", 0);
-} // emit_ARB1_TEXLDD
-
-
-static void emit_ARB1_TEXLDL(Context *ctx)
-{
-    if ((shader_is_vertex(ctx)) && (!support_nv3(ctx)))
-    {
-        failf(ctx, "Vertex shader TEXLDL unsupported in %s profile",
-              ctx->profile->name);
-        return;
-    } // if
-
-    else if ((shader_is_pixel(ctx)) && (!support_nv2(ctx)))
-    {
-        failf(ctx, "Pixel shader TEXLDL unsupported in %s profile",
-              ctx->profile->name);
-        return;
-    } // if
-
-    // !!! FIXME: this doesn't map exactly to TEXLDL. Review this.
-    arb1_texld(ctx, "TXL", 0);
-} // emit_ARB1_TEXLDL
-
-
-EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(BREAKP)
-EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(BREAKC)
-
-static void emit_ARB1_IFC(Context *ctx)
-{
-    if (support_nv2(ctx))
-    {
-        static const char *comps[] = {
-            "", "SGTC", "SEQC", "SGEC", "SGTC", "SNEC", "SLEC"
-        };
-
-        if (ctx->instruction_controls >= STATICARRAYLEN(comps))
-        {
-            fail(ctx, "unknown comparison control");
-            return;
-        } // if
-
-        char src0[64];
-        char src1[64];
-        char scratch[64];
-
-        const char *comp = comps[ctx->instruction_controls];
-        get_ARB1_srcarg_varname(ctx, 0, src0, sizeof (src0));
-        get_ARB1_srcarg_varname(ctx, 1, src1, sizeof (src1));
-        allocate_ARB1_scratch_reg_name(ctx, scratch, sizeof (scratch));
-        output_line(ctx, "%s %s.x, %s, %s;", comp, scratch, src0, src1);
-        nv2_if(ctx);
-    } // if
-
-    else  // stock ARB1 has no branching.
-    {
-        failf(ctx, "branching unsupported in %s profile", ctx->profile->name);
-    } // else
-} // emit_ARB1_IFC
-
-
-EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(SETP)
-
-static void emit_ARB1_DEF(Context *ctx)
-{
-    const float *val = (const float *) ctx->dwords; // !!! FIXME: could be int?
-    char dst[64]; get_ARB1_destarg_varname(ctx, dst, sizeof (dst));
-    char val0[32]; floatstr(ctx, val0, sizeof (val0), val[0], 1);
-    char val1[32]; floatstr(ctx, val1, sizeof (val1), val[1], 1);
-    char val2[32]; floatstr(ctx, val2, sizeof (val2), val[2], 1);
-    char val3[32]; floatstr(ctx, val3, sizeof (val3), val[3], 1);
-
-    push_output(ctx, &ctx->globals);
-    output_line(ctx, "PARAM %s = { %s, %s, %s, %s };",
-                dst, val0, val1, val2, val3);
-    pop_output(ctx);
-} // emit_ARB1_DEF
-
-static void emit_ARB1_DEFI(Context *ctx)
-{
-    char dst[64]; get_ARB1_destarg_varname(ctx, dst, sizeof (dst));
-    const int32 *x = (const int32 *) ctx->dwords;
-    push_output(ctx, &ctx->globals);
-    output_line(ctx, "PARAM %s = { %d, %d, %d, %d };",
-                dst, (int) x[0], (int) x[1], (int) x[2], (int) x[3]);
-    pop_output(ctx);
-} // emit_ARB1_DEFI
-
-static void emit_ARB1_DEFB(Context *ctx)
-{
-    char dst[64]; get_ARB1_destarg_varname(ctx, dst, sizeof (dst));
-    push_output(ctx, &ctx->globals);
-    output_line(ctx, "PARAM %s = %d;", dst, ctx->dwords[0] ? 1 : 0);
-    pop_output(ctx);
-} // emit_ARB1_DEFB
-
-static void emit_ARB1_DCL(Context *ctx)
-{
-    // no-op. We do this in our emit_attribute() and emit_uniform().
-} // emit_ARB1_DCL
-
-EMIT_ARB1_OPCODE_UNIMPLEMENTED_FUNC(TEXCRD)
-
-static void emit_ARB1_TEXLD(Context *ctx)
-{
-    if (!shader_version_atleast(ctx, 1, 4))
-    {
-        arb1_texld(ctx, "TEX", 0);
-        return;
-    } // if
-
-    else if (!shader_version_atleast(ctx, 2, 0))
-    {
-        // ps_1_4 is different, too!
-        fail(ctx, "TEXLD == Shader Model 1.4 unimplemented.");  // !!! FIXME
-        return;
-    } // if
-
-    // !!! FIXME: do texldb and texldp map between OpenGL and D3D correctly?
-    if (ctx->instruction_controls == CONTROL_TEXLD)
-        arb1_texld(ctx, "TEX", 0);
-    else if (ctx->instruction_controls == CONTROL_TEXLDP)
-        arb1_texld(ctx, "TXP", 0);
-    else if (ctx->instruction_controls == CONTROL_TEXLDB)
-        arb1_texld(ctx, "TXB", 0);
-} // emit_ARB1_TEXLD
-
-#endif  // SUPPORT_PROFILE_ARB1
 
 
 #if !AT_LEAST_ONE_PROFILE
@@ -6225,18 +2977,7 @@ static void emit_ARB1_TEXLD(Context *ctx)
 
 static const Profile profiles[] =
 {
-#if SUPPORT_PROFILE_D3D
-    DEFINE_PROFILE(D3D)
-#endif
-#if SUPPORT_PROFILE_BYTECODE
-    DEFINE_PROFILE(BYTECODE)
-#endif
-#if SUPPORT_PROFILE_GLSL
     DEFINE_PROFILE(GLSL)
-#endif
-#if SUPPORT_PROFILE_ARB1
-    DEFINE_PROFILE(ARB1)
-#endif
 };
 
 #undef DEFINE_PROFILE
@@ -6245,18 +2986,12 @@ static const Profile profiles[] =
 static const struct { const char *from; const char *to; } profileMap[] =
 {
     { MOJOSHADER_PROFILE_GLSL120, MOJOSHADER_PROFILE_GLSL },
-    { MOJOSHADER_PROFILE_NV2, MOJOSHADER_PROFILE_ARB1 },
-    { MOJOSHADER_PROFILE_NV3, MOJOSHADER_PROFILE_ARB1 },
-    { MOJOSHADER_PROFILE_NV4, MOJOSHADER_PROFILE_ARB1 },
 };
 
 
 // The PROFILE_EMITTER_* items MUST be in the same order as profiles[]!
 #define PROFILE_EMITTERS(op) { \
-     PROFILE_EMITTER_D3D(op) \
-     PROFILE_EMITTER_BYTECODE(op) \
      PROFILE_EMITTER_GLSL(op) \
-     PROFILE_EMITTER_ARB1(op) \
 }
 
 static int parse_destination_token(Context *ctx, DestArgInfo *info)
@@ -6294,17 +3029,17 @@ static int parse_destination_token(Context *ctx, DestArgInfo *info)
     {
         info->regtype = REG_TYPE_CONST;
         info->regnum += 2048;
-    } // else if
+    }
     else if (info->regtype == REG_TYPE_CONST3)
     {
         info->regtype = REG_TYPE_CONST;
         info->regnum += 4096;
-    } // else if
+    }
     else if (info->regtype == REG_TYPE_CONST4)
     {
         info->regtype = REG_TYPE_CONST;
         info->regnum += 6144;
-    } // else if
+    }
 
     // swallow token for now, for multiple calls in a row.
     adjust_token_position(ctx, 1);
@@ -6321,16 +3056,11 @@ static int parse_destination_token(Context *ctx, DestArgInfo *info)
             fail(ctx, "Relative addressing in non-vertex shader");
         if (!shader_version_atleast(ctx, 3, 0))
             fail(ctx, "Relative addressing in vertex shader version < 3.0");
-        if ((!ctx->ctab.have_ctab) && (!ctx->ignores_ctab))
-        {
-            // it's hard to do this efficiently without!
-            fail(ctx, "relative addressing unsupported without a CTAB");
-        } // if
 
         // !!! FIXME: I don't have a shader that has a relative dest currently.
         fail(ctx, "Relative addressing of dest tokens is unsupported");
         return 2;
-    } // if
+    }
 
     const int s = info->result_shift;
     if (s != 0)
@@ -6341,13 +3071,13 @@ static int parse_destination_token(Context *ctx, DestArgInfo *info)
             fail(ctx, "Result shift scale in pixel shader version >= 2.0");
         if ( ! (((s >= 1) && (s <= 3)) || ((s >= 0xD) && (s <= 0xF))) )
             fail(ctx, "Result shift scale isn't 1 to 3, or 13 to 15.");
-    } // if
+    }
 
     if (info->result_mod & MOD_PP)  // Partial precision (pixel shaders only)
     {
         if (!shader_is_pixel(ctx))
             fail(ctx, "Partial precision result mod in non-pixel shader");
-    } // if
+    }
 
     if (info->result_mod & MOD_CENTROID)  // Centroid (pixel shaders only)
     {
@@ -6355,7 +3085,7 @@ static int parse_destination_token(Context *ctx, DestArgInfo *info)
             fail(ctx, "Centroid result mod in non-pixel shader");
         else if (!ctx->centroid_allowed)  // only on DCL opcodes!
             fail(ctx, "Centroid modifier not allowed here");
-    } // if
+    }
 
     if ((info->regtype < 0) || (info->regtype > REG_TYPE_MAX))
         fail(ctx, "Register type is out of range");
@@ -6371,52 +3101,50 @@ static void determine_constants_arrays(Context *ctx)
 {
     // Only process this stuff once. This is called after all DEF* opcodes
     //  could have been parsed.
-    if (ctx->determined_constants_arrays)
+    if(ctx->determined_constants_arrays)
         return;
-
     ctx->determined_constants_arrays = 1;
 
     if (ctx->constant_count <= 1)
         return;  // nothing to sort or group.
 
     // Sort the linked list into an array for easier tapdancing...
-    ConstantsList **array = (ConstantsList **) alloca(sizeof (ConstantsList *) * (ctx->constant_count + 1));
+    ConstantsList **array = alloca(sizeof(ConstantsList*) * (ctx->constant_count+1));
     ConstantsList *item = ctx->constants;
     int i;
 
-    for (i = 0; i < ctx->constant_count; i++)
+    for(i = 0;i < ctx->constant_count;i++)
     {
-        if (item == NULL)
+        if(item == NULL)
         {
             fail(ctx, "BUG: mismatched constant list and count");
             return;
-        } // if
+        }
 
         array[i] = item;
         item = item->next;
-    } // for
+    }
 
     array[ctx->constant_count] = NULL;
 
     // bubble sort ftw.
     int sorted;
-    do
-    {
+    do {
         sorted = 1;
-        for (i = 0; i < ctx->constant_count-1; i++)
+        for(i = 0; i < ctx->constant_count-1; i++)
         {
-            if (array[i]->constant.index > array[i+1]->constant.index)
+            if(array[i]->constant.index > array[i+1]->constant.index)
             {
                 ConstantsList *tmp = array[i];
                 array[i] = array[i+1];
                 array[i+1] = tmp;
                 sorted = 0;
-            } // if
-        } // for
-    } while (!sorted);
+            }
+        }
+    } while(!sorted);
 
     // okay, sorted. While we're here, let's redo the linked list in order...
-    for (i = 0; i < ctx->constant_count; i++)
+    for(i = 0; i < ctx->constant_count; i++)
         array[i]->next = array[i+1];
     ctx->constants = array[0];
 
@@ -6427,28 +3155,25 @@ static void determine_constants_arrays(Context *ctx)
     const int hi = ctx->constant_count;
     for (i = 0; i <= hi; i++)
     {
-        if (array[i] && (array[i]->constant.type != MOJOSHADER_UNIFORM_FLOAT))
+        if(array[i] && array[i]->constant.type != MOJOSHADER_UNIFORM_FLOAT)
             continue;  // we only care about REG_TYPE_CONST for array groups.
 
-        if (start == -1)
+        if(start == -1)
         {
             prev = start = i;  // first REG_TYPE_CONST we've seen. Mark it!
             continue;
-        } // if
+        }
 
         // not a match (or last item in the array)...see if we had a
         //  contiguous set before this point...
-        if ( (array[i]) && (array[i]->constant.index == (array[prev]->constant.index + 1)) )
+        if(array[i] && array[i]->constant.index == (array[prev]->constant.index+1))
             count++;
         else
         {
-            if (count > 0)  // multiple constants in the set?
+            // multiple constants in the set?
+            if(count > 0)
             {
-                VariableList *var;
-                var = (VariableList *) Malloc(ctx, sizeof (VariableList));
-                if (var == NULL)
-                    break;
-
+                VariableList *var = malloc(sizeof(VariableList));
                 var->type = MOJOSHADER_UNIFORM_FLOAT;
                 var->index = array[start]->constant.index;
                 var->count = (array[prev]->constant.index - var->index) + 1;
@@ -6457,14 +3182,15 @@ static void determine_constants_arrays(Context *ctx)
                 var->emit_position = -1;
                 var->next = ctx->variables;
                 ctx->variables = var;
-            } // else
+            }
 
-            start = i;   // set this as new start of sequence.
-        } // if
+            // set this as new start of sequence.
+            start = i;
+        }
 
         prev = i;
-    } // for
-} // determine_constants_arrays
+    }
+}
 
 
 static int adjust_swizzle(const Context *ctx, const RegisterType regtype,
@@ -6519,21 +3245,21 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
 
     // all the REG_TYPE_CONSTx types are the same register type, it's just
     //  split up so its regnum can be > 2047 in the bytecode. Clean it up.
-    if (info->regtype == REG_TYPE_CONST2)
+    if(info->regtype == REG_TYPE_CONST2)
     {
         info->regtype = REG_TYPE_CONST;
         info->regnum += 2048;
-    } // else if
-    else if (info->regtype == REG_TYPE_CONST3)
+    }
+    else if(info->regtype == REG_TYPE_CONST3)
     {
         info->regtype = REG_TYPE_CONST;
         info->regnum += 4096;
-    } // else if
-    else if (info->regtype == REG_TYPE_CONST4)
+    }
+    else if(info->regtype == REG_TYPE_CONST4)
     {
         info->regtype = REG_TYPE_CONST;
         info->regnum += 6144;
-    } // else if
+    }
 
     info->swizzle = adjust_swizzle(ctx, info->regtype, info->regnum, swizzle);
     info->swizzle_x = ((info->swizzle >> 0) & 0x3);
@@ -6618,39 +3344,27 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
         else if (info->regtype == REG_TYPE_CONST)
         {
             // figure out what array we're in...
-            if (!ctx->ignores_ctab)
+            determine_constants_arrays(ctx);
+
+            VariableList *var;
+            const int reltarget = info->regnum;
+            for (var = ctx->variables; var != NULL; var = var->next)
             {
-                if (!ctx->ctab.have_ctab)  // hard to do efficiently without!
-                    fail(ctx, "relative addressing unsupported without a CTAB");
-                else
-                {
-                    determine_constants_arrays(ctx);
+                const int lo = var->index;
+                if(reltarget >= lo && reltarget < (lo + var->count))
+                    break;  // match!
+            }
 
-                    VariableList *var;
-                    const int reltarget = info->regnum;
-                    for (var = ctx->variables; var != NULL; var = var->next)
-                    {
-                        const int lo = var->index;
-                        if ( (reltarget >= lo) && (reltarget < (lo + var->count)) )
-                            break;  // match!
-                    } // for
-
-                    if (var == NULL)
-                        fail(ctx, "relative addressing of indeterminate array");
-                    else
-                    {
-                        var->used = 1;
-                        info->relative_array = var;
-                        set_used_register(ctx, info->relative_regtype, info->relative_regnum, 0);
-                    } // else
-                } // else
-            } // if
-        } // else if
+            if(var != NULL)
+                var->used = 1;
+            info->relative_array = var;
+            set_used_register(ctx, info->relative_regtype, info->relative_regnum, 0);
+        }
         else
         {
             fail(ctx, "relative addressing of invalid register");
-        } // else
-    } // if
+        }
+    }
 
     switch (info->src_mod)
     {
@@ -6731,8 +3445,9 @@ static int parse_predicated_token(Context *ctx)
 
 static int parse_args_NULL(Context *ctx)
 {
+    (void)ctx;
     return 1;
-} // parse_args_NULL
+}
 
 
 static int parse_args_DEF(Context *ctx)
@@ -6800,7 +3515,6 @@ static int valid_texture_type(const uint32 ttype)
 // !!! FIXME: this function is kind of a mess.
 static int parse_args_DCL(Context *ctx)
 {
-    int unsupported = 0;
     const uint32 token = SWAP32(*(ctx->tokens));
     const int reserved1 = (int) ((token >> 31) & 0x1); // bit 31
     uint32 reserved_mask = 0x00000000;
@@ -6820,7 +3534,7 @@ static int parse_args_DCL(Context *ctx)
 
     const RegisterType regtype = ctx->dest_arg.regtype;
     const int regnum = ctx->dest_arg.regnum;
-    if ( (shader_is_pixel(ctx)) && (shader_version_atleast(ctx, 3, 0)) )
+    if(shader_is_pixel(ctx) && shader_version_atleast(ctx, 3, 0))
     {
         if (regtype == REG_TYPE_INPUT)
         {
@@ -6829,9 +3543,8 @@ static int parse_args_DCL(Context *ctx)
             reserved_mask = 0x7FF0FFE0;
             ctx->dwords[0] = usage;
             ctx->dwords[1] = index;
-        } // if
-
-        else if (regtype == REG_TYPE_MISCTYPE)
+        }
+        else if(regtype == REG_TYPE_MISCTYPE)
         {
             const MiscTypeType mt = (MiscTypeType) regnum;
             if (mt == MISCTYPE_TYPE_POSITION)
@@ -6845,16 +3558,15 @@ static int parse_args_DCL(Context *ctx)
                     fail(ctx, "DCL face result modifier must be zero");
                 if (ctx->dest_arg.result_shift != 0)
                     fail(ctx, "DCL face shift scale must be zero");
-            } // else if
+            }
             else
             {
-                unsupported = 1;
-            } // else
+                failf(ctx, "ps3.x DCL unexpected misc register type: 0x%x", mt);
+            }
 
             ctx->dwords[0] = (uint32) MOJOSHADER_USAGE_UNKNOWN;
             ctx->dwords[1] = 0;
-        } // else if
-
+        }
         else if (regtype == REG_TYPE_TEXTURE)
         {
             const uint32 usage = (token & 0xF);
@@ -6863,22 +3575,21 @@ static int parse_args_DCL(Context *ctx)
             {
                 if (index > 7)
                     fail(ctx, "DCL texcoord usage must have 0-7 index");
-            } // if
+            }
             else if (usage == MOJOSHADER_USAGE_COLOR)
             {
                 if (index != 0)
                     fail(ctx, "DCL color usage must have 0 index");
-            } // else if
+            }
             else
             {
                 fail(ctx, "Invalid DCL texture usage");
-            } // else
+            }
 
             reserved_mask = 0x7FF0FFE0;
             ctx->dwords[0] = usage;
             ctx->dwords[1] = index;
-        } // else if
-
+        }
         else if (regtype == REG_TYPE_SAMPLER)
         {
             const uint32 ttype = ((token >> 27) & 0xF);
@@ -6886,28 +3597,26 @@ static int parse_args_DCL(Context *ctx)
                 fail(ctx, "unknown sampler texture type");
             reserved_mask = 0x7FFFFFF;
             ctx->dwords[0] = ttype;
-        } // else if
-
+        }
         else
         {
-            unsupported = 1;
-        } // else
-    } // if
-
-    else if ( (shader_is_pixel(ctx)) && (shader_version_atleast(ctx, 2, 0)) )
+            failf(ctx, "ps3.x DCL unexpected register type: 0x%x", regtype);
+        }
+    }
+    else if(shader_is_pixel(ctx) && shader_version_atleast(ctx, 2, 0))
     {
         if (regtype == REG_TYPE_INPUT)
         {
             ctx->dwords[0] = (uint32) MOJOSHADER_USAGE_COLOR;
             ctx->dwords[1] = regnum;
             reserved_mask = 0x7FFFFFFF;
-        } // if
+        }
         else if (regtype == REG_TYPE_TEXTURE)
         {
             ctx->dwords[0] = (uint32) MOJOSHADER_USAGE_TEXCOORD;
             ctx->dwords[1] = regnum;
             reserved_mask = 0x7FFFFFFF;
-        } // else if
+        }
         else if (regtype == REG_TYPE_SAMPLER)
         {
             const uint32 ttype = ((token >> 27) & 0xF);
@@ -6915,30 +3624,28 @@ static int parse_args_DCL(Context *ctx)
                 fail(ctx, "unknown sampler texture type");
             reserved_mask = 0x7FFFFFF;
             ctx->dwords[0] = ttype;
-        } // else if
+        }
         else
         {
-            unsupported = 1;
-        } // else
-    } // if
-
-    else if ( (shader_is_vertex(ctx)) && (shader_version_atleast(ctx, 3, 0)) )
+            failf(ctx, "ps2.x DCL unexpected register type: 0x%x", regtype);
+        }
+    }
+    else if(shader_is_vertex(ctx) && shader_version_atleast(ctx, 3, 0))
     {
-        if ((regtype == REG_TYPE_INPUT) || (regtype == REG_TYPE_OUTPUT))
+        if(regtype == REG_TYPE_INPUT || regtype == REG_TYPE_OUTPUT)
         {
             const uint32 usage = (token & 0xF);
             const uint32 index = ((token >> 16) & 0xF);
             reserved_mask = 0x7FF0FFE0;
             ctx->dwords[0] = usage;
             ctx->dwords[1] = index;
-        } // if
+        }
         else
         {
-            unsupported = 1;
-        } // else
-    } // else if
-
-    else if ( (shader_is_vertex(ctx)) && (shader_version_atleast(ctx, 1, 1)) )
+            failf(ctx, "vs3.x DCL unexpected register type: 0x%x", regtype);
+        }
+    }
+    else if(shader_is_vertex(ctx) && shader_version_atleast(ctx, 1, 1))
     {
         if (regtype == REG_TYPE_INPUT)
         {
@@ -6947,20 +3654,16 @@ static int parse_args_DCL(Context *ctx)
             reserved_mask = 0x7FF0FFE0;
             ctx->dwords[0] = usage;
             ctx->dwords[1] = index;
-        } // if
+        }
         else
         {
-            unsupported = 1;
-        } // else
-    } // else if
-
+            failf(ctx, "vs1.1 DCL unexpected register type: 0x%x", regtype);
+        }
+    }
     else
     {
-        unsupported = 1;
-    } // else
-
-    if (unsupported)
-        fail(ctx, "invalid DCL register type for this shader model");
+        failf(ctx, "Unknown shader type in DCL");
+    }
 
     if ((token & reserved_mask) != 0)
         fail(ctx, "reserved bits in DCL dword aren't zero");
@@ -7069,17 +3772,13 @@ static int parse_args_TEXLD(Context *ctx)
 
 static ConstantsList *alloc_constant_listitem(Context *ctx)
 {
-    ConstantsList *item = (ConstantsList *) Malloc(ctx, sizeof (ConstantsList));
-    if (item == NULL)
-        return NULL;
-
-    memset(&item->constant, '\0', sizeof (MOJOSHADER_constant));
+    ConstantsList *item = malloc(sizeof(ConstantsList));
+    memset(item, 0, sizeof(ConstantsList));
     item->next = ctx->constants;
     ctx->constants = item;
     ctx->constant_count++;
-
     return item;
-} // alloc_constant_listitem
+}
 
 
 static void state_DEF(Context *ctx)
@@ -7096,16 +3795,13 @@ static void state_DEF(Context *ctx)
     else
     {
         ConstantsList *item = alloc_constant_listitem(ctx);
-        if (item != NULL)
-        {
-            item->constant.index = regnum;
-            item->constant.type = MOJOSHADER_UNIFORM_FLOAT;
-            memcpy(item->constant.value.f, ctx->dwords,
-                   sizeof (item->constant.value.f));
-            set_defined_register(ctx, regtype, regnum);
-        } // if
-    } // else
-} // state_DEF
+        item->constant.index = regnum;
+        item->constant.type = MOJOSHADER_UNIFORM_FLOAT;
+        memcpy(item->constant.value.f, ctx->dwords,
+               sizeof (item->constant.value.f));
+        set_defined_register(ctx, regtype, regnum);
+    }
+}
 
 static void state_DEFI(Context *ctx)
 {
@@ -7121,17 +3817,14 @@ static void state_DEFI(Context *ctx)
     else
     {
         ConstantsList *item = alloc_constant_listitem(ctx);
-        if (item != NULL)
-        {
-            item->constant.index = regnum;
-            item->constant.type = MOJOSHADER_UNIFORM_INT;
-            memcpy(item->constant.value.i, ctx->dwords,
-                   sizeof (item->constant.value.i));
+        item->constant.index = regnum;
+        item->constant.type = MOJOSHADER_UNIFORM_INT;
+        memcpy(item->constant.value.i, ctx->dwords,
+               sizeof (item->constant.value.i));
 
-            set_defined_register(ctx, regtype, regnum);
-        } // if
-    } // else
-} // state_DEFI
+        set_defined_register(ctx, regtype, regnum);
+    }
+}
 
 static void state_DEFB(Context *ctx)
 {
@@ -7147,15 +3840,12 @@ static void state_DEFB(Context *ctx)
     else
     {
         ConstantsList *item = alloc_constant_listitem(ctx);
-        if (item != NULL)
-        {
-            item->constant.index = regnum;
-            item->constant.type = MOJOSHADER_UNIFORM_BOOL;
-            item->constant.value.b = ctx->dwords[0] ? 1 : 0;
-            set_defined_register(ctx, regtype, regnum);
-        } // if
-    } // else
-} // state_DEFB
+        item->constant.index = regnum;
+        item->constant.type = MOJOSHADER_UNIFORM_BOOL;
+        item->constant.value.b = ctx->dwords[0] ? 1 : 0;
+        set_defined_register(ctx, regtype, regnum);
+    }
+}
 
 static void state_DCL(Context *ctx)
 {
@@ -7172,7 +3862,6 @@ static void state_DCL(Context *ctx)
 
     if (ctx->instruction_count != 0)
         fail(ctx, "DCL token must come before any instructions");
-
     else if (shader_is_vertex(ctx))
     {
         const MOJOSHADER_usage usage = (const MOJOSHADER_usage) ctx->dwords[0];
@@ -7181,10 +3870,9 @@ static void state_DCL(Context *ctx)
         {
             fail(ctx, "unknown DCL usage");
             return;
-        } // if
+        }
         add_attribute_register(ctx, regtype, regnum, usage, index, wmask, mods);
-    } // if
-
+    }
     else if (shader_is_pixel(ctx))
     {
         if (regtype == REG_TYPE_SAMPLER)
@@ -7194,23 +3882,22 @@ static void state_DCL(Context *ctx)
             const MOJOSHADER_usage usage = (MOJOSHADER_usage) ctx->dwords[0];
             const int index = ctx->dwords[1];
             add_attribute_register(ctx, regtype, regnum, usage, index, wmask, mods);
-        } // else
-    } // else if
-
+        }
+    }
     else
     {
         fail(ctx, "unsupported shader type."); // should be caught elsewhere.
         return;
-    } // else
+    }
 
     set_defined_register(ctx, regtype, regnum);
-} // state_DCL
+}
 
 static void state_TEXCRD(Context *ctx)
 {
     if (shader_version_atleast(ctx, 2, 0))
         fail(ctx, "TEXCRD in Shader Model >= 2.0");  // apparently removed.
-} // state_TEXCRD
+}
 
 static void state_FRC(Context *ctx)
 {
@@ -7218,20 +3905,17 @@ static void state_FRC(Context *ctx)
 
     if (dst->result_mod & MOD_SATURATE)  // according to msdn...
         fail(ctx, "FRC destination can't use saturate modifier");
-
     else if (!shader_version_atleast(ctx, 2, 0))
     {
         if (!writemask_y(dst->writemask) && !writemask_xy(dst->writemask))
             fail(ctx, "FRC writemask must be .y or .xy for shader model 1.x");
-    } // else if
-} // state_FRC
-
+    }
+}
 
 // replicate the matrix registers to source args. The D3D profile will
 //  only use the one legitimate argument, but this saves other profiles
 //  from having to build this.
-static void srcarg_matrix_replicate(Context *ctx, const int idx,
-                                       const int rows)
+static void srcarg_matrix_replicate(Context *ctx, const int idx, const int rows)
 {
     int i;
     SourceArgInfo *src = &ctx->source_args[idx];
@@ -7241,8 +3925,8 @@ static void srcarg_matrix_replicate(Context *ctx, const int idx,
         memcpy(dst, src, sizeof (SourceArgInfo));
         dst->regnum += (i + 1);
         set_used_register(ctx, dst->regtype, dst->regnum, 0);
-    } // for
-} // srcarg_matrix_replicate
+    }
+}
 
 static void state_M4X4(Context *ctx)
 {
@@ -8032,568 +4716,28 @@ static int parse_version_token(Context *ctx, const char *profilestr)
 } // parse_version_token
 
 
-static int parse_ctab_string(const uint8 *start, const uint32 bytes,
-                             const uint32 name)
-{
-    // Make sure strings don't overflow the CTAB buffer...
-    if (name < bytes)
-    {
-        int i;
-        const int slenmax = bytes - name;
-        const char *namestr = (const char *) (start + name);
-        for (i = 0; i < slenmax; i++)
-        {
-            if (namestr[i] == '\0')
-                return 1;  // it's okay.
-        } // for
-    } // if
-
-    return 0;  // overflowed.
-} // parse_ctab_string
-
-
-static int parse_ctab_typeinfo(Context *ctx, const uint8 *start,
-                               const uint32 bytes, const uint32 pos,
-                               MOJOSHADER_symbolTypeInfo *info)
-{
-    if ((pos + 16) >= bytes)
-        return 0;  // corrupt CTAB.
-
-    const uint16 *typeptr = (const uint16 *) (start + pos);
-
-    info->parameter_class = (MOJOSHADER_symbolClass) SWAP16(typeptr[0]);
-    info->parameter_type = (MOJOSHADER_symbolType) SWAP16(typeptr[1]);
-    info->rows = (unsigned int) SWAP16(typeptr[2]);
-    info->columns = (unsigned int) SWAP16(typeptr[3]);
-    info->elements = (unsigned int) SWAP16(typeptr[4]);
-    info->member_count = (unsigned int) SWAP16(typeptr[5]);
-
-    if ((pos + 16 + (info->member_count * 8)) >= bytes)
-        return 0;  // corrupt CTAB.
-
-    if (info->member_count == 0)
-        info->members = NULL;
-    else
-    {
-        const size_t len = sizeof (MOJOSHADER_symbolStructMember) *
-                            info->member_count;
-        info->members = (MOJOSHADER_symbolStructMember *) Malloc(ctx, len);
-        if (info->members == NULL)
-            return 1;  // we'll check ctx->out_of_memory later.
-        memset(info->members, '\0', len);
-    } // else
-
-    int i;
-    const uint32 *member = (const uint32 *)((const uint8 *) (&typeptr[6]));
-    for (i = 0; i < info->member_count; i++)
-    {
-        MOJOSHADER_symbolStructMember *mbr = &info->members[i];
-        const uint32 name = SWAP32(member[0]);
-        const uint32 memberinfopos = SWAP32(member[1]);
-        member += 2;
-
-        if (!parse_ctab_string(start, bytes, name))
-            return 0;  // info->members will be free()'d elsewhere.
-
-        mbr->name = StrDup(ctx, (const char *) (start + name));
-        if (mbr->name == NULL)
-            return 1;  // we'll check ctx->out_of_memory later.
-        if (!parse_ctab_typeinfo(ctx, start, bytes, memberinfopos, &mbr->info))
-            return 0;
-        if (ctx->out_of_memory)
-            return 1;  // drop out now.
-    } // for
-
-    return 1;
-} // parse_ctab_typeinfo
-
-
-// Microsoft's tools add a CTAB comment to all shaders. This is the
-//  "constant table," or specifically: D3DXSHADER_CONSTANTTABLE:
-//  http://msdn.microsoft.com/en-us/library/bb205440(VS.85).aspx
-// This may tell us high-level truths about an otherwise generic low-level
-//  registers, for instance, how large an array actually is, etc.
-static void parse_constant_table(Context *ctx, const uint32 *tokens,
-                                 const uint32 bytes, const uint32 okay_version,
-                                 const int setvariables, CtabData *ctab)
-{
-    const uint32 id = SWAP32(tokens[1]);
-    if (id != CTAB_ID)
-        return;  // not the constant table.
-
-    assert(ctab->have_ctab == 0);  // !!! FIXME: can you have more than one?
-    ctab->have_ctab = 1;
-
-    const uint8 *start = (uint8 *) &tokens[2];
-
-    if (bytes < 32)
-    {
-        fail(ctx, "Truncated CTAB data");
-        return;
-    } // if
-
-    const uint32 size = SWAP32(tokens[2]);
-    const uint32 creator = SWAP32(tokens[3]);
-    const uint32 version = SWAP32(tokens[4]);
-    const uint32 constants = SWAP32(tokens[5]);
-    const uint32 constantinfo = SWAP32(tokens[6]);
-    const uint32 target = SWAP32(tokens[8]);
-
-    if (size != CTAB_SIZE)
-        goto corrupt_ctab;
-
-    if (version != okay_version) goto corrupt_ctab;
-    if (creator >= bytes) goto corrupt_ctab;
-    if ((constantinfo + (constants * CINFO_SIZE)) >= bytes) goto corrupt_ctab;
-    if (target >= bytes) goto corrupt_ctab;
-    if (!parse_ctab_string(start, bytes, target)) goto corrupt_ctab;
-    // !!! FIXME: check that (start+target) points to "ps_3_0", etc.
-
-    ctab->symbol_count = constants;
-    ctab->symbols = Malloc(ctx, sizeof (MOJOSHADER_symbol) * constants);
-    if (ctab->symbols == NULL)
-        return;
-    memset(ctab->symbols, '\0', sizeof (MOJOSHADER_symbol) * constants);
-
-    uint32 i = 0;
-    for (i = 0; i < constants; i++)
-    {
-        const uint8 *ptr = start + constantinfo + (i * CINFO_SIZE);
-        const uint32 name = SWAP32(*((uint32 *) (ptr + 0)));
-        const uint16 regset = SWAP16(*((uint16 *) (ptr + 4)));
-        const uint16 regidx = SWAP16(*((uint16 *) (ptr + 6)));
-        const uint16 regcnt = SWAP16(*((uint16 *) (ptr + 8)));
-        const uint32 typeinf = SWAP32(*((uint32 *) (ptr + 12)));
-        const uint32 defval = SWAP32(*((uint32 *) (ptr + 16)));
-        MOJOSHADER_uniformType mojotype = MOJOSHADER_UNIFORM_UNKNOWN;
-
-        if (!parse_ctab_string(start, bytes, name)) goto corrupt_ctab;
-        if (defval >= bytes) goto corrupt_ctab;
-
-        switch (regset)
-        {
-            case 0: mojotype = MOJOSHADER_UNIFORM_BOOL; break;
-            case 1: mojotype = MOJOSHADER_UNIFORM_INT; break;
-            case 2: mojotype = MOJOSHADER_UNIFORM_FLOAT; break;
-            case 3: /* SAMPLER */ break;
-            default: goto corrupt_ctab;
-        } // switch
-
-        if ((setvariables) && (mojotype != MOJOSHADER_UNIFORM_UNKNOWN))
-        {
-            VariableList *item;
-            item = (VariableList *) Malloc(ctx, sizeof (VariableList));
-            if (item != NULL)
-            {
-                item->type = mojotype;
-                item->index = regidx;
-                item->count = regcnt;
-                item->constant = NULL;
-                item->used = 0;
-                item->emit_position = -1;
-                item->next = ctx->variables;
-                ctx->variables = item;
-            } // if
-        } // if
-
-        // Add the symbol.
-        const char *namecpy = StrDup(ctx, (const char *) (start + name));
-        if (namecpy == NULL)
-            return;
-
-        MOJOSHADER_symbol *sym = &ctab->symbols[i];
-        sym->name = namecpy;
-        sym->register_set = (MOJOSHADER_symbolRegisterSet) regset;
-        sym->register_index = (unsigned int) regidx;
-        sym->register_count = (unsigned int) regcnt;
-        if (!parse_ctab_typeinfo(ctx, start, bytes, typeinf, &sym->info))
-            goto corrupt_ctab;  // sym->name will get free()'d later.
-        else if (ctx->out_of_memory)
-            return;  // just bail now.
-    } // for
-
-    return;
-
-corrupt_ctab:
-    fail(ctx, "Shader has corrupt CTAB data");
-} // parse_constant_table
-
-
-static void free_symbols(MOJOSHADER_free f, void *d, MOJOSHADER_symbol *syms,
-                         const int symcount);
-
-
 static int is_comment_token(Context *ctx, const uint32 tok, uint32 *tokcount)
 {
     const uint32 token = SWAP32(tok);
-    if ((token & 0xFFFF) == 0xFFFE)  // actually a comment token?
+    if((token&0xFFFF) == 0xFFFE)  // actually a comment token?
     {
-        if ((token & 0x80000000) != 0)
+        if ((token&0x80000000) != 0)
             fail(ctx, "comment token high bit must be zero.");  // so says msdn.
-        *tokcount = ((token >> 16) & 0xFFFF);
+        *tokcount = ((token>>16) & 0xFFFF);
         return 1;
-    } // if
+    }
 
     return 0;
-} // is_comment_token
-
-
-typedef struct PreshaderBlockInfo
-{
-    const uint32 *tokens;
-    uint32 tokcount;
-    int seen;
-} PreshaderBlockInfo;
-
-// Preshaders only show up in compiled Effect files. The format is
-//  undocumented, and even the instructions aren't the same opcodes as you
-//  would find in a regular shader. These things show up because the HLSL
-//  compiler can detect work that sets up constant registers that could
-//  be moved out of the shader itself. Preshaders run once, then the shader
-//  itself runs many times, using the constant registers the preshader has set
-//  up. There are cases where the preshaders are 3+ times as many instructions
-//  as the shader itself, so this can be a big performance win.
-// My presumption is that Microsoft's Effects framework runs the preshaders on
-//  the CPU, then loads the constant register file appropriately before handing
-//  off to the GPU. As such, we do the same.
-static void parse_preshader(Context *ctx, uint32 tokcount)
-{
-    const uint32 *tokens = ctx->tokens;
-    if ((tokcount < 2) || (SWAP32(tokens[1]) != PRES_ID))
-        return;  // not a preshader.
-
-#if !SUPPORT_PRESHADERS
-    fail(ctx, "Preshader found, but preshader support is disabled!");
-#else
-
-    assert(ctx->have_preshader == 0);  // !!! FIXME: can you have more than one?
-    ctx->have_preshader = 1;
-
-    // !!! FIXME: I don't know what specific versions signify, but we need to
-    // !!! FIXME:  save this to test against the CTAB version field, if
-    // !!! FIXME:  nothing else.
-    // !!! FIXME: 0x02 0x01 is probably the version (fx_2_1),
-    // !!! FIXME:  and 0x4658 is the magic, like a real shader's version token.
-    const uint32 okay_version = 0x46580201;
-    if (SWAP32(tokens[2]) != okay_version)
-    {
-        fail(ctx, "Unsupported preshader version.");
-        return;  // fail because the shader will malfunction w/o this.
-    } // if
-
-    tokens += 3;
-    tokcount -= 3;
-
-    // All sections of a preshader are packed into separate comment tokens,
-    //  inside the containing comment token block. Find them all before
-    //  we start, so we don't care about the order they appear in the file.
-    PreshaderBlockInfo ctab = { 0, 0, 0 };
-    PreshaderBlockInfo prsi = { 0, 0, 0 };
-    PreshaderBlockInfo fxlc = { 0, 0, 0 };
-    PreshaderBlockInfo clit = { 0, 0, 0 };
-
-    while (tokcount > 0)
-    {
-        uint32 subtokcount = 0;
-        if ( (!is_comment_token(ctx, *tokens, &subtokcount)) ||
-             (subtokcount > tokcount) )
-        {
-            fail(ctx, "Bogus preshader data.");
-            return;
-        } // if
-
-        tokens++;
-        tokcount--;
-
-        const uint32 *nexttokens = tokens + subtokcount;
-        const uint32 nexttokcount = tokcount - subtokcount;
-
-        if (subtokcount > 0)
-        {
-            switch (SWAP32(*tokens))
-            {
-                #define PRESHADER_BLOCK_CASE(id, var) \
-                    case id##_ID: { \
-                        if (var.seen) { \
-                            fail(ctx, "Multiple " #id " preshader blocks."); \
-                            return; \
-                        } \
-                        var.tokens = tokens; \
-                        var.tokcount = subtokcount; \
-                        var.seen = 1; \
-                        break; \
-                    }
-                PRESHADER_BLOCK_CASE(CTAB, ctab);
-                PRESHADER_BLOCK_CASE(PRSI, prsi);
-                PRESHADER_BLOCK_CASE(FXLC, fxlc);
-                PRESHADER_BLOCK_CASE(CLIT, clit);
-                default: fail(ctx, "Bogus preshader section."); return;
-                #undef PRESHADER_BLOCK_CASE
-            } // switch
-        } // if
-
-        tokens = nexttokens;
-        tokcount = nexttokcount;
-    } // while
-
-    if (!ctab.seen) { fail(ctx, "No CTAB block in preshader."); return; }
-    if (!prsi.seen) { fail(ctx, "No PRSI block in preshader."); return; }
-    if (!fxlc.seen) { fail(ctx, "No FXLC block in preshader."); return; }
-    if (!clit.seen) { fail(ctx, "No CLIT block in preshader."); return; }
-
-    MOJOSHADER_preshader *preshader = (MOJOSHADER_preshader *)
-                                    Malloc(ctx, sizeof (MOJOSHADER_preshader));
-    if (preshader == NULL)
-        return;
-    memset(preshader, '\0', sizeof (MOJOSHADER_preshader));
-    ctx->preshader = preshader;
-
-    // Let's set up the constant literals first...
-    if (clit.tokcount == 0)
-        fail(ctx, "Bogus CLIT block in preshader.");
-    else
-    {
-        const uint32 lit_count = SWAP32(clit.tokens[1]);
-        if (lit_count > ((clit.tokcount - 2) / 2))
-        {
-            fail(ctx, "Bogus CLIT block in preshader.");
-            return;
-        } // if
-        else if (lit_count > 0)
-        {
-            preshader->literal_count = (unsigned int) lit_count;
-            assert(sizeof (double) == 8);  // just in case.
-            const size_t len = sizeof (double) * lit_count;
-            preshader->literals = (double *) Malloc(ctx, len);
-            if (preshader->literals == NULL)
-                return;  // oh well.
-            const double *litptr = (const double *) (clit.tokens + 2);
-            int i;
-            for (i = 0; i < lit_count; i++)
-                preshader->literals[i] = SWAPDBL(litptr[i]);
-        } // else if
-    } // else
-
-    // Parse out the PRSI block. This is used to map the output registers.
-    if (prsi.tokcount < 8)
-    {
-        fail(ctx, "Bogus preshader PRSI data");
-        return;
-    } // if
-
-    //const uint32 first_output_reg = SWAP32(prsi.tokens[1]);
-    // !!! FIXME: there are a lot of fields here I don't know about.
-    // !!! FIXME:  maybe [2] and [3] are for int4 and bool registers?
-    //const uint32 output_reg_count = SWAP32(prsi.tokens[4]);
-    // !!! FIXME:  maybe [5] and [6] are for int4 and bool registers?
-    const uint32 output_map_count = SWAP32(prsi.tokens[7]);
-
-    prsi.tokcount -= 8;
-    prsi.tokens += 8;
-
-    if (prsi.tokcount < ((output_map_count + 1) * 2))
-    {
-        fail(ctx, "Bogus preshader PRSI data");
-        return;
-    } // if
-
-    const uint32 *output_map = prsi.tokens;
-
-    // Now we'll figure out the CTAB...
-    CtabData ctabdata = { 0, 0, 0 };
-    parse_constant_table(ctx, ctab.tokens - 1, ctab.tokcount * 4,
-                         okay_version, 0, &ctabdata);
-
-    // preshader owns this now. Don't free it in this function.
-    preshader->symbol_count = ctabdata.symbol_count;
-    preshader->symbols = ctabdata.symbols;
-
-    if (!ctabdata.have_ctab)
-    {
-        fail(ctx, "Bogus preshader CTAB data");
-        return;
-    } // if
-
-    // The FXLC block has the actual instructions...
-    uint32 opcode_count = SWAP32(fxlc.tokens[1]);
-
-    size_t len = sizeof (MOJOSHADER_preshaderInstruction) * opcode_count;
-    preshader->instruction_count = (unsigned int) opcode_count;
-    preshader->instructions = (MOJOSHADER_preshaderInstruction *)
-                                Malloc(ctx, len);
-    if (preshader->instructions == NULL)
-        return;
-    memset(preshader->instructions, '\0', len);
-
-    fxlc.tokens += 2;
-    fxlc.tokcount -= 2;
-    if (opcode_count > (fxlc.tokcount / 2))
-    {
-        fail(ctx, "Bogus preshader FXLC block.");
-        return;
-    } // if
-
-    MOJOSHADER_preshaderInstruction *inst = preshader->instructions;
-    while (opcode_count--)
-    {
-        const uint32 opcodetok = SWAP32(fxlc.tokens[0]);
-        MOJOSHADER_preshaderOpcode opcode = MOJOSHADER_PRESHADEROP_NOP;
-        switch ((opcodetok >> 16) & 0xFFFF)
-        {
-            case 0x1000: opcode = MOJOSHADER_PRESHADEROP_MOV; break;
-            case 0x1010: opcode = MOJOSHADER_PRESHADEROP_NEG; break;
-            case 0x1030: opcode = MOJOSHADER_PRESHADEROP_RCP; break;
-            case 0x1040: opcode = MOJOSHADER_PRESHADEROP_FRC; break;
-            case 0x1050: opcode = MOJOSHADER_PRESHADEROP_EXP; break;
-            case 0x1060: opcode = MOJOSHADER_PRESHADEROP_LOG; break;
-            case 0x1070: opcode = MOJOSHADER_PRESHADEROP_RSQ; break;
-            case 0x1080: opcode = MOJOSHADER_PRESHADEROP_SIN; break;
-            case 0x1090: opcode = MOJOSHADER_PRESHADEROP_COS; break;
-            case 0x10A0: opcode = MOJOSHADER_PRESHADEROP_ASIN; break;
-            case 0x10B0: opcode = MOJOSHADER_PRESHADEROP_ACOS; break;
-            case 0x10C0: opcode = MOJOSHADER_PRESHADEROP_ATAN; break;
-            case 0x2000: opcode = MOJOSHADER_PRESHADEROP_MIN; break;
-            case 0x2010: opcode = MOJOSHADER_PRESHADEROP_MAX; break;
-            case 0x2020: opcode = MOJOSHADER_PRESHADEROP_LT; break;
-            case 0x2030: opcode = MOJOSHADER_PRESHADEROP_GE; break;
-            case 0x2040: opcode = MOJOSHADER_PRESHADEROP_ADD; break;
-            case 0x2050: opcode = MOJOSHADER_PRESHADEROP_MUL; break;
-            case 0x2060: opcode = MOJOSHADER_PRESHADEROP_ATAN2; break;
-            case 0x2080: opcode = MOJOSHADER_PRESHADEROP_DIV; break;
-            case 0x3000: opcode = MOJOSHADER_PRESHADEROP_CMP; break;
-            case 0x3010: opcode = MOJOSHADER_PRESHADEROP_MOVC; break;
-            case 0x5000: opcode = MOJOSHADER_PRESHADEROP_DOT; break;
-            case 0x5020: opcode = MOJOSHADER_PRESHADEROP_NOISE; break;
-            case 0xA000: opcode = MOJOSHADER_PRESHADEROP_MIN_SCALAR; break;
-            case 0xA010: opcode = MOJOSHADER_PRESHADEROP_MAX_SCALAR; break;
-            case 0xA020: opcode = MOJOSHADER_PRESHADEROP_LT_SCALAR; break;
-            case 0xA030: opcode = MOJOSHADER_PRESHADEROP_GE_SCALAR; break;
-            case 0xA040: opcode = MOJOSHADER_PRESHADEROP_ADD_SCALAR; break;
-            case 0xA050: opcode = MOJOSHADER_PRESHADEROP_MUL_SCALAR; break;
-            case 0xA060: opcode = MOJOSHADER_PRESHADEROP_ATAN2_SCALAR; break;
-            case 0xA080: opcode = MOJOSHADER_PRESHADEROP_DIV_SCALAR; break;
-            case 0xD000: opcode = MOJOSHADER_PRESHADEROP_DOT_SCALAR; break;
-            case 0xD020: opcode = MOJOSHADER_PRESHADEROP_NOISE_SCALAR; break;
-            default: fail(ctx, "Unknown preshader opcode."); break;
-        } // switch
-
-        uint32 operand_count = SWAP32(fxlc.tokens[1]) + 1;  // +1 for dest.
-
-        inst->opcode = opcode;
-        inst->element_count = (unsigned int) (opcodetok & 0xFF);
-        inst->operand_count = (unsigned int) operand_count;
-
-        fxlc.tokens += 2;
-        fxlc.tokcount -= 2;
-        if ((operand_count * 3) > fxlc.tokcount)
-        {
-            fail(ctx, "Bogus preshader FXLC block.");
-            return;
-        } // if
-
-        MOJOSHADER_preshaderOperand *operand = inst->operands;
-        while (operand_count--)
-        {
-            const unsigned int item = (unsigned int) SWAP32(fxlc.tokens[2]);
-
-            // !!! FIXME: don't know what first token does.
-            switch (SWAP32(fxlc.tokens[1]))
-            {
-                case 1:  // literal from CLIT block.
-                {
-                    if (item >= preshader->literal_count)
-                    {
-                        fail(ctx, "Bogus preshader literal index.");
-                        break;
-                    } // if
-                    operand->type = MOJOSHADER_PRESHADEROPERAND_LITERAL;
-                    break;
-                } // case
-
-                case 2:  // item from ctabdata.
-                {
-                    int i;
-                    MOJOSHADER_symbol *sym = ctabdata.symbols;
-                    for (i = 0; i < ctabdata.symbol_count; i++, sym++)
-                    {
-                        const uint32 base = sym->register_index * 4;
-                        const uint32 count = sym->register_count * 4;
-                        assert(sym->register_set==MOJOSHADER_SYMREGSET_FLOAT4);
-                        if ( (base <= item) && ((base + count) > item) )
-                            break;
-                    } // for
-                    if (i == ctabdata.symbol_count)
-                    {
-                        fail(ctx, "Bogus preshader input index.");
-                        break;
-                    } // if
-                    operand->type = MOJOSHADER_PRESHADEROPERAND_INPUT;
-                    break;
-                } // case
-
-                case 4:
-                {
-                    int i;
-                    for (i = 0; i < output_map_count; i++)
-                    {
-                        const uint32 base = output_map[(i*2)] * 4;
-                        const uint32 count = output_map[(i*2)+1] * 4;
-                        if ( (base <= item) && ((base + count) > item) )
-                            break;
-                    } // for
-                    if (i == output_map_count)
-                    {
-                        fail(ctx, "Bogus preshader output index.");
-                        break;
-                    } // if
-
-                    operand->type = MOJOSHADER_PRESHADEROPERAND_OUTPUT;
-                    break;
-                } // case
-
-                case 7:
-                {
-                    operand->type = MOJOSHADER_PRESHADEROPERAND_TEMP;
-                    if (item >= preshader->temp_count)
-                        preshader->temp_count = item + 1;
-                    break;
-                } // case
-            } // switch
-
-            operand->index = item;
-
-            fxlc.tokens += 3;
-            fxlc.tokcount -= 3;
-            operand++;
-        } // while
-
-        inst++;
-    } // while
-#endif
-} // parse_preshader
+}
 
 
 static int parse_comment_token(Context *ctx)
 {
     uint32 commenttoks = 0;
-    if (is_comment_token(ctx, *ctx->tokens, &commenttoks))
-    {
-        if ((commenttoks >= 1) && (commenttoks < ctx->tokencount))
-        {
-            const uint32 id = SWAP32(ctx->tokens[1]);
-            if (id == PRES_ID)
-                parse_preshader(ctx, commenttoks);
-            else if (id == CTAB_ID)
-            {
-                parse_constant_table(ctx, ctx->tokens, commenttoks * 4,
-                                     ctx->version_token, 1, &ctx->ctab);
-            } // else if
-        } // if
+    if(is_comment_token(ctx, *ctx->tokens, &commenttoks))
         return commenttoks + 1;  // comment data plus the initial token.
-    } // if
-
-    return 0;  // not a comment token.
-} // parse_comment_token
+    return 0;
+}
 
 
 static int parse_end_token(Context *ctx)
@@ -8610,7 +4754,7 @@ static int parse_end_token(Context *ctx)
         ctx->profile->end_emitter(ctx);
 
     return 1;
-} // parse_end_token
+}
 
 
 static int parse_phase_token(Context *ctx)
@@ -8685,20 +4829,11 @@ static Context *build_context(const char *profile,
                               const MOJOSHADER_swizzle *swiz,
                               const unsigned int swizcount,
                               const MOJOSHADER_samplerMap *smap,
-                              const unsigned int smapcount,
-                              MOJOSHADER_malloc m, MOJOSHADER_free f, void *d)
+                              const unsigned int smapcount)
 {
-    if (m == NULL) m = MOJOSHADER_internal_malloc;
-    if (f == NULL) f = MOJOSHADER_internal_free;
+    Context *ctx = malloc(sizeof(Context));
+    memset(ctx, 0, sizeof (Context));
 
-    Context *ctx = (Context *) m(sizeof (Context), d);
-    if (ctx == NULL)
-        return NULL;
-
-    memset(ctx, '\0', sizeof (Context));
-    ctx->malloc = m;
-    ctx->free = f;
-    ctx->malloc_data = d;
     ctx->tokens = (const uint32 *) tokenbuf;
     ctx->orig_tokens = (const uint32 *) tokenbuf;
     ctx->know_shader_size = (bufsize != 0);
@@ -8719,117 +4854,105 @@ static Context *build_context(const char *profile,
     ctx->texm3x3pad_src1 = -1;
 
     ctx->errors = errorlist_create(MallocBridge, FreeBridge, ctx);
-    if (ctx->errors == NULL)
+    if(ctx->errors == NULL)
     {
-        f(ctx, d);
+        free(ctx);
         return NULL;
-    } // if
+    }
 
-    if (!set_output(ctx, &ctx->mainline))
+    if(!set_output(ctx, &ctx->mainline))
     {
         errorlist_destroy(ctx->errors);
-        f(ctx, d);
+        free(ctx);
         return NULL;
-    } // if
+    }
 
     const int profileid = find_profile_id(profile);
     ctx->profileid = profileid;
-    if (profileid >= 0)
+    if(profileid >= 0)
         ctx->profile = &profiles[profileid];
     else
         failf(ctx, "Profile '%s' is unknown or unsupported", profile);
 
     return ctx;
-} // build_context
+}
 
 
-static void free_constants_list(MOJOSHADER_free f, void *d, ConstantsList *item)
+static void free_constants_list(ConstantsList *item)
 {
     while (item != NULL)
     {
         ConstantsList *next = item->next;
-        f(item, d);
+        free(item);
         item = next;
-    } // while
-} // free_constants_list
+    }
+}
 
-
-static void free_variable_list(MOJOSHADER_free f, void *d, VariableList *item)
+static void free_variable_list(VariableList *item)
 {
     while (item != NULL)
     {
         VariableList *next = item->next;
-        f(item, d);
+        free(item);
         item = next;
-    } // while
-} // free_variable_list
+    }
+}
 
-
-static void free_sym_typeinfo(MOJOSHADER_free f, void *d,
-                              MOJOSHADER_symbolTypeInfo *typeinfo)
+static void free_sym_typeinfo(MOJOSHADER_symbolTypeInfo *typeinfo)
 {
-    int i;
+    unsigned int i;
     for (i = 0; i < typeinfo->member_count; i++)
     {
-        f((void *) typeinfo->members[i].name, d);
-        free_sym_typeinfo(f, d, &typeinfo->members[i].info);
-    } // for
-    f((void *) typeinfo->members, d);
-} // free_sym_members
+        free((void*)typeinfo->members[i].name);
+        free_sym_typeinfo(&typeinfo->members[i].info);
+    }
+    free((void*)typeinfo->members);
+}
 
-
-static void free_symbols(MOJOSHADER_free f, void *d, MOJOSHADER_symbol *syms,
-                         const int symcount)
+static void free_symbols(MOJOSHADER_symbol *syms, const int symcount)
 {
     int i;
     for (i = 0; i < symcount; i++)
     {
-        f((void *) syms[i].name, d);
-        free_sym_typeinfo(f, d, &syms[i].info);
-    } // for
-    f((void *) syms, d);
-} // free_symbols
+        free((void*)syms[i].name);
+        free_sym_typeinfo(&syms[i].info);
+    }
+    free(syms);
+}
 
-
-static void free_preshader(MOJOSHADER_free f, void *d,
-                           MOJOSHADER_preshader *preshader)
+static void free_preshader(MOJOSHADER_preshader *preshader)
 {
     if (preshader != NULL)
     {
-        f((void *) preshader->literals, d);
-        f((void *) preshader->instructions, d);
-        free_symbols(f, d, preshader->symbols, preshader->symbol_count);
-        f((void *) preshader, d);
-    } // if
-} // free_preshader
-
+        free(preshader->literals);
+        free(preshader->instructions);
+        free_symbols(preshader->symbols, preshader->symbol_count);
+        free(preshader);
+    }
+}
 
 static void destroy_context(Context *ctx)
 {
-    if (ctx != NULL)
-    {
-        MOJOSHADER_free f = ((ctx->free != NULL) ? ctx->free : MOJOSHADER_internal_free);
-        void *d = ctx->malloc_data;
-        buffer_destroy(ctx->preflight);
-        buffer_destroy(ctx->globals);
-        buffer_destroy(ctx->helpers);
-        buffer_destroy(ctx->subroutines);
-        buffer_destroy(ctx->mainline_intro);
-        buffer_destroy(ctx->mainline);
-        buffer_destroy(ctx->ignore);
-        free_constants_list(f, d, ctx->constants);
-        free_reglist(f, d, ctx->used_registers.next);
-        free_reglist(f, d, ctx->defined_registers.next);
-        free_reglist(f, d, ctx->uniforms.next);
-        free_reglist(f, d, ctx->attributes.next);
-        free_reglist(f, d, ctx->samplers.next);
-        free_variable_list(f, d, ctx->variables);
-        errorlist_destroy(ctx->errors);
-        free_symbols(f, d, ctx->ctab.symbols, ctx->ctab.symbol_count);
-        free_preshader(f, d, ctx->preshader);
-        f(ctx, d);
-    } // if
-} // destroy_context
+    if(!ctx)
+        return;
+
+    buffer_destroy(ctx->preflight);
+    buffer_destroy(ctx->globals);
+    buffer_destroy(ctx->helpers);
+    buffer_destroy(ctx->subroutines);
+    buffer_destroy(ctx->mainline_intro);
+    buffer_destroy(ctx->mainline);
+    buffer_destroy(ctx->ignore);
+    free_constants_list(ctx->constants);
+    free_reglist(ctx->used_registers.next);
+    free_reglist(ctx->defined_registers.next);
+    free_reglist(ctx->uniforms.next);
+    free_reglist(ctx->attributes.next);
+    free_reglist(ctx->samplers.next);
+    free_variable_list(ctx->variables);
+    errorlist_destroy(ctx->errors);
+    free(ctx);
+}
 
 
 static char *build_output(Context *ctx, size_t *len)
@@ -8840,15 +4963,14 @@ static char *build_output(Context *ctx, size_t *len)
         ctx->subroutines, ctx->mainline_intro, ctx->mainline
         // don't append ctx->ignore ... that's why it's called "ignore"
     };
-    char *retval = buffer_merge(buffers, STATICARRAYLEN(buffers), len);
-    return retval;
-} // build_output
+    return buffer_merge(buffers, STATICARRAYLEN(buffers), len);
+}
 
 
 static inline const char *alloc_varname(Context *ctx, const RegisterList *reg)
 {
     return ctx->profile->get_varname(ctx, reg->regtype, reg->regnum);
-} // alloc_varname
+}
 
 
 // !!! FIXME: this code is sort of hard to follow:
@@ -8863,216 +4985,200 @@ static inline const char *alloc_varname(Context *ctx, const RegisterList *reg)
 static MOJOSHADER_uniform *build_uniforms(Context *ctx)
 {
     const size_t len = sizeof (MOJOSHADER_uniform) * ctx->uniform_count;
-    MOJOSHADER_uniform *retval = (MOJOSHADER_uniform *) Malloc(ctx, len);
+    MOJOSHADER_uniform *retval = malloc(len);
 
-    if (retval != NULL)
+    MOJOSHADER_uniform *wptr = retval;
+    memset(wptr, 0, len);
+
+    VariableList *var;
+    int written = 0;
+    for (var = ctx->variables; var != NULL; var = var->next)
     {
-        MOJOSHADER_uniform *wptr = retval;
-        memset(wptr, '\0', len);
+        if(!var->used)
+            continue;
 
-        VariableList *var;
-        int written = 0;
-        for (var = ctx->variables; var != NULL; var = var->next)
+        const char *name = ctx->profile->get_const_array_varname(
+            ctx, var->index, var->count
+        );
+        if(name != NULL)
         {
-            if (var->used)
-            {
-                const char *name = ctx->profile->get_const_array_varname(ctx,
-                                                      var->index, var->count);
-                if (name != NULL)
-                {
-                    wptr->type = MOJOSHADER_UNIFORM_FLOAT;
-                    wptr->index = var->index;
-                    wptr->array_count = var->count;
-                    wptr->constant = (var->constant != NULL) ? 1 : 0;
-                    wptr->name = name;
-                    wptr++;
-                    written++;
-                } // if
-            } // if
-        } // for
+            wptr->type = MOJOSHADER_UNIFORM_FLOAT;
+            wptr->index = var->index;
+            wptr->array_count = var->count;
+            wptr->constant = (var->constant != NULL) ? 1 : 0;
+            wptr->name = name;
+            wptr++;
+            written++;
+        }
+    }
 
-        RegisterList *item = ctx->uniforms.next;
-        MOJOSHADER_uniformType type = MOJOSHADER_UNIFORM_FLOAT;
-        while (written < ctx->uniform_count)
+    RegisterList *item = ctx->uniforms.next;
+    MOJOSHADER_uniformType type = MOJOSHADER_UNIFORM_FLOAT;
+    while (written < ctx->uniform_count)
+    {
+        int skip = 0;
+
+        // !!! FIXME: does this fail if written > ctx->uniform_count?
+        if (item == NULL)
         {
-            int skip = 0;
+            fail(ctx, "BUG: mismatched uniform list and count");
+            break;
+        }
 
-            // !!! FIXME: does this fail if written > ctx->uniform_count?
-            if (item == NULL)
-            {
-                fail(ctx, "BUG: mismatched uniform list and count");
+        int index = item->regnum;
+        switch (item->regtype)
+        {
+            case REG_TYPE_CONST:
+                skip = (item->array != NULL);
+                type = MOJOSHADER_UNIFORM_FLOAT;
                 break;
-            } // if
 
-            int index = item->regnum;
-            switch (item->regtype)
-            {
-                case REG_TYPE_CONST:
-                    skip = (item->array != NULL);
-                    type = MOJOSHADER_UNIFORM_FLOAT;
-                    break;
+            case REG_TYPE_CONSTINT:
+                type = MOJOSHADER_UNIFORM_INT;
+                break;
 
-                case REG_TYPE_CONSTINT:
-                    type = MOJOSHADER_UNIFORM_INT;
-                    break;
+            case REG_TYPE_CONSTBOOL:
+                type = MOJOSHADER_UNIFORM_BOOL;
+                break;
 
-                case REG_TYPE_CONSTBOOL:
-                    type = MOJOSHADER_UNIFORM_BOOL;
-                    break;
+            default:
+                fail(ctx, "unknown uniform datatype");
+                break;
+        }
 
-                default:
-                    fail(ctx, "unknown uniform datatype");
-                    break;
-            } // switch
+        if (!skip)
+        {
+            wptr->type = type;
+            wptr->index = index;
+            wptr->array_count = 0;
+            wptr->name = alloc_varname(ctx, item);
+            wptr++;
+            written++;
+        }
 
-            if (!skip)
-            {
-                wptr->type = type;
-                wptr->index = index;
-                wptr->array_count = 0;
-                wptr->name = alloc_varname(ctx, item);
-                wptr++;
-                written++;
-            } // if
-
-            item = item->next;
-        } // for
-    } // if
+        item = item->next;
+    }
 
     return retval;
-} // build_uniforms
-
+}
 
 static MOJOSHADER_constant *build_constants(Context *ctx)
 {
-    const size_t len = sizeof (MOJOSHADER_constant) * ctx->constant_count;
-    MOJOSHADER_constant *retval = (MOJOSHADER_constant *) Malloc(ctx, len);
+    const size_t len = sizeof(MOJOSHADER_constant) * ctx->constant_count;
+    MOJOSHADER_constant *retval = malloc(len);
 
-    if (retval != NULL)
+    ConstantsList *item = ctx->constants;
+    int i;
+    for(i = 0; i < ctx->constant_count; i++)
     {
-        ConstantsList *item = ctx->constants;
-        int i;
-
-        for (i = 0; i < ctx->constant_count; i++)
+        if(item == NULL)
         {
-            if (item == NULL)
-            {
-                fail(ctx, "BUG: mismatched constant list and count");
-                break;
-            } // if
+            fail(ctx, "BUG: mismatched constant list and count");
+            break;
+        }
 
-            memcpy(&retval[i], &item->constant, sizeof (MOJOSHADER_constant));
-            item = item->next;
-        } // for
-    } // if
+        retval[i] = item->constant;
+        item = item->next;
+    }
 
     return retval;
-} // build_constants
-
+}
 
 static MOJOSHADER_sampler *build_samplers(Context *ctx)
 {
-    const size_t len = sizeof (MOJOSHADER_sampler) * ctx->sampler_count;
-    MOJOSHADER_sampler *retval = (MOJOSHADER_sampler *) Malloc(ctx, len);
+    const size_t len = sizeof(MOJOSHADER_sampler) * ctx->sampler_count;
+    MOJOSHADER_sampler *retval = malloc(len);
 
-    if (retval != NULL)
+    RegisterList *item = ctx->samplers.next;
+    int i;
+
+    memset(retval, 0, len);
+
+    for(i = 0; i < ctx->sampler_count; i++)
     {
-        RegisterList *item = ctx->samplers.next;
-        int i;
-
-        memset(retval, '\0', len);
-
-        for (i = 0; i < ctx->sampler_count; i++)
+        if(item == NULL)
         {
-            if (item == NULL)
-            {
-                fail(ctx, "BUG: mismatched sampler list and count");
-                break;
-            } // if
+            fail(ctx, "BUG: mismatched sampler list and count");
+            break;
+        }
 
-            assert(item->regtype == REG_TYPE_SAMPLER);
-            retval[i].type = cvtD3DToMojoSamplerType((TextureType) item->index);
-            retval[i].index = item->regnum;
-            retval[i].name = alloc_varname(ctx, item);
-            retval[i].texbem = (item->misc != 0) ? 1 : 0;
-            item = item->next;
-        } // for
-    } // if
+        assert(item->regtype == REG_TYPE_SAMPLER);
+        retval[i].type = cvtD3DToMojoSamplerType((TextureType) item->index);
+        retval[i].index = item->regnum;
+        retval[i].name = alloc_varname(ctx, item);
+        retval[i].texbem = (item->misc != 0) ? 1 : 0;
+        item = item->next;
+    }
 
     return retval;
-} // build_samplers
+}
 
 
 static MOJOSHADER_attribute *build_attributes(Context *ctx, int *_count)
 {
-    int count = 0;
-
-    if (ctx->attribute_count == 0)
+    if(ctx->attribute_count == 0)
     {
         *_count = 0;
-        return NULL;  // nothing to do.
-    } // if
+        return NULL;
+    }
 
     const size_t len = sizeof (MOJOSHADER_attribute) * ctx->attribute_count;
-    MOJOSHADER_attribute *retval = (MOJOSHADER_attribute *) Malloc(ctx, len);
+    MOJOSHADER_attribute *retval = malloc(len);
+    memset(retval, 0, len);
 
-    if (retval != NULL)
+    RegisterList *item = ctx->attributes.next;
+    MOJOSHADER_attribute *wptr = retval;
+    int ignore = 0;
+    int count = 0;
+    int i;
+
+    for(i = 0; i < ctx->attribute_count; i++)
     {
-        RegisterList *item = ctx->attributes.next;
-        MOJOSHADER_attribute *wptr = retval;
-        int ignore = 0;
-        int i;
-
-        memset(retval, '\0', len);
-
-        for (i = 0; i < ctx->attribute_count; i++)
+        if(item == NULL)
         {
-            if (item == NULL)
-            {
-                fail(ctx, "BUG: mismatched attribute list and count");
+            fail(ctx, "BUG: mismatched attribute list and count");
+            break;
+        }
+
+        switch(item->regtype)
+        {
+            case REG_TYPE_RASTOUT:
+            case REG_TYPE_ATTROUT:
+            case REG_TYPE_TEXCRDOUT:
+            case REG_TYPE_COLOROUT:
+            case REG_TYPE_DEPTHOUT:
+                ignore = 1;
                 break;
-            } // if
+            case REG_TYPE_TEXTURE:
+            case REG_TYPE_MISCTYPE:
+            case REG_TYPE_INPUT:
+                ignore = shader_is_pixel(ctx);
+                break;
+            default:
+                ignore = 0;
+                break;
+        }
 
-            switch (item->regtype)
+        if(!ignore)
+        {
+            if(shader_is_pixel(ctx))
+                fail(ctx, "BUG: pixel shader with vertex attributes");
+            else
             {
-                case REG_TYPE_RASTOUT:
-                case REG_TYPE_ATTROUT:
-                case REG_TYPE_TEXCRDOUT:
-                case REG_TYPE_COLOROUT:
-                case REG_TYPE_DEPTHOUT:
-                    ignore = 1;
-                    break;
-                case REG_TYPE_TEXTURE:
-                case REG_TYPE_MISCTYPE:
-                case REG_TYPE_INPUT:
-                    ignore = shader_is_pixel(ctx);
-                    break;
-                default:
-                    ignore = 0;
-                    break;
-            } // switch
+                wptr->usage = item->usage;
+                wptr->index = item->index;
+                wptr->name = alloc_varname(ctx, item);
+                wptr++;
+                count++;
+            }
+        }
 
-            if (!ignore)
-            {
-                if (shader_is_pixel(ctx))
-                    fail(ctx, "BUG: pixel shader with vertex attributes");
-                else
-                {
-                    wptr->usage = item->usage;
-                    wptr->index = item->index;
-                    wptr->name = alloc_varname(ctx, item);
-                    wptr++;
-                    count++;
-                } // else
-            } // if
-
-            item = item->next;
-        } // for
-    } // if
+        item = item->next;
+    }
 
     *_count = count;
     return retval;
-} // build_attributes
+}
 
 static MOJOSHADER_attribute *build_outputs(Context *ctx, int *_count)
 {
@@ -9081,49 +5187,44 @@ static MOJOSHADER_attribute *build_outputs(Context *ctx, int *_count)
     if (ctx->attribute_count == 0)
     {
         *_count = 0;
-        return NULL;  // nothing to do.
-    } // if
+        return NULL;
+    }
 
-    const size_t len = sizeof (MOJOSHADER_attribute) * ctx->attribute_count;
-    MOJOSHADER_attribute *retval = (MOJOSHADER_attribute *) Malloc(ctx, len);
+    const size_t len = sizeof(MOJOSHADER_attribute) * ctx->attribute_count;
+    MOJOSHADER_attribute *retval = malloc(len);
+    memset(retval, 0, len);
 
-    if (retval != NULL)
+    RegisterList *item = ctx->attributes.next;
+    MOJOSHADER_attribute *wptr = retval;
+    int i;
+
+    for(i = 0; i < ctx->attribute_count; i++)
     {
-        RegisterList *item = ctx->attributes.next;
-        MOJOSHADER_attribute *wptr = retval;
-        int i;
-
-        memset(retval, '\0', len);
-
-        for (i = 0; i < ctx->attribute_count; i++)
+        if(item == NULL)
         {
-            if (item == NULL)
-            {
-                fail(ctx, "BUG: mismatched attribute list and count");
+            fail(ctx, "BUG: mismatched attribute list and count");
+            break;
+        }
+
+        switch (item->regtype)
+        {
+            case REG_TYPE_RASTOUT:
+            case REG_TYPE_ATTROUT:
+            case REG_TYPE_TEXCRDOUT:
+            case REG_TYPE_COLOROUT:
+            case REG_TYPE_DEPTHOUT:
+                wptr->usage = item->usage;
+                wptr->index = item->index;
+                wptr->name = alloc_varname(ctx, item);
+                wptr++;
+                count++;
                 break;
-            } // if
+            default:
+                break;
+        }
 
-            switch (item->regtype)
-            {
-                case REG_TYPE_RASTOUT:
-                case REG_TYPE_ATTROUT:
-                case REG_TYPE_TEXCRDOUT:
-                case REG_TYPE_COLOROUT:
-                case REG_TYPE_DEPTHOUT:
-                    wptr->usage = item->usage;
-                    wptr->index = item->index;
-                    wptr->name = alloc_varname(ctx, item);
-                    wptr++;
-                    count++;
-                    break;
-                default:
-                    break;
-            } // switch
-
-
-            item = item->next;
-        } // for
-    } // if
+        item = item->next;
+    }
 
     *_count = count;
     return retval;
@@ -9145,96 +5246,66 @@ static MOJOSHADER_parseData *build_parsedata(Context *ctx)
     int attribute_count = 0;
     int output_count = 0;
 
-    if (ctx->out_of_memory)
-        return &MOJOSHADER_out_of_mem_data;
-
-    retval = (MOJOSHADER_parseData*) Malloc(ctx, sizeof(MOJOSHADER_parseData));
-    if (retval == NULL)
-        return &MOJOSHADER_out_of_mem_data;
-
+    retval = malloc(sizeof(MOJOSHADER_parseData));
     memset(retval, '\0', sizeof (MOJOSHADER_parseData));
 
-    if (!isfail(ctx))
-        output = build_output(ctx, &output_len);
-
-    if (!isfail(ctx))
-        constants = build_constants(ctx);
-
-    if (!isfail(ctx))
-        uniforms = build_uniforms(ctx);
-
-    if (!isfail(ctx))
-        attributes = build_attributes(ctx, &attribute_count);
-
-    if (!isfail(ctx))
-        outputs = build_outputs(ctx, &output_count);
-
-    if (!isfail(ctx))
-        samplers = build_samplers(ctx);
+    if(!isfail(ctx)) output = build_output(ctx, &output_len);
+    if(!isfail(ctx)) constants = build_constants(ctx);
+    if(!isfail(ctx)) uniforms = build_uniforms(ctx);
+    if(!isfail(ctx)) attributes = build_attributes(ctx, &attribute_count);
+    if(!isfail(ctx)) outputs = build_outputs(ctx, &output_count);
+    if(!isfail(ctx)) samplers = build_samplers(ctx);
 
     const int error_count = errorlist_count(ctx->errors);
     errors = errorlist_flatten(ctx->errors);
 
     if (!isfail(ctx))
     {
-        if (ctx->swizzles_count > 0)
+        if(ctx->swizzles_count > 0)
         {
             const int len = ctx->swizzles_count * sizeof (MOJOSHADER_swizzle);
-            swizzles = (MOJOSHADER_swizzle *) Malloc(ctx, len);
-            if (swizzles != NULL)
-                memcpy(swizzles, ctx->swizzles, len);
-        } // if
-    } // if
+            swizzles = malloc(len);
+            memcpy(swizzles, ctx->swizzles, len);
+        }
+    }
 
     // check again, in case build_output, etc, ran out of memory.
     if (isfail(ctx))
     {
         int i;
 
-        Free(ctx, output);
-        Free(ctx, constants);
-        Free(ctx, swizzles);
+        free(output);
+        free(constants);
+        free(swizzles);
 
         if (uniforms != NULL)
         {
             for (i = 0; i < ctx->uniform_count; i++)
-                Free(ctx, (void *) uniforms[i].name);
-            Free(ctx, uniforms);
-        } // if
+                free((void*)uniforms[i].name);
+            free(uniforms);
+        }
 
         if (attributes != NULL)
         {
             for (i = 0; i < attribute_count; i++)
-                Free(ctx, (void *) attributes[i].name);
-            Free(ctx, attributes);
-        } // if
+                free((void*)attributes[i].name);
+            free(attributes);
+        }
 
         if (outputs != NULL)
         {
             for (i = 0; i < output_count; i++)
-                Free(ctx, (void *) outputs[i].name);
-            Free(ctx, outputs);
-        } // if
+                free((void*)outputs[i].name);
+            free(outputs);
+        }
 
         if (samplers != NULL)
         {
-            for (i = 0; i < ctx->sampler_count; i++)
-                Free(ctx, (void *) samplers[i].name);
-            Free(ctx, samplers);
-        } // if
-
-        if (ctx->out_of_memory)
-        {
-            for (i = 0; i < error_count; i++)
-            {
-                Free(ctx, (void *) errors[i].filename);
-                Free(ctx, (void *) errors[i].error);
-            } // for
-            Free(ctx, errors);
-            Free(ctx, retval);
-            return &MOJOSHADER_out_of_mem_data;
-        } // if
-    } // if
+            for(i = 0; i < ctx->sampler_count; i++)
+                free((void*)samplers[i].name);
+            free(samplers);
+        }
+    }
     else
     {
         retval->profile = ctx->profile->name;
@@ -9256,24 +5327,13 @@ static MOJOSHADER_parseData *build_parsedata(Context *ctx)
         retval->outputs = outputs;
         retval->swizzle_count = ctx->swizzles_count;
         retval->swizzles = swizzles;
-        retval->symbol_count = ctx->ctab.symbol_count;
-        retval->symbols = ctx->ctab.symbols;
-        retval->preshader = ctx->preshader;
-
-        // we don't own these now, retval does.
-        ctx->ctab.symbols = NULL;
-        ctx->preshader = NULL;
-        ctx->ctab.symbol_count = 0;
-    } // else
+    }
 
     retval->error_count = error_count;
     retval->errors = errors;
-    retval->malloc = (ctx->malloc == MOJOSHADER_internal_malloc) ? NULL : ctx->malloc;
-    retval->free = (ctx->free == MOJOSHADER_internal_free) ? NULL : ctx->free;
-    retval->malloc_data = ctx->malloc_data;
 
     return retval;
-} // build_parsedata
+}
 
 
 static void process_definitions(Context *ctx)
@@ -9305,12 +5365,12 @@ static void process_definitions(Context *ctx)
                 case REG_TYPE_TEXCRDOUT:
                 case REG_TYPE_COLOROUT:
                 case REG_TYPE_DEPTHOUT:
-                    if (shader_is_vertex(ctx)&&shader_version_atleast(ctx,3,0))
+                    if (shader_is_vertex(ctx) && shader_version_atleast(ctx,3,0))
                     {
                         fail(ctx, "vs_3 can't use output registers"
                                   " without declaring them first.");
                         return;
-                    } // if
+                    }
 
                     // Apparently this is an attribute that wasn't DCL'd.
                     //  Add it to the attribute list; deal with it later.
@@ -9340,23 +5400,23 @@ static void process_definitions(Context *ctx)
 
                 case REG_TYPE_INPUT:
                     // You don't have to dcl_ your inputs in Shader Model 1.
-                    if (shader_is_pixel(ctx)&&!shader_version_atleast(ctx,2,0))
+                    if (shader_is_pixel(ctx) && !shader_version_atleast(ctx,2,0))
                     {
                         add_attribute_register(ctx, regtype, regnum,
                                                MOJOSHADER_USAGE_COLOR, regnum,
                                                0xF, 0);
                         break;
-                    } // if
+                    }
                     // fall through...
 
                 default:
                     fail(ctx, "BUG: we used a register we don't know how to define.");
-            } // switch
-        } // if
+            }
+        }
 
         prev = item;
         item = next;
-    } // while
+    }
 
     // okay, now deal with uniform/constant arrays...
     VariableList *var;
@@ -9368,15 +5428,15 @@ static void process_definitions(Context *ctx)
             {
                 ctx->profile->const_array_emitter(ctx, var->constant,
                                                   var->index, var->count);
-            } // if
+            }
             else
             {
                 ctx->profile->array_emitter(ctx, var);
                 ctx->uniform_float4_count += var->count;
                 ctx->uniform_count++;
-            } // else
-        } // if
-    } // for
+            }
+        }
+    }
 
     // ...and uniforms...
     for (item = ctx->uniforms.next; item != NULL; item = item->next)
@@ -9393,15 +5453,15 @@ static void process_definitions(Context *ctx)
 
                 const int regnum = item->regnum;
                 const int lo = var->index;
-                if ( (regnum >= lo) && (regnum < (lo + var->count)) )
+                if(regnum >= lo && regnum < (lo + var->count))
                 {
                     assert(!var->constant);
                     item->array = var;  // used when building parseData.
                     arraysize = var->count;
                     break;
-                } // if
-            } // for
-        } // if
+                }
+            }
+        }
 
         ctx->profile->uniform_emitter(ctx, item->regtype, item->regnum, var);
 
@@ -9410,13 +5470,19 @@ static void process_definitions(Context *ctx)
             ctx->uniform_count++;
             switch (item->regtype)
             {
-                case REG_TYPE_CONST: ctx->uniform_float4_count++; break;
-                case REG_TYPE_CONSTINT: ctx->uniform_int4_count++; break;
-                case REG_TYPE_CONSTBOOL: ctx->uniform_bool_count++; break;
+                case REG_TYPE_CONST:
+                    ctx->uniform_float4_count = Max(ctx->uniform_float4_count, item->regnum+1);
+                    break;
+                case REG_TYPE_CONSTINT:
+                    ctx->uniform_int4_count = Max(ctx->uniform_int4_count, item->regnum+1);
+                    break;
+                case REG_TYPE_CONSTBOOL:
+                    ctx->uniform_bool_count = Max(ctx->uniform_bool_count, item->regnum+1);
+                    break;
                 default: break;
-            } // switch
-        } // if
-    } // for
+            }
+        }
+    }
 
     // ...and samplers...
     for (item = ctx->samplers.next; item != NULL; item = item->next)
@@ -9425,7 +5491,7 @@ static void process_definitions(Context *ctx)
         ctx->profile->sampler_emitter(ctx, item->regnum,
                                       (TextureType) item->index,
                                       item->misc != 0);
-    } // for
+    }
 
     // ...and attributes...
     for (item = ctx->attributes.next; item != NULL; item = item->next)
@@ -9434,8 +5500,8 @@ static void process_definitions(Context *ctx)
         ctx->profile->attribute_emitter(ctx, item->regtype, item->regnum,
                                         item->usage, item->index,
                                         item->writemask, item->misc);
-    } // for
-} // process_definitions
+    }
+}
 
 
 static void verify_swizzles(Context *ctx)
@@ -9449,8 +5515,8 @@ static void verify_swizzles(Context *ctx)
         if (swiz->swizzles[1] > 3) { fail(ctx, failmsg); return; }
         if (swiz->swizzles[2] > 3) { fail(ctx, failmsg); return; }
         if (swiz->swizzles[3] > 3) { fail(ctx, failmsg); return; }
-    } // for
-} // verify_swizzles
+    }
+}
 
 
 // API entry point...
@@ -9466,29 +5532,20 @@ const MOJOSHADER_parseData *MOJOSHADER_parse(const char *profile,
                                              const MOJOSHADER_swizzle *swiz,
                                              const unsigned int swizcount,
                                              const MOJOSHADER_samplerMap *smap,
-                                             const unsigned int smapcount,
-                                             MOJOSHADER_malloc m,
-                                             MOJOSHADER_free f, void *d)
+                                             const unsigned int smapcount)
 {
     MOJOSHADER_parseData *retval = NULL;
     Context *ctx = NULL;
     int rc = 0;
     int failed = 0;
 
-    if ( ((m == NULL) && (f != NULL)) || ((m != NULL) && (f == NULL)) )
-        return &MOJOSHADER_out_of_mem_data;  // supply both or neither.
-
-    ctx = build_context(profile, tokenbuf, bufsize, swiz, swizcount,
-                        smap, smapcount, m, f, d);
-    if (ctx == NULL)
-        return &MOJOSHADER_out_of_mem_data;
-	
-    if (isfail(ctx))
+    ctx = build_context(profile, tokenbuf, bufsize, swiz, swizcount, smap, smapcount);
+    if(isfail(ctx))
     {
         retval = build_parsedata(ctx);
         destroy_context(ctx);
         return retval;
-    } // if
+    }
 
     verify_swizzles(ctx);
 
@@ -9498,143 +5555,133 @@ const MOJOSHADER_parseData *MOJOSHADER_parse(const char *profile,
 
     // drop out now if this definitely isn't bytecode. Saves lots of
     //  meaningless errors flooding through.
-    if (rc < 0)
+    if(rc < 0)
     {
         retval = build_parsedata(ctx);
         destroy_context(ctx);
         return retval;
-    } // if
+    }
 
-    if ( ((uint32) rc) > ctx->tokencount )
+    if(((uint32)rc) > ctx->tokencount)
     {
         fail(ctx, "Corrupted or truncated shader");
         ctx->tokencount = rc;
-    } // if
+    }
 
     adjust_token_position(ctx, rc);
 
     // parse out the rest of the tokens after the version token...
-    while (ctx->tokencount > 0)
+    while(ctx->tokencount > 0)
     {
-        if (!ctx->know_shader_size)
+        if(!ctx->know_shader_size)
             ctx->tokencount = 0xFFFFFFFF;  // keep this value obscenely large.
 
         // reset for each token.
-        if (isfail(ctx))
+        if(isfail(ctx))
         {
             failed = 1;
             ctx->isfail = 0;
-        } // if
+        }
 
         rc = parse_token(ctx);
-        if ( ((uint32) rc) > ctx->tokencount )
+        if(((uint32)rc) > ctx->tokencount)
         {
             fail(ctx, "Corrupted or truncated shader");
             break;
-        } // if
+        }
 
         adjust_token_position(ctx, rc);
-    } // while
+    }
 
     ctx->current_position = MOJOSHADER_POSITION_AFTER;
 
     // for ps_1_*, the output color is written to r0...throw an
     //  error if this register was never written. This isn't
     //  important for vertex shaders, or shader model 2+.
-    if (shader_is_pixel(ctx) && !shader_version_atleast(ctx, 2, 0))
+    if(shader_is_pixel(ctx) && !shader_version_atleast(ctx, 2, 0))
     {
-        if (!register_was_written(ctx, REG_TYPE_TEMP, 0))
+        if(!register_was_written(ctx, REG_TYPE_TEMP, 0))
             fail(ctx, "r0 (pixel shader 1.x color output) never written to");
-    } // if
+    }
 
-    if (!failed)
+    if(!failed)
     {
         process_definitions(ctx);
         failed = isfail(ctx);
-    } // if
+    }
 
-    if (!failed)
+    if(!failed)
         ctx->profile->finalize_emitter(ctx);
 
     ctx->isfail = failed;
     retval = build_parsedata(ctx);
     destroy_context(ctx);
     return retval;
-} // MOJOSHADER_parse
+}
 
 
 void MOJOSHADER_freeParseData(const MOJOSHADER_parseData *_data)
 {
-    MOJOSHADER_parseData *data = (MOJOSHADER_parseData *) _data;
-    if ((data == NULL) || (data == &MOJOSHADER_out_of_mem_data))
-        return;  // no-op.
+    MOJOSHADER_parseData *data = (MOJOSHADER_parseData*)_data;
+    if(data == NULL) return;  // no-op.
 
-    MOJOSHADER_free f = (data->free == NULL) ? MOJOSHADER_internal_free : data->free;
-    void *d = data->malloc_data;
     int i;
 
     // we don't f(data->profile), because that's internal static data.
 
-    f((void *) data->output, d);
-    f((void *) data->constants, d);
-    f((void *) data->swizzles, d);
+    free((void*)data->output);
+    free((void*)data->constants);
+    free((void*)data->swizzles);
 
-    for (i = 0; i < data->error_count; i++)
+    for(i = 0; i < data->error_count; i++)
     {
-        f((void *) data->errors[i].error, d);
-        f((void *) data->errors[i].filename, d);
-    } // for
-    f((void *) data->errors, d);
+        free((void*)data->errors[i].error);
+        free((void*)data->errors[i].filename);
+    }
+    free((void*)data->errors);
 
-    for (i = 0; i < data->uniform_count; i++)
-        f((void *) data->uniforms[i].name, d);
-    f((void *) data->uniforms, d);
+    for(i = 0; i < data->uniform_count; i++)
+        free((void*)data->uniforms[i].name);
+    free((void*)data->uniforms);
 
-    for (i = 0; i < data->attribute_count; i++)
-        f((void *) data->attributes[i].name, d);
-    f((void *) data->attributes, d);
+    for(i = 0; i < data->attribute_count; i++)
+        free((void*)data->attributes[i].name);
+    free((void*)data->attributes);
 
-    for (i = 0; i < data->output_count; i++)
-        f((void *) data->outputs[i].name, d);
-    f((void *) data->outputs, d);
+    for(i = 0; i < data->output_count; i++)
+        free((void*)data->outputs[i].name);
+    free((void*)data->outputs);
 
-    for (i = 0; i < data->sampler_count; i++)
-        f((void *) data->samplers[i].name, d);
-    f((void *) data->samplers, d);
+    for(i = 0; i < data->sampler_count; i++)
+        free((void*)data->samplers[i].name);
+    free((void*)data->samplers);
 
-    free_symbols(f, d, data->symbols, data->symbol_count);
-    free_preshader(f, d, data->preshader);
+    free_symbols(data->symbols, data->symbol_count);
+    free_preshader(data->preshader);
 
-    f(data, d);
-} // MOJOSHADER_freeParseData
+    free(data);
+}
 
 
 int MOJOSHADER_version(void)
 {
     return MOJOSHADER_VERSION;
-} // MOJOSHADER_version
+}
 
 
 const char *MOJOSHADER_changeset(void)
 {
     return MOJOSHADER_CHANGESET;
-} // MOJOSHADER_changeset
+}
 
 
 int MOJOSHADER_maxShaderModel(const char *profile)
 {
     #define PROFILE_SHADER_MODEL(p,v) if (strcmp(profile, p) == 0) return v;
-    PROFILE_SHADER_MODEL(MOJOSHADER_PROFILE_D3D, 3);
-    PROFILE_SHADER_MODEL(MOJOSHADER_PROFILE_BYTECODE, 3);
     PROFILE_SHADER_MODEL(MOJOSHADER_PROFILE_GLSL, 3);
     PROFILE_SHADER_MODEL(MOJOSHADER_PROFILE_GLSL120, 3);
-    PROFILE_SHADER_MODEL(MOJOSHADER_PROFILE_ARB1, 2);
-    PROFILE_SHADER_MODEL(MOJOSHADER_PROFILE_NV2, 2);
-    PROFILE_SHADER_MODEL(MOJOSHADER_PROFILE_NV3, 2);
-    PROFILE_SHADER_MODEL(MOJOSHADER_PROFILE_NV4, 3);
     #undef PROFILE_SHADER_MODEL
     return -1;  // unknown profile?
-} // MOJOSHADER_maxShaderModel
+}
 
 // end of mojoshader.c ...
-

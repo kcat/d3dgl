@@ -612,21 +612,6 @@ typedef struct MOJOSHADER_parseData
      * This can be NULL on error or if no preshader was available.
      */
     MOJOSHADER_preshader *preshader;
-
-    /*
-     * This is the malloc implementation you passed to MOJOSHADER_parse().
-     */
-    MOJOSHADER_malloc malloc;
-
-    /*
-     * This is the free implementation you passed to MOJOSHADER_parse().
-     */
-    MOJOSHADER_free free;
-
-    /*
-     * This is the pointer you passed as opaque data for your allocator.
-     */
-    void *malloc_data;
 } MOJOSHADER_parseData;
 
 
@@ -738,10 +723,7 @@ const MOJOSHADER_parseData *MOJOSHADER_parse(const char *profile,
                                              const MOJOSHADER_swizzle *swiz,
                                              const unsigned int swizcount,
                                              const MOJOSHADER_samplerMap *smap,
-                                             const unsigned int smapcount,
-                                             MOJOSHADER_malloc m,
-                                             MOJOSHADER_free f,
-                                             void *d);
+                                             const unsigned int smapcount);
 
 /*
  * Call this to dispose of parsing results when you are done with them.

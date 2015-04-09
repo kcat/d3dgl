@@ -36,58 +36,8 @@
 // If SUPPORT_PROFILE_* isn't defined, we assume an implicit desire to support.
 //  You get all the profiles unless you go out of your way to disable them.
 
-#ifndef SUPPORT_PROFILE_D3D
-#define SUPPORT_PROFILE_D3D 1
-#endif
-
-#ifndef SUPPORT_PROFILE_BYTECODE
-#define SUPPORT_PROFILE_BYTECODE 1
-#endif
-
-#ifndef SUPPORT_PROFILE_GLSL
 #define SUPPORT_PROFILE_GLSL 1
-#endif
-
-#ifndef SUPPORT_PROFILE_GLSL120
 #define SUPPORT_PROFILE_GLSL120 1
-#endif
-
-#ifndef SUPPORT_PROFILE_ARB1
-#define SUPPORT_PROFILE_ARB1 1
-#endif
-
-#ifndef SUPPORT_PROFILE_ARB1_NV
-#define SUPPORT_PROFILE_ARB1_NV 1
-#endif
-
-#if SUPPORT_PROFILE_ARB1_NV && !SUPPORT_PROFILE_ARB1
-#error nv profiles require arb1 profile. Fix your build.
-#endif
-
-#if SUPPORT_PROFILE_GLSL120 && !SUPPORT_PROFILE_GLSL
-#error glsl120 profile requires glsl profile. Fix your build.
-#endif
-
-// Microsoft's preprocessor has some quirks. In some ways, it doesn't work
-//  like you'd expect a C preprocessor to function.
-#ifndef MATCH_MICROSOFT_PREPROCESSOR
-#define MATCH_MICROSOFT_PREPROCESSOR 1
-#endif
-
-// Other stuff you can disable...
-
-// This removes the preshader parsing and execution code. You can save some
-//  bytes if you have normal shaders and not Effect files.
-#ifndef SUPPORT_PRESHADERS
-#define SUPPORT_PRESHADERS 1
-#endif
-
-#if SUPPORT_PRESHADERS
-void MOJOSHADER_runPreshader(const MOJOSHADER_preshader*, const float*, float*);
-#else
-#define MOJOSHADER_runPreshader(a, b)
-#endif
-
 
 // Get basic wankery out of the way here...
 
@@ -146,39 +96,19 @@ typedef uint64_t uint64;
 
 
 // Byteswap magic...
-
-#if ((defined __GNUC__) && (defined __POWERPC__))
-    static inline uint32 SWAP32(uint32 x)
-    {
-        __asm__ __volatile__("lwbrx %0,0,%1" : "=r" (x) : "r" (&x));
-        return x;
-    } // SWAP32
-    static inline uint16 SWAP16(uint16 x)
-    {
-        __asm__ __volatile__("lhbrx %0,0,%1" : "=r" (x) : "r" (&x));
-        return x;
-    } // SWAP16
-#elif defined(__POWERPC__)
-    static inline uint32 SWAP32(uint32 x)
-    {
-        return ( (((x) >> 24) & 0x000000FF) | (((x) >>  8) & 0x0000FF00) |
-                 (((x) <<  8) & 0x00FF0000) | (((x) << 24) & 0xFF000000) );
-    } // SWAP32
-    static inline uint16 SWAP16(uint16 x)
-    {
-        return ( (((x) >> 8) & 0x00FF) | (((x) << 8) & 0xFF00) );
-    } // SWAP16
-#else
-#   define SWAP16(x) (x)
-#   define SWAP32(x) (x)
-#endif
-
+#define SWAP16(x) (x)
+#define SWAP32(x) (x)
 #define SWAPDBL(x) (x)  // !!! FIXME
 
 static inline int Min(const int a, const int b)
 {
     return ((a < b) ? a : b);
-} // Min
+}
+
+static inline int Max(const int a, const int b)
+{
+    return ((a > b) ? a : b);
+}
 
 
 // Hashtables...
@@ -206,8 +136,7 @@ int hash_keymatch_string(const void *a, const void *b, void *unused);
 
 // String -> String map ...
 typedef HashTable StringMap;
-StringMap *stringmap_create(const int copy, MOJOSHADER_malloc m,
-                            MOJOSHADER_free f, void *d);
+StringMap *stringmap_create(const int copy, MOJOSHADER_malloc m, MOJOSHADER_free f, void *d);
 void stringmap_destroy(StringMap *smap);
 int stringmap_insert(StringMap *smap, const char *key, const char *value);
 int stringmap_remove(StringMap *smap, const char *key);
@@ -219,8 +148,7 @@ int stringmap_find(const StringMap *smap, const char *key, const char **_val);
 typedef struct StringCache StringCache;
 StringCache *stringcache_create(MOJOSHADER_malloc m,MOJOSHADER_free f,void *d);
 const char *stringcache(StringCache *cache, const char *str);
-const char *stringcache_len(StringCache *cache, const char *str,
-                            const unsigned int len);
+const char *stringcache_len(StringCache *cache, const char *str, const unsigned int len);
 const char *stringcache_fmt(StringCache *cache, const char *fmt, ...);
 int stringcache_iscached(StringCache *cache, const char *str);
 void stringcache_destroy(StringCache *cache);
@@ -230,22 +158,18 @@ void stringcache_destroy(StringCache *cache);
 
 typedef struct ErrorList ErrorList;
 ErrorList *errorlist_create(MOJOSHADER_malloc m, MOJOSHADER_free f, void *d);
-int errorlist_add(ErrorList *list, const char *fname,
-                      const int errpos, const char *str);
-int errorlist_add_fmt(ErrorList *list, const char *fname,
-                      const int errpos, const char *fmt, ...) ISPRINTF(4,5);
-int errorlist_add_va(ErrorList *list, const char *_fname,
-                     const int errpos, const char *fmt, va_list va);
+int errorlist_add(ErrorList *list, const char *fname, const int errpos, const char *str);
+int errorlist_add_fmt(ErrorList *list, const char *fname, const int errpos, const char *fmt, ...) ISPRINTF(4,5);
+int errorlist_add_va(ErrorList *list, const char *_fname, const int errpos, const char *fmt, va_list va);
 int errorlist_count(ErrorList *list);
 MOJOSHADER_error *errorlist_flatten(ErrorList *list); // resets the list!
 void errorlist_destroy(ErrorList *list);
 
 
-
 // Dynamic buffers...
 
 typedef struct Buffer Buffer;
-Buffer *buffer_create(size_t blksz,MOJOSHADER_malloc m,MOJOSHADER_free f,void *d);
+Buffer *buffer_create(size_t blksz, MOJOSHADER_malloc m, MOJOSHADER_free f, void *d);
 char *buffer_reserve(Buffer *buffer, const size_t len);
 int buffer_append(Buffer *buffer, const void *_data, size_t len);
 int buffer_append_fmt(Buffer *buffer, const char *fmt, ...) ISPRINTF(2,3);
@@ -257,7 +181,6 @@ char *buffer_merge(Buffer **buffers, const size_t n, size_t *_len);
 void buffer_destroy(Buffer *buffer);
 ssize_t buffer_find(Buffer *buffer, const size_t start,
                     const void *data, const size_t len);
-
 
 
 // This is the ID for a D3DXSHADER_CONSTANTTABLE in the bytecode comments.
@@ -286,32 +209,6 @@ ssize_t buffer_find(Buffer *buffer, const size_t start,
 #define CONTROL_TEXLD  0
 #define CONTROL_TEXLDP 1
 #define CONTROL_TEXLDB 2
-
-// #define this to force app to supply an allocator, so there's no reference
-//  to the C runtime's malloc() and free()...
-#if MOJOSHADER_FORCE_ALLOCATOR
-#define MOJOSHADER_internal_malloc NULL
-#define MOJOSHADER_internal_free NULL
-#else
-void *MOJOSHADER_internal_malloc(int bytes, void *d);
-void MOJOSHADER_internal_free(void *ptr, void *d);
-#endif
-
-#if MOJOSHADER_FORCE_INCLUDE_CALLBACKS
-#define MOJOSHADER_internal_include_open NULL
-#define MOJOSHADER_internal_include_close NULL
-#else
-int MOJOSHADER_internal_include_open(MOJOSHADER_includeType inctype,
-                                     const char *fname, const char *parent,
-                                     const char **outdata,
-                                     unsigned int *outbytes,
-                                     MOJOSHADER_malloc m, MOJOSHADER_free f,
-                                     void *d);
-
-void MOJOSHADER_internal_include_close(const char *data, MOJOSHADER_malloc m,
-                                       MOJOSHADER_free f, void *d);
-#endif
-
 
 // result modifiers.
 // !!! FIXME: why isn't this an enum?
@@ -433,14 +330,10 @@ static inline int scalar_register(const MOJOSHADER_shaderType shader_type,
             return (shader_type == MOJOSHADER_TYPE_PIXEL) ? 1 : 0;
 
         default: break;
-    } // switch
+    }
 
     return 0;
-} // scalar_register
-
-
-extern MOJOSHADER_error MOJOSHADER_out_of_mem_error;
-extern MOJOSHADER_parseData MOJOSHADER_out_of_mem_data;
+}
 
 
 // preprocessor stuff.
@@ -519,70 +412,6 @@ typedef enum
     TOKEN_PP_UNARY_MINUS,  // used internally, never returned.
     TOKEN_PP_UNARY_PLUS,   // used internally, never returned.
 } Token;
-
-
-// This is opaque.
-struct Preprocessor;
-typedef struct Preprocessor Preprocessor;
-
-typedef struct Conditional
-{
-    Token type;
-    int linenum;
-    int skipping;
-    int chosen;
-    struct Conditional *next;
-} Conditional;
-
-typedef struct Define
-{
-    const char *identifier;
-    const char *definition;
-    const char *original;
-    const char **parameters;
-    int paramcount;
-    struct Define *next;
-} Define;
-
-typedef struct IncludeState
-{
-    const char *filename;
-    const char *source_base;
-    const char *source;
-    const char *token;
-    unsigned int tokenlen;
-    Token tokenval;
-    int pushedback;
-    const unsigned char *lexer_marker;
-    int report_whitespace;
-    int report_comments;
-    int asm_comments;
-    unsigned int orig_length;
-    unsigned int bytes_left;
-    unsigned int line;
-    Conditional *conditional_stack;
-    MOJOSHADER_includeClose close_callback;
-    struct IncludeState *next;
-} IncludeState;
-
-Token preprocessor_lexer(IncludeState *s);
-
-// This will only fail if the allocator fails, so it doesn't return any
-//  error code...NULL on failure.
-Preprocessor *preprocessor_start(const char *fname, const char *source,
-                            unsigned int sourcelen,
-                            MOJOSHADER_includeOpen open_callback,
-                            MOJOSHADER_includeClose close_callback,
-                            const MOJOSHADER_preprocessorDefine *defines,
-                            unsigned int define_count, int asm_comments,
-                            MOJOSHADER_malloc m, MOJOSHADER_free f, void *d);
-
-void preprocessor_end(Preprocessor *pp);
-int preprocessor_outofmemory(Preprocessor *pp);
-const char *preprocessor_nexttoken(Preprocessor *_ctx,
-                                   unsigned int *_len, Token *_token);
-const char *preprocessor_sourcepos(Preprocessor *pp, unsigned int *pos);
-
 
 void MOJOSHADER_print_debug_token(const char *subsystem, const char *token,
                                   const unsigned int tokenlen,
@@ -702,4 +531,3 @@ INSTRUCTION_STATE(BREAKP, "BREAKP", 3, S, MOJOSHADER_TYPE_ANY)
 #endif
 
 // end of mojoshader_internal.h ...
-
