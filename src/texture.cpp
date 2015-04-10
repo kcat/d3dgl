@@ -730,6 +730,7 @@ HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *re
         mParent->AddDirtyRect(&dirty);
     }
 
+    TRACE("Locked region: pBits=%p, Pitch=%d\n", lockedRect->pBits, lockedRect->Pitch);
     return D3D_OK;
 }
 
