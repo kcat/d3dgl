@@ -3088,13 +3088,13 @@ HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9 *decl)
     }
     else
     {
-        // NOTE: We'll always have vertices
+        bool pos = vtxdecl->hasPos() || vtxdecl->hasPosT();
         bool normal = vtxdecl->hasNormal();
         bool color = vtxdecl->hasColor();
         bool specular = vtxdecl->hasSpecular();
         UINT texcoord = vtxdecl->hasTexCoord();
         vtxdecl = mVertexDecl.exchange(vtxdecl);
-        mQueue.sendAndUnlock<SetVertexArrayStateCmd>(this, true, normal, color, specular, texcoord);
+        mQueue.sendAndUnlock<SetVertexArrayStateCmd>(this, pos, normal, color, specular, texcoord);
     }
     if(vtxdecl) vtxdecl->Release();
 
@@ -3177,13 +3177,13 @@ HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
         mQueue.doSend<SetVertexAttribArrayCmd>(this, 0);
         if(D3DGLVertexDeclaration *vtxdecl = mVertexDecl)
         {
-            // NOTE: We'll always have vertices
+            bool pos = vtxdecl->hasPos() || vtxdecl->hasPosT();
             bool normal = vtxdecl->hasNormal();
             bool color = vtxdecl->hasColor();
             bool specular = vtxdecl->hasSpecular();
             UINT texcoord = vtxdecl->hasTexCoord();
             vtxdecl = mVertexDecl.exchange(vtxdecl);
-            mQueue.doSend<SetVertexArrayStateCmd>(this, true, normal, color, specular, texcoord);
+            mQueue.doSend<SetVertexArrayStateCmd>(this, pos, normal, color, specular, texcoord);
         }
         mQueue.sendAndUnlock<SetShaderProgramCmd>(this, GL_VERTEX_SHADER_BIT, 0u);
     }

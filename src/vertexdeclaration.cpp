@@ -9,6 +9,7 @@
 D3DGLVertexDeclaration::D3DGLVertexDeclaration(D3DGLDevice *parent)
   : mRefCount(0)
   , mParent(parent)
+  , mHasPosition(false)
   , mHasPositionT(false)
   , mHasNormal(false)
   , mHasBinormal(false)
@@ -27,12 +28,11 @@ D3DGLVertexDeclaration::~D3DGLVertexDeclaration()
 
 bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems)
 {
-    bool haspos=false;
     size_t size = 0;
     while(!isEnd(elems[size]))
     {
         if(elems[size].Usage == D3DDECLUSAGE_POSITION)
-            haspos = true;
+            mHasPosition = true;
         else if(elems[size].Usage == D3DDECLUSAGE_POSITIONT)
             mHasPositionT = true;
         else if(elems[size].Usage == D3DDECLUSAGE_NORMAL)
@@ -58,14 +58,9 @@ bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems)
         ++size;
     }
 
-    if(haspos && mHasPositionT)
+    if(mHasPosition && mHasPositionT)
     {
         WARN("Position and PositionT specified in declaration\n");
-        return false;
-    }
-    if(!haspos && !mHasPositionT)
-    {
-        WARN("Neither Position or PositionT specified in declaration\n");
         return false;
     }
 

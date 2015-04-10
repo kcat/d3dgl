@@ -22,6 +22,7 @@ class D3DGLVertexDeclaration : public IDirect3DVertexDeclaration9 {
     D3DGLDevice *mParent;
 
     std::vector<D3DGLVERTEXELEMENT> mElements;
+    bool mHasPosition;
     bool mHasPositionT;
     bool mHasNormal;
     bool mHasBinormal;
@@ -36,6 +37,7 @@ public:
 
     bool init(const D3DVERTEXELEMENT9 *elems);
 
+    bool hasPos() const { return mHasPosition; }
     bool hasPosT() const { return mHasPositionT; }
     bool hasNormal() const { return mHasNormal; }
     bool hasBinormal() const { return mHasBinormal; }
