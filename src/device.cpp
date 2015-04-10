@@ -1210,6 +1210,9 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
 
 D3DGLDevice::~D3DGLDevice()
 {
+    D3DGLVertexDeclaration *vtxdecl = mVertexDecl.exchange(nullptr);
+    if(vtxdecl) vtxdecl->releaseIface();
+
     for(auto &schain : mSwapchains)
     {
         delete schain;
@@ -3066,6 +3069,8 @@ HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9 *decl)
         HRESULT hr;
         hr = decl->QueryInterface(IID_D3DGLVertexDeclaration, (void**)&vtxdecl);
         if(FAILED(hr)) return D3DERR_INVALIDCALL;
+        vtxdecl->addIface();
+        vtxdecl->Release();
     }
 
     mQueue.lock();
@@ -3096,7 +3101,7 @@ HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9 *decl)
         vtxdecl = mVertexDecl.exchange(vtxdecl);
         mQueue.sendAndUnlock<SetVertexArrayStateCmd>(this, pos, normal, color, specular, texcoord);
     }
-    if(vtxdecl) vtxdecl->Release();
+    if(vtxdecl) vtxdecl->releaseIface();
 
     return D3D_OK;
 }

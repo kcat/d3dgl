@@ -8,6 +8,7 @@
 
 D3DGLVertexDeclaration::D3DGLVertexDeclaration(D3DGLDevice *parent)
   : mRefCount(0)
+  , mIfaceCount(0)
   , mParent(parent)
   , mHasPosition(false)
   , mHasPositionT(false)
@@ -18,12 +19,10 @@ D3DGLVertexDeclaration::D3DGLVertexDeclaration(D3DGLDevice *parent)
   , mHasSpecular(false)
   , mHasTexCoord(0)
 {
-    mParent->AddRef();
 }
 
 D3DGLVertexDeclaration::~D3DGLVertexDeclaration()
 {
-    mParent->Release();
 }
 
 bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems)
@@ -184,6 +183,13 @@ bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems)
     return true;
 }
 
+ULONG D3DGLVertexDeclaration::releaseIface()
+{
+    ULONG ret = --mIfaceCount;
+    if(ret == 0) delete this;
+    return ret;
+}
+
 
 HRESULT D3DGLVertexDeclaration::QueryInterface(REFIID riid, void **obj)
 {
@@ -201,6 +207,11 @@ ULONG D3DGLVertexDeclaration::AddRef()
 {
     ULONG ret = ++mRefCount;
     TRACE("%p New refcount: %lu\n", this, ret);
+    if(ret == 1)
+    {
+        mParent->AddRef();
+        addIface();
+    }
     return ret;
 }
 
@@ -208,7 +219,12 @@ ULONG D3DGLVertexDeclaration::Release()
 {
     ULONG ret = --mRefCount;
     TRACE("%p New refcount: %lu\n", this, ret);
-    if(ret == 0) delete this;
+    if(ret == 0)
+    {
+        D3DGLDevice *parent = mParent;
+        releaseIface();
+        parent->Release();
+    }
     return ret;
 }
 

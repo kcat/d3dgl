@@ -18,6 +18,7 @@ struct D3DGLVERTEXELEMENT : public D3DVERTEXELEMENT9 {
 
 class D3DGLVertexDeclaration : public IDirect3DVertexDeclaration9 {
     std::atomic<ULONG> mRefCount;
+    std::atomic<ULONG> mIfaceCount;
 
     D3DGLDevice *mParent;
 
@@ -36,6 +37,9 @@ public:
     virtual ~D3DGLVertexDeclaration();
 
     bool init(const D3DVERTEXELEMENT9 *elems);
+
+    ULONG addIface() { return ++mIfaceCount; }
+    ULONG releaseIface();
 
     bool hasPos() const { return mHasPosition; }
     bool hasPosT() const { return mHasPositionT; }
