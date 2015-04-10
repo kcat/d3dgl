@@ -1751,6 +1751,9 @@ HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
         }
     }
 
+    if(!mSwapchains[0]->reset())
+        return D3DERR_INVALIDCALL;
+
     return D3D_OK;
 }
 

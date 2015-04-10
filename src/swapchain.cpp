@@ -70,6 +70,21 @@ bool D3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window, bool
         return false;
     }
 
+    mOrigStyle = GetWindowLongW(mWindow, GWL_STYLE);
+    mOrigExStyle = GetWindowLongW(mWindow, GWL_EXSTYLE);
+
+    if(!mParams.Windowed)
+    {
+        LONG new_style = mOrigStyle | WS_POPUP | WS_SYSMENU;
+        new_style &= ~(WS_CAPTION | WS_THICKFRAME);
+        LONG new_exstyle = mOrigExStyle & ~(WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE);
+
+        SetWindowLongW(mWindow, GWL_STYLE, new_style);
+        SetWindowLongW(mWindow, GWL_EXSTYLE, new_exstyle);
+        SetWindowPos(mWindow, HWND_TOPMOST, 0, 0, mParams.BackBufferWidth, mParams.BackBufferHeight,
+                     SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+    }
+
     D3DSURFACE_DESC desc;
     desc.Format = params->BackBufferFormat;
     desc.Type = D3DRTYPE_SURFACE;
@@ -87,6 +102,23 @@ bool D3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window, bool
         mBackbuffers.push_back(new D3DGLRenderTarget(mParent));
         if(!mBackbuffers.back()->init(&desc, true))
             return false;
+    }
+
+    return true;
+}
+
+bool D3DGLSwapChain::reset()
+{
+    if(!mParams.Windowed)
+    {
+        LONG new_style = mOrigStyle | WS_POPUP | WS_SYSMENU;
+        new_style &= ~(WS_CAPTION | WS_THICKFRAME);
+        LONG new_exstyle = mOrigExStyle & ~(WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE);
+
+        SetWindowLongW(mWindow, GWL_STYLE, new_style);
+        SetWindowLongW(mWindow, GWL_EXSTYLE, new_exstyle);
+        SetWindowPos(mWindow, HWND_TOPMOST, 0, 0, mParams.BackBufferWidth, mParams.BackBufferHeight,
+                     SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
     }
 
     return true;
