@@ -16,18 +16,30 @@ class D3DGLQuery : public IDirect3DQuery9 {
 
     D3DQUERYTYPE mType;
 
+    GLenum mQueryType;
+    GLuint mQueryId;
+    GLuint mQueryResult;
+    std::atomic<ULONG> mPendingQueries;
+
     enum State {
         Signaled,
         Building,
         Issued
     };
-    State mState;
+    std::atomic<State> mState;
 
 public:
     D3DGLQuery(D3DGLDevice *parent);
     virtual ~D3DGLQuery();
 
     bool init(D3DQUERYTYPE type);
+
+    GLuint getQueryId() const { return mQueryId; }
+
+    void initGL();
+    void beginQueryGL();
+    void endQueryGL();
+    void queryDataGL();
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;
