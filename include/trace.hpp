@@ -7,10 +7,11 @@
 
 
 enum eLogLevel {
-    ERR_=0,
-    FIXME_=1,
-    WARN_=2,
-    TRACE_=3
+    NONE_=0,
+    ERR_=1,
+    FIXME_=2,
+    WARN_=3,
+    TRACE_=4
 };
 extern eLogLevel LogLevel;
 extern FILE *LogFile;
