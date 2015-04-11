@@ -10,6 +10,23 @@
 #include "private_iids.hpp"
 
 
+namespace
+{
+
+inline int calc_pitch(int w, int bpp)
+{
+    int ret = w * bpp;
+    return (ret+3) & ~3;
+}
+
+inline int calc_blocked_pitch(int w, int bpp)
+{
+    int ret = (w+3)/4 * bpp;
+    return (ret+3) & ~3;
+}
+
+}
+
 void D3DGLTexture::initGL()
 {
     UINT total_size = 0;
@@ -24,37 +41,27 @@ void D3DGLTexture::initGL()
         if(mDesc.Format == D3DFMT_DXT1 || mDesc.Format == D3DFMT_DXT2 ||
            mDesc.Format == D3DFMT_DXT3 || mDesc.Format == D3DFMT_DXT4 ||
            mDesc.Format == D3DFMT_DXT5)
-            level_size = ((w+3)/4) * ((h+3)/4) * mGLFormat->bytesperpixel;
+        {
+            level_size  = calc_blocked_pitch(w, mGLFormat->bytesperpixel);
+            level_size *= ((h+3)/4);
+        }
         else
-            level_size = w*h * mGLFormat->bytesperpixel;
+        {
+            level_size  = calc_pitch(w, mGLFormat->bytesperpixel);
+            level_size *= h;
+        }
 
         surface->init(total_size, level_size);
-        total_size += level_size;
+        total_size += (level_size+15) & ~15;
 
         w >>= 1;
         h >>= 1;
     }
 
-    /*if((mDesc.Usage&D3DUSAGE_DYNAMIC))
-    {
-        glGenBuffers(1, &mPBO);
-        if(mPBO)
-        {
-            glBindBuffer(GL_PIXEL_PACK_BUFFER, mPBO);
-            glBufferData(GL_PIXEL_PACK_BUFFER, total_size, NULL, GL_DYNAMIC_DRAW);
-        }
-        checkGLError();
-    }*/
-    if((mDesc.Pool == D3DPOOL_SYSTEMMEM || (mDesc.Usage&D3DUSAGE_DYNAMIC)) && !mPBO)
-    {
-        mSysMem.resize(total_size);
-        mUserPtr = mSysMem.data();
-    }
-
     glGenTextures(1, &mTexId);
     glTextureParameteriEXT(mTexId, GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, mSurfaces.size()-1);
     glTextureImage2DEXT(mTexId, GL_TEXTURE_2D, 0, mGLFormat->internalformat, mDesc.Width, mDesc.Height, 0,
-                        mGLFormat->format, mGLFormat->type, mUserPtr);
+                        mGLFormat->format, mGLFormat->type, nullptr);
     checkGLError();
 
     // Force allocation of mipmap levels, if any
@@ -64,11 +71,22 @@ void D3DGLTexture::initGL()
         checkGLError();
     }
 
-    if(mPBO)
+    /*if((mDesc.Usage&D3DUSAGE_DYNAMIC))
     {
-        mUserPtr = (GLubyte*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_WRITE);
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+        glGenBuffers(1, &mPBO);
+        if(mPBO)
+        {
+            glBindBuffer(GL_PIXEL_PACK_BUFFER, mPBO);
+            glBufferData(GL_PIXEL_PACK_BUFFER, total_size, NULL, GL_DYNAMIC_DRAW);
+            mUserPtr = (GLubyte*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_WRITE);
+            glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+        }
         checkGLError();
+    }*/
+    if((mDesc.Pool != D3DPOOL_DEFAULT || (mDesc.Usage&D3DUSAGE_DYNAMIC)) && !mPBO)
+    {
+        mSysMem.resize(total_size);
+        mUserPtr = mSysMem.data();
     }
 
     mUpdateInProgress = 0;
@@ -148,12 +166,10 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, const GLubyte *
            mDesc.Format == D3DFMT_DXT3 || mDesc.Format == D3DFMT_DXT4 ||
            mDesc.Format == D3DFMT_DXT5)
         {
-            len  = surface->getDataLength();
-            len -= (((rect.top+3)/4)*((w+3)/4) + ((rect.left+3)/4)) *
-                   mGLFormat->bytesperpixel;
-            dataPtr += ((rect.top/4)*(w/4) + (rect.left/4)) *
-                       mGLFormat->bytesperpixel;
-            glPixelStorei(GL_UNPACK_ROW_LENGTH, ((w+3)/4)*mGLFormat->bytesperpixel);
+            int pitch = calc_blocked_pitch(w, mGLFormat->bytesperpixel);
+            int offset = (rect.top/4*pitch) + (rect.left/4*mGLFormat->bytesperpixel);
+            len = surface->getDataLength() - offset;
+            dataPtr += offset;
         }
         glCompressedTextureSubImage2DEXT(mTexId, GL_TEXTURE_2D, level,
             rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top,
@@ -162,14 +178,15 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, const GLubyte *
     }
     else
     {
-        dataPtr += (rect.top*w + rect.left) * mGLFormat->bytesperpixel;
+        int pitch = calc_pitch(w, mGLFormat->bytesperpixel);
+        dataPtr += (rect.top*pitch) + (rect.left*mGLFormat->bytesperpixel);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, w);
         glTextureSubImage2DEXT(mTexId, GL_TEXTURE_2D, level,
             rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top,
             mGLFormat->format, mGLFormat->type, dataPtr
         );
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     }
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 
     if(level == 0 && (mDesc.Usage&D3DUSAGE_AUTOGENMIPMAP) && mSurfaces.size() > 1)
         glGenerateTextureMipmapEXT(mTexId, GL_TEXTURE_2D);
@@ -281,6 +298,12 @@ bool D3DGLTexture::init(const D3DSURFACE_DESC *desc, UINT levels)
         }
     }
 
+    mIsCompressed = (mDesc.Format == D3DFMT_DXT1 || mDesc.Format == D3DFMT_DXT2 ||
+                     mDesc.Format == D3DFMT_DXT3 || mDesc.Format == D3DFMT_DXT4 ||
+                     mDesc.Format == D3DFMT_DXT5);
+    if(mDesc.Format == D3DFMT_DXT2 || mDesc.Format == D3DFMT_DXT4)
+        WARN("Pre-mulitplied alpha textures not supported; loading anyway.");
+
     UINT maxLevels = 0;
     UINT m = std::max(mDesc.Width, mDesc.Height);
     while(m > 0)
@@ -288,18 +311,12 @@ bool D3DGLTexture::init(const D3DSURFACE_DESC *desc, UINT levels)
         maxLevels++;
         m >>= 1;
     }
-    TRACE("Calculated max mipmap levels: %u\n", maxLevels);
+    TRACE("Calculated max mipmap levels: %u (requested: %u)\n", maxLevels, levels);
 
     if(!levels || levels > maxLevels)
         levels = maxLevels;
     for(UINT i = 0;i < levels;++i)
         mSurfaces.push_back(new D3DGLTextureSurface(this, i));
-
-    mIsCompressed = (mDesc.Format == D3DFMT_DXT1 || mDesc.Format == D3DFMT_DXT2 ||
-                     mDesc.Format == D3DFMT_DXT3 || mDesc.Format == D3DFMT_DXT4 ||
-                     mDesc.Format == D3DFMT_DXT5);
-    if(mDesc.Format == D3DFMT_DXT2 || mDesc.Format == D3DFMT_DXT4)
-        WARN("Pre-mulitplied alpha textures not supported; loading anyway.");
 
     mParent->getQueue().send<TextureInitCmd>(this);
 
@@ -686,7 +703,7 @@ HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *re
         LockType nolock = LT_Unlocked;
         if(!mLock.compare_exchange_strong(nolock, lt))
         {
-            ERR("Texture surface %u already locked!\n", mLevel);
+            WARN("Texture surface %u already locked!\n", mLevel);
             return D3DERR_INVALIDCALL;
         }
     }
@@ -706,20 +723,26 @@ HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *re
     else
     {
         if(!mScratchMem)
-            mScratchMem = new GLubyte[mDataLength];
+        {
+            UINT data_len = (mDataLength+15) & ~15;
+            TRACE("Allocating %u bytes for scratch mem\n", data_len);
+            mScratchMem = new GLubyte[data_len];
+        }
         memPtr = mScratchMem;
     }
 
     mLockRegion = *rect;
     if(mParent->mIsCompressed)
     {
-        memPtr += ((rect->top/4*((w+3)/4)) + (rect->left/4)) * mParent->mGLFormat->bytesperpixel;
-        lockedRect->Pitch = (w+3)/4 * mParent->mGLFormat->bytesperpixel;
+        int pitch = calc_blocked_pitch(w, mParent->mGLFormat->bytesperpixel);
+        memPtr += (rect->top/4*pitch) + (rect->left/4*mParent->mGLFormat->bytesperpixel);
+        lockedRect->Pitch = pitch;
     }
     else
     {
-        memPtr += (rect->top*w + rect->left) * mParent->mGLFormat->bytesperpixel;
-        lockedRect->Pitch = w * mParent->mGLFormat->bytesperpixel;
+        int pitch = calc_pitch(w, mParent->mGLFormat->bytesperpixel);
+        memPtr += (rect->top*pitch) + (rect->left*mParent->mGLFormat->bytesperpixel);
+        lockedRect->Pitch = pitch;
     }
     lockedRect->pBits = memPtr;
 
