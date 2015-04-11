@@ -43,7 +43,7 @@ bool D3DGLBufferObject::init_common(UINT length, DWORD usage, D3DPOOL pool)
         return false;
     }
 
-    mSysMem.resize(mLength);
+    mSysMem.resize((mLength+15) & ~15);
     mUserPtr = mSysMem.data();
 
     return true;
