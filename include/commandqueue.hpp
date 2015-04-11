@@ -35,19 +35,23 @@ public:
 };
 
 class CommandEvent : public Command {
+public:
+    typedef std::atomic<ULONG> FlagType;
+
+private:
     Command *mCommand;
-    HANDLE mHandle;
+    FlagType *mFlag;
 
 public:
-    CommandEvent(Command *command, HANDLE handle)
-      : mCommand(command), mHandle(handle)
+    CommandEvent(Command *command, FlagType *flag)
+      : mCommand(command), mFlag(flag)
     { }
 
     virtual ULONG execute()
     {
         mCommand->execute();
         delete mCommand;
-        SetEvent(mHandle);
+        mFlag->store(1);
         return sizeof(*this);
     }
 };
@@ -145,25 +149,17 @@ public:
     template<typename T, typename ...Args>
     void sendSync(Args...args)
     {
-        HANDLE event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-
-        send<CommandEvent>(new T(args...), event);
-
-        if(WaitForSingleObject(event, INFINITE) != WAIT_OBJECT_0)
-            ERR("Failed to wait for sync event! Error: 0x%lx\n", GetLastError());
-        CloseHandle(event);
+        CommandEvent::FlagType flag(0);
+        send<CommandEvent>(new T(args...), &flag);
+        while(!flag.load()) Sleep(1);
     }
 
     template<typename T, typename ...Args>
     void sendAndUnlockSync(Args...args)
     {
-        HANDLE event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-
-        sendAndUnlock<CommandEvent>(new T(args...), event);
-
-        if(WaitForSingleObject(event, INFINITE) != WAIT_OBJECT_0)
-            ERR("Failed to wait for sync event! Error: 0x%lx\n", GetLastError());
-        CloseHandle(event);
+        CommandEvent::FlagType flag(0);
+        sendAndUnlock<CommandEvent>(new T(args...), &flag);
+        while(!flag.load()) Sleep(1);
     }
 };
 
