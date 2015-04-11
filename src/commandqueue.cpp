@@ -65,6 +65,8 @@ void CommandQueue::deinit()
 
 DWORD CommandQueue::run(void)
 {
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+
     TRACE("Starting command thread\n");
 restart_loop:
     while(1)
