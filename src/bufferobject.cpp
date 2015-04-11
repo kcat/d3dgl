@@ -5,7 +5,73 @@
 #include "private_iids.hpp"
 
 
-D3DGLBufferObject::D3DGLBufferObject(D3DGLDevice *parent, BufferType type)
+void D3DGLBufferObject::initGL()
+{
+    UINT data_len = (mLength+15) & ~15;
+
+    glGenBuffers(1, &mBufferId);
+    glNamedBufferDataEXT(mBufferId, data_len, nullptr, GL_STREAM_DRAW);
+    checkGLError();
+
+    mSysMem.resize(data_len);
+    mUserPtr = mSysMem.data();
+
+    mUpdateInProgress = 0;
+}
+class InitBufferObjectCmd : public Command {
+    D3DGLBufferObject *mTarget;
+
+public:
+    InitBufferObjectCmd(D3DGLBufferObject *target) : mTarget(target) { }
+
+    virtual ULONG execute()
+    {
+        mTarget->initGL();
+        return sizeof(*this);
+    }
+};
+
+class DestroyBufferCmd : public Command {
+    GLuint mBufferId;
+
+public:
+    DestroyBufferCmd(GLuint buffer) : mBufferId(buffer) { }
+
+    virtual ULONG execute()
+    {
+        glDeleteBuffers(1, &mBufferId);
+        checkGLError();
+        return sizeof(*this);
+    }
+};
+
+void D3DGLBufferObject::loadBufferDataGL(UINT offset, UINT length, const GLubyte *data)
+{
+    glNamedBufferSubDataEXT(mBufferId, offset, length, data+offset);
+    checkGLError();
+
+    --mUpdateInProgress;
+}
+class LoadBufferDataCmd : public Command {
+    D3DGLBufferObject *mTarget;
+    UINT mOffset;
+    UINT mLength;
+    const GLubyte *mData;
+
+public:
+    LoadBufferDataCmd(D3DGLBufferObject *target, UINT offset, UINT length, const GLubyte *data)
+      : mTarget(target), mOffset(offset), mLength(length), mData(data)
+    { }
+
+    virtual ULONG execute()
+    {
+        mTarget->loadBufferDataGL(mOffset, mLength, mData);
+        return sizeof(*this);
+    }
+};
+
+
+D3DGLBufferObject::D3DGLBufferObject(D3DGLDevice *parent)
   : mRefCount(0)
   , mParent(parent)
   , mLength(0)
@@ -13,17 +79,23 @@ D3DGLBufferObject::D3DGLBufferObject(D3DGLDevice *parent, BufferType type)
   , mFormat(D3DFMT_UNKNOWN)
   , mFvf(0)
   , mPool(D3DPOOL_DEFAULT)
-  , mPendingDraws(0)
+  , mBufferId(0)
   , mUserPtr(nullptr)
-  , mLocked(false)
+  , mLock(LT_Unlocked)
   , mLockedOffset(0)
   , mLockedLength(0)
-  , mTarget(type)
+  , mUpdateInProgress(0)
 {
 }
 
 D3DGLBufferObject::~D3DGLBufferObject()
 {
+    if(mBufferId)
+        mParent->getQueue().send<DestroyBufferCmd>(mBufferId);
+    mBufferId = 0;
+
+    while(mUpdateInProgress)
+        Sleep(1);
 }
 
 bool D3DGLBufferObject::init_common(UINT length, DWORD usage, D3DPOOL pool)
@@ -43,8 +115,8 @@ bool D3DGLBufferObject::init_common(UINT length, DWORD usage, D3DPOOL pool)
         return false;
     }
 
-    mSysMem.resize((mLength+15) & ~15);
-    mUserPtr = mSysMem.data();
+    mUpdateInProgress = 1;
+    mParent->getQueue().send<InitBufferObjectCmd>(this);
 
     return true;
 }
@@ -228,13 +300,17 @@ HRESULT D3DGLBufferObject::Lock(UINT offset, UINT length, void **data, DWORD fla
         }
     }
 
-    if(mLocked.exchange(true))
     {
-        WARN("Locking a locked buffer\n");
-        return D3DERR_INVALIDCALL;
+        LockType lt = ((flags&D3DLOCK_READONLY) ? LT_ReadOnly : LT_Full);
+        LockType nolock = LT_Unlocked;
+        if(!mLock.compare_exchange_strong(nolock, lt))
+        {
+            WARN("Locking a locked buffer\n");
+            return D3DERR_INVALIDCALL;
+        }
     }
 
-    while(mPendingDraws > 0)
+    while(mUpdateInProgress)
         Sleep(1);
 
     mLockedOffset = offset;
@@ -248,15 +324,23 @@ HRESULT D3DGLBufferObject::Unlock()
 {
     TRACE("iface %p\n", this);
 
-    if(mLocked == false)
+    if(mLock == LT_Unlocked)
     {
         WARN("Unlocking an unlocked buffer\n");
         return D3DERR_INVALIDCALL;
     }
 
+    if(mLock != LT_ReadOnly)
+    {
+        ++mUpdateInProgress;
+        mParent->getQueue().send<LoadBufferDataCmd>(this,
+            mLockedOffset, mLockedLength, mUserPtr
+        );
+    }
+
     mLockedOffset = 0;
     mLockedLength = 0;
-    mLocked = false;
+    mLock = LT_Unlocked;
 
     return D3D_OK;
 }

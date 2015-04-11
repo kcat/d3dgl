@@ -22,37 +22,35 @@ class D3DGLBufferObject : public IDirect3DVertexBuffer9, public IDirect3DIndexBu
     DWORD mFvf;
     D3DPOOL mPool;
 
-    std::atomic<ULONG> mPendingDraws;
-
-    // TODO: Use VBOs/IBOs when possible. Requires GL_ARB_buffer_storage for
-    // persistent buffer mapping, or some tricky mapping gymnastics to have it
-    // unmapped for drawing but mapped when locked (waiting for an async map
-    // request will kill performance).
+    GLuint mBufferId;
     std::vector<GLubyte> mSysMem;
 
     GLubyte *mUserPtr;
-    std::atomic<bool> mLocked;
+
+    enum LockType {
+        LT_Unlocked,
+        LT_ReadOnly,
+        LT_Full
+    };
+    std::atomic<LockType> mLock;
     UINT mLockedOffset;
     UINT mLockedLength;
 
-    const GLenum mTarget; // For VBO/IBO
+    std::atomic<ULONG> mUpdateInProgress;
 
     bool init_common(UINT length, DWORD usage, D3DPOOL pool);
 
 public:
-    enum BufferType { VBO=GL_ARRAY_BUFFER, IBO=GL_ELEMENT_ARRAY_BUFFER };
-
-    D3DGLBufferObject(D3DGLDevice *parent, BufferType type);
+    D3DGLBufferObject(D3DGLDevice *parent);
     virtual ~D3DGLBufferObject();
 
     bool init_vbo(UINT length, DWORD usage, DWORD fvf, D3DPOOL pool);
     bool init_ibo(UINT length, DWORD usage, D3DFORMAT format, D3DPOOL pool);
 
-    void queueDraw() { ++mPendingDraws; }
-    void finishedDraw() { --mPendingDraws; }
+    GLuint getBufferId() const { return mBufferId; }
 
-    // TODO: For VBO/IBO, should be nullptr
-    GLubyte *getDataPtr() const { return mUserPtr; }
+    void initGL();
+    void loadBufferDataGL(UINT offset, UINT length, const GLubyte *data);
 
     D3DFORMAT getFormat() const { return mFormat; }
 

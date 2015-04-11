@@ -892,10 +892,16 @@ public:
 
 void D3DGLDevice::drawGL(const D3DGLDevice::GLIndexData& idxdata, const D3DGLDevice::GLStreamData *streams, GLuint numstreams, GLsizei numinstances, bool ffp)
 {
+    GLuint binding = 0;
     if(!ffp)
     {
         for(GLuint i = 0;i < numstreams;++i)
         {
+            if(binding != streams[i].mBuffer->getBufferId())
+            {
+                binding = streams[i].mBuffer->getBufferId();
+                glBindBuffer(GL_ARRAY_BUFFER, binding);
+            }
             glVertexAttribPointer(streams[i].mTarget, streams[i].mGLCount,
                                   streams[i].mGLType, streams[i].mNormalize,
                                   streams[i].mStride, streams[i].mPointer);
@@ -904,6 +910,12 @@ void D3DGLDevice::drawGL(const D3DGLDevice::GLIndexData& idxdata, const D3DGLDev
     }
     else for(GLuint i = 0;i < numstreams;++i)
     {
+        if(binding != streams[i].mBuffer->getBufferId())
+        {
+            binding = streams[i].mBuffer->getBufferId();
+            glBindBuffer(GL_ARRAY_BUFFER, binding);
+        }
+
         if(streams[i].mTarget == GL_VERTEX_ARRAY)
             glVertexPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
         else if(streams[i].mTarget == GL_TEXTURE_COORD_ARRAY)
@@ -926,12 +938,11 @@ void D3DGLDevice::drawGL(const D3DGLDevice::GLIndexData& idxdata, const D3DGLDev
             glSecondaryColorPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
     }
 
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, idxdata.mBuffer->getBufferId());
     glDrawElementsInstanced(idxdata.mMode, idxdata.mCount, idxdata.mType, idxdata.mPointer, numinstances);
 
-    idxdata.mBuffer->finishedDraw();
-    for(GLuint i = 0;i < numstreams;++i)
-        streams[i].mBuffer->finishedDraw();
-
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     checkGLError();
 }
 template<bool UseFFP>
@@ -1435,7 +1446,7 @@ HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT start
 
         GLint offset = elem.Offset + stream.mOffset + stream.mStride*startvtx;
         streams[cur].mBuffer = buffer;
-        streams[cur].mPointer = buffer->getDataPtr() + offset;
+        streams[cur].mPointer = ((GLubyte*)0) + offset;
         streams[cur].mGLCount = elem.mGLCount;
         streams[cur].mGLType = elem.mGLType;
         streams[cur].mNormalize = elem.mNormalize;
@@ -1488,27 +1499,24 @@ HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT start
     if(idxdata.mBuffer->getFormat() == D3DFMT_INDEX16)
     {
         idxdata.mType = GL_UNSIGNED_SHORT;
-        idxdata.mPointer = idxdata.mBuffer->getDataPtr() + startidx*2;
+        idxdata.mPointer = ((GLubyte*)0) + startidx*2;
     }
     else if(idxdata.mBuffer->getFormat() == D3DFMT_INDEX32)
     {
         idxdata.mType = GL_UNSIGNED_INT;
-        idxdata.mPointer = idxdata.mBuffer->getDataPtr() + startidx*4;
+        idxdata.mPointer = ((GLubyte*)0) + startidx*4;
     }
     else
     {
         // Should not happen!
         idxdata.mType = GL_UNSIGNED_BYTE;
-        idxdata.mPointer = idxdata.mBuffer->getDataPtr();
+        idxdata.mPointer = ((GLubyte*)0) + startidx;
     }
 
     GLsizei num_instances = 1;
     if((mStreams[0].mFreq&D3DSTREAMSOURCE_INDEXEDDATA))
         num_instances = mStreams[0].mFreq & 0x3fffffff;
 
-    idxdata.mBuffer->queueDraw();
-    for(GLuint i = 0;i < cur;++i)
-        streams[i].mBuffer->queueDraw();
     if(vshader)
         mQueue.sendAndUnlock<DrawGLCmd<UseShaders>>(this, idxdata, streams, cur, num_instances);
     else
@@ -1932,7 +1940,7 @@ HRESULT D3DGLDevice::CreateVertexBuffer(UINT length, DWORD usage, DWORD fvf, D3D
         return D3DERR_INVALIDCALL;
     }
 
-    D3DGLBufferObject *vbuf = new D3DGLBufferObject(this, D3DGLBufferObject::VBO);
+    D3DGLBufferObject *vbuf = new D3DGLBufferObject(this);
     if(!vbuf->init_vbo(length, usage, fvf, pool))
     {
         delete vbuf;
@@ -1959,7 +1967,7 @@ HRESULT D3DGLDevice::CreateIndexBuffer(UINT length, DWORD usage, D3DFORMAT forma
         return D3DERR_INVALIDCALL;
     }
 
-    D3DGLBufferObject *ibuf = new D3DGLBufferObject(this, D3DGLBufferObject::IBO);
+    D3DGLBufferObject *ibuf = new D3DGLBufferObject(this);
     if(!ibuf->init_ibo(length, usage, format, pool))
     {
         delete ibuf;
