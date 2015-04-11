@@ -3156,7 +3156,7 @@ HRESULT D3DGLDevice::CreateVertexShader(const DWORD *function, IDirect3DVertexSh
 
 HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
 {
-    WARN("iface %p, shader %p : semi-stub\n", this, shader);
+    TRACE("iface %p, shader %p\n", this, shader);
 
     D3DGLVertexShader *vshader = nullptr;
     if(shader)
@@ -3186,6 +3186,9 @@ HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
             }
         }
         mQueue.doSend<SetVertexAttribArrayCmd>(this, attribs);
+        // TODO: The old shader's local constants should be reloaded with the
+        // appropriate global values, and the new shader's local constants
+        // should be filled with what the shader defined.
         mQueue.sendAndUnlock<SetShaderProgramCmd>(this, GL_VERTEX_SHADER_BIT, vshader->getProgram());
     }
     else if(oldshader)
@@ -3203,6 +3206,8 @@ HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
         }
         mQueue.sendAndUnlock<SetShaderProgramCmd>(this, GL_VERTEX_SHADER_BIT, 0u);
     }
+    else
+        mQueue.unlock();
     if(oldshader) oldshader->Release();
 
     return D3D_OK;
@@ -3429,7 +3434,7 @@ HRESULT D3DGLDevice::CreatePixelShader(const DWORD *function, IDirect3DPixelShad
 
 HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9 *shader)
 {
-    WARN("iface %p, shader %p : semi-stub\n", this, shader);
+    TRACE("iface %p, shader %p\n", this, shader);
 
     D3DGLPixelShader *pshader = nullptr;
     if(shader)
@@ -3442,9 +3447,16 @@ HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9 *shader)
     mQueue.lock();
     D3DGLPixelShader *oldshader = mPixelShader.exchange(pshader);
     if(pshader)
+    {
+        // TODO: The old shader's local constants should be reloaded with the
+        // appropriate global values, and the new shader's local constants
+        // should be filled with what the shader defined.
         mQueue.sendAndUnlock<SetShaderProgramCmd>(this, GL_FRAGMENT_SHADER_BIT, pshader->getProgram());
+    }
     else if(oldshader)
         mQueue.sendAndUnlock<SetShaderProgramCmd>(this, GL_FRAGMENT_SHADER_BIT, 0u);
+    else
+        mQueue.unlock();
     if(oldshader) oldshader->Release();
 
     return D3D_OK;
