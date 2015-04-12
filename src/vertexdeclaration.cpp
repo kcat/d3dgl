@@ -52,6 +52,10 @@ bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems)
             if(elems[size].UsageIndex < 32)
                 mHasTexCoord = 1<<elems[size].UsageIndex;
         }
+        else if(elems[size].Usage == D3DDECLUSAGE_BLENDWEIGHT || elems[size].Usage == D3DDECLUSAGE_BLENDINDICES)
+        {
+            // These are ignored by fixed-function OpenGL
+        }
         else
             FIXME("Unhandled element usage type: 0x%x\n", elems[size].Usage);
         ++size;
