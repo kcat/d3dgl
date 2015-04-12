@@ -602,6 +602,24 @@ public:
     }
 };
 
+class ClipPlaneSet : public Command {
+    GLint mPlaneIdx;
+    GLdouble mPlane[4];
+
+public:
+    ClipPlaneSet(GLint planeidx, const Vector4f &plane)
+      : mPlaneIdx(planeidx)
+      , mPlane{plane.x, plane.y, plane.z, plane.w}
+    { }
+
+    virtual ULONG execute()
+    {
+        glClipPlane(GL_CLIP_PLANE0+mPlaneIdx, mPlane);
+        checkGLError();
+        return sizeof(*this);
+    }
+};
+
 template<size_t MAXCOUNT>
 class SetBufferValues : public Command {
     GLuint mBuffer;
@@ -687,6 +705,39 @@ public:
     virtual ULONG execute()
     {
         mTarget->setTextureGL(mStage, mType, mBinding);
+        return sizeof(*this);
+    }
+};
+
+
+void D3DGLDevice::setClipPlanesGL(UINT planes)
+{
+    if(planes == mGLState.clip_plane_enabled)
+        return;
+
+    UINT num_planes = std::min(mAdapter.getLimits().clipplanes, 32u);
+    for(UINT i = 0;i < num_planes;++i)
+    {
+        UINT m = 1<<i;
+        if((planes&m) != (mGLState.clip_plane_enabled&m))
+        {
+            if((planes&m)) glEnable(GL_CLIP_PLANE0+i);
+            else glDisable(GL_CLIP_PLANE0+i);
+        }
+    }
+    mGLState.clip_plane_enabled = planes;
+    checkGLError();
+}
+class ClipPlaneEnableCmd : public Command {
+    D3DGLDevice *mTarget;
+    UINT mPlanes;
+
+public:
+    ClipPlaneEnableCmd(D3DGLDevice *target, UINT planes) : mTarget(target), mPlanes(planes) { }
+
+    virtual ULONG execute()
+    {
+        mTarget->setClipPlanesGL(mPlanes);
         return sizeof(*this);
     }
 };
@@ -2534,16 +2585,42 @@ HRESULT D3DGLDevice::GetLightEnable(DWORD Index, WINBOOL* pEnable)
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::SetClipPlane(DWORD Index, CONST float* pPlane)
+HRESULT D3DGLDevice::SetClipPlane(DWORD index, const float *plane)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, index %lu, plane %p\n", this, index, plane);
+
+    if(index >= mClipPlane.size() || index >= mAdapter.getLimits().clipplanes)
+    {
+        WARN("Clip plane index out of range (%lu >= %u)\n", index,
+             std::min(mAdapter.getLimits().clipplanes, mClipPlane.size()));
+        return D3DERR_INVALIDCALL;
+    }
+
+    mQueue.lock();
+    memcpy(mClipPlane[index].ptr(), plane, sizeof(mClipPlane[index]));
+    // FIXME: Clip plane needs to be set using the view matrix when no vertex
+    // shader is set.
+    mQueue.sendAndUnlock<ClipPlaneSet>(index, mClipPlane[index]);
+
+    return D3D_OK;
 }
 
-HRESULT D3DGLDevice::GetClipPlane(DWORD Index, float* pPlane)
+HRESULT D3DGLDevice::GetClipPlane(DWORD index, float *plane)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, index %lu, plane %p\n", this, index, plane);
+
+    if(index >= mClipPlane.size() || index >= mAdapter.getLimits().clipplanes)
+    {
+        WARN("Clip plane index out of range (%lu >= %u)\n", index,
+             std::min(mAdapter.getLimits().clipplanes, mClipPlane.size()));
+        return D3DERR_INVALIDCALL;
+    }
+
+    mQueue.lock();
+    memcpy(plane, mClipPlane[index].ptr(), sizeof(mClipPlane[index]));
+    mQueue.unlock();
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
@@ -2628,6 +2705,12 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
             mRenderState[state] = value;
             mQueue.sendAndUnlock<BlendFuncSet>(GetGLBlendFunc(mRenderState[D3DRS_SRCBLEND]),
                                                GetGLBlendFunc(mRenderState[D3DRS_DESTBLEND]));
+            break;
+
+        case D3DRS_CLIPPLANEENABLE:
+            mQueue.lock();
+            mRenderState[state] = value;
+            mQueue.sendAndUnlock<ClipPlaneEnableCmd>(this, value);
             break;
 
         case D3DRS_STENCILWRITEMASK:

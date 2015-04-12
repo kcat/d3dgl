@@ -26,6 +26,15 @@ class D3DGLVertexDeclaration;
 #define PSB_BINDING_IDX 5
 #define PROJECTION_BINDING_IDX 6
 
+union Vector4f {
+    float value[4];
+    struct { float x, y, z, w; };
+    struct { float r, g, b, a; };
+    float *ptr() { return &value[0]; };
+    const float *ptr() const { return &value[0]; };
+};
+static_assert(sizeof(Vector4f)==sizeof(float[4]), "Bad Vector4f size");
+
 class D3DGLDevice : public IDirect3DDevice9 {
 public:
     struct GLStreamData {
@@ -77,6 +86,8 @@ private:
         UINT texcoord_array_enabled; // Bitmask, 1<<texture_stage
 
         UINT attrib_array_enabled; // Bitmask, 1<<attrib
+
+        UINT clip_plane_enabled; // Bitmask, 1<<plane_index
     } mGLState;
 
     enum FFPSelector {
@@ -99,20 +110,13 @@ private:
 
     typedef std::array<std::atomic<DWORD>,33> TexStageStates;
     typedef std::array<std::atomic<DWORD>,14> SamplerStates;
-    union Vector4f {
-        float value[4];
-        struct { float x, y, z, w; };
-        struct { float r, g, b, a; };
-        float *ptr() { return &value[0]; };
-        const float *ptr() const { return &value[0]; };
-    };
-    static_assert(sizeof(Vector4f)==sizeof(float[4]), "Bad Vector4f size");
 
     std::array<TexStageStates,MAX_TEXTURES> mTexStageState;
     std::array<SamplerStates,MAX_COMBINED_SAMPLERS> mSamplerState;
     std::array<std::atomic<DWORD>,210> mRenderState;
     D3DVIEWPORT9 mViewport;
     D3DMATERIAL9 mMaterial;
+    std::array<Vector4f,8> mClipPlane;
     std::atomic<bool> mInScene;
 
     std::array<Vector4f,256> mVSConstantsF;
@@ -152,6 +156,7 @@ public:
     void deinitGL();
     void clearGL(GLbitfield mask, GLuint color, GLfloat depth, GLuint stencil, const RECT &rect);
     void setTextureGL(GLuint stage, GLenum type, GLuint binding);
+    void setClipPlanesGL(UINT planes);
     void setFBAttachmentGL(GLenum attachment, GLenum target, GLuint id, GLint level);
     void setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord);
     void setVertexAttribArrayGL(UINT attribs);
