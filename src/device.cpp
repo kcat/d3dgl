@@ -1264,6 +1264,14 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
         WARN("Format %s is not a valid rendertarget format\n", d3dfmt_to_str(params->BackBufferFormat));
         return false;
     }
+    if(params->EnableAutoDepthStencil)
+    {
+        if(!(mAdapter.getUsage(D3DRTYPE_SURFACE, params->AutoDepthStencilFormat)&D3DUSAGE_DEPTHSTENCIL))
+        {
+            WARN("Format %s is not a valid depthstencil format\n", d3dfmt_to_str(params->AutoDepthStencilFormat));
+            return false;
+        }
+    }
 
     if(!mQueue.init())
         return false;
@@ -1276,14 +1284,6 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
     glattrs.push_back({WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB});
     if(!fmt_to_glattrs(params->BackBufferFormat, std::back_inserter(glattrs)))
         return false;
-    if(params->EnableAutoDepthStencil)
-    {
-        if(!(mAdapter.getUsage(D3DRTYPE_SURFACE, params->AutoDepthStencilFormat)&D3DUSAGE_DEPTHSTENCIL))
-        {
-            WARN("Format %s is not a valid depthstencil format\n", d3dfmt_to_str(params->AutoDepthStencilFormat));
-            return false;
-        }
-    }
     // Got all attrs
     glattrs.push_back({0, 0});
 
@@ -1324,54 +1324,7 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
     mQueue.sendSync<InitGLDeviceCmd>(this, hdc, mGLContext);
     ReleaseDC(win, hdc);
 
-    D3DGLSwapChain *schain = new D3DGLSwapChain(this);
-    if(!schain->init(params, win, true))
-    {
-        delete schain;
-        return false;
-    }
-    mSwapchains[0] = schain;
-
-    // Set the default backbuffer and depth-stencil surface. Note that they do
-    // not start with any reference count, which means that their refcounts
-    // will underflow if the targets are changed without the app getting a
-    // reference to them. This is generally okay, since they won't be deleted
-    // until the device is anyway.
-    mRenderTargets[0] = schain->getBackbuffer();
-
-    if(params->EnableAutoDepthStencil)
-    {
-        D3DSURFACE_DESC desc;
-        desc.Format = params->AutoDepthStencilFormat;
-        desc.Type = D3DRTYPE_SURFACE;
-        desc.Usage = D3DUSAGE_DEPTHSTENCIL;
-        desc.Pool = D3DPOOL_DEFAULT;
-        desc.MultiSampleType = params->MultiSampleType;
-        desc.MultiSampleQuality = params->MultiSampleQuality;
-        desc.Width = params->BackBufferWidth;
-        desc.Height = params->BackBufferHeight;
-
-        mAutoDepthStencil = new D3DGLRenderTarget(this);
-        if(!mAutoDepthStencil->init(&desc, true))
-            return false;
-        mDepthStencil = mAutoDepthStencil;
-    }
-
-    mQueue.lock();
-    mViewport.X = 0;
-    mViewport.Y = 0;
-    mViewport.Width = params->BackBufferWidth;
-    mViewport.Height = params->BackBufferHeight;
-    mViewport.MinZ = 0.0f;
-    mViewport.MaxZ = 1.0f;
-    resetProjectionFixup(mViewport.Width, mViewport.Height);
-    if(mAutoDepthStencil)
-        mQueue.doSend<SetFBAttachmentCmd>(this, mAutoDepthStencil->getDepthStencilAttachment(),
-                                          GL_RENDERBUFFER, mAutoDepthStencil->getId(), 0);
-    mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER,
-                                             schain->getBackbuffer()->getId(), 0);
-
-    return true;
+    return SUCCEEDED(Reset(params));
 }
 
 
@@ -1708,9 +1661,9 @@ UINT D3DGLDevice::GetNumberOfSwapChains()
 
 HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
 {
-    FIXME("iface %p, params %p : stub!\n", this, params);
+    TRACE("iface %p, params %p\n", this, params);
 
-    FIXME("Resetting device with parameters:\n"
+    TRACE("Resetting device with parameters:\n"
           "\tBackBufferWidth            = %u\n"
           "\tBackBufferHeight           = %u\n"
           "\tBackBufferFormat           = %s\n"
@@ -1759,8 +1712,84 @@ HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
         }
     }
 
-    if(!mSwapchains[0]->reset())
+    if(mSwapchains[0])
+    {
+        IDirect3DSurface9 *oldrt = mSwapchains[0]->getBackbuffer();
+        for(auto &rtarget : mRenderTargets)
+        {
+            if(rtarget && rtarget != oldrt)
+            {
+                FIXME("Unexpected rendertarget, iface %p\n", rtarget.load());
+                return D3DERR_INVALIDCALL;
+            }
+        }
+    }
+    if(mDepthStencil && mDepthStencil != mAutoDepthStencil)
+    {
+        FIXME("Unexpected depthstencil, iface %p\n", mDepthStencil.load());
         return D3DERR_INVALIDCALL;
+    }
+
+    // FIXME: Check to make sure no D3DPOOL_DEFAULT resources remain.
+    // FIXME: Failure beyond this point causes an unusable device.
+
+    delete mSwapchains[0];
+    mSwapchains[0] = nullptr;
+    for(auto &rtarget : mRenderTargets)
+        rtarget = nullptr;
+
+    delete mAutoDepthStencil;
+    mAutoDepthStencil = nullptr;
+    mDepthStencil = nullptr;
+
+    HWND win = ((params->Windowed && !params->hDeviceWindow) ? mWindow : params->hDeviceWindow);
+    D3DGLSwapChain *schain = new D3DGLSwapChain(this);
+    if(!schain->init(params, win, true))
+    {
+        delete schain;
+        return D3DERR_INVALIDCALL;
+    }
+    mSwapchains[0] = schain;
+
+    // Set the default backbuffer and depth-stencil surface. Note that they do
+    // not start with any reference count, which means that their refcounts
+    // will underflow if the targets are changed without the app getting a
+    // reference to them. This is generally okay, since they won't be deleted
+    // until the device is anyway.
+    mRenderTargets[0] = schain->getBackbuffer();
+
+    if(params->EnableAutoDepthStencil)
+    {
+        D3DSURFACE_DESC desc;
+        desc.Format = params->AutoDepthStencilFormat;
+        desc.Type = D3DRTYPE_SURFACE;
+        desc.Usage = D3DUSAGE_DEPTHSTENCIL;
+        desc.Pool = D3DPOOL_DEFAULT;
+        desc.MultiSampleType = params->MultiSampleType;
+        desc.MultiSampleQuality = params->MultiSampleQuality;
+        desc.Width = params->BackBufferWidth;
+        desc.Height = params->BackBufferHeight;
+
+        mAutoDepthStencil = new D3DGLRenderTarget(this);
+        if(!mAutoDepthStencil->init(&desc, true))
+            return D3DERR_INVALIDCALL;
+        mDepthStencil = mAutoDepthStencil;
+    }
+
+
+    mQueue.lock();
+    mViewport.X = 0;
+    mViewport.Y = 0;
+    mViewport.Width = params->BackBufferWidth;
+    mViewport.Height = params->BackBufferHeight;
+    mViewport.MinZ = 0.0f;
+    mViewport.MaxZ = 1.0f;
+    resetProjectionFixup(mViewport.Width, mViewport.Height);
+    if(mAutoDepthStencil)
+        mQueue.doSend<SetFBAttachmentCmd>(this, mAutoDepthStencil->getDepthStencilAttachment(),
+                                          GL_RENDERBUFFER, mAutoDepthStencil->getId(), 0);
+    mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER,
+                                             schain->getBackbuffer()->getId(), 0);
 
     return D3D_OK;
 }

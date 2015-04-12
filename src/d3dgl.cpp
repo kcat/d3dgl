@@ -397,27 +397,6 @@ HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND window, 
     if(devType != D3DDEVTYPE_HAL)
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Non-HAL type 0x%x not supported\n", devType);
 
-    TRACE("Creating device with parameters:\n"
-          "\tBackBufferWidth            = %u\n"
-          "\tBackBufferHeight           = %u\n"
-          "\tBackBufferFormat           = %s\n"
-          "\tBackBufferCount            = %u\n"
-          "\tMultiSampleType            = 0x%x\n"
-          "\tMultiSampleQuality         = %lu\n"
-          "\tSwapEffect                 = 0x%x\n"
-          "\thDeviceWindow              = %p\n"
-          "\tWindowed                   = %d\n"
-          "\tEnableAutoDepthStencil     = %d\n"
-          "\tAutoDepthStencilFormat     = %s\n"
-          "\tFlags                      = 0x%lx\n"
-          "\tFullScreen_RefreshRateInHz = %u\n"
-          "\tPresentationInterval       = 0x%x\n",
-          params->BackBufferWidth, params->BackBufferHeight, d3dfmt_to_str(params->BackBufferFormat),
-          params->BackBufferCount, params->MultiSampleType, params->MultiSampleQuality,
-          params->SwapEffect, params->hDeviceWindow, params->Windowed,
-          params->EnableAutoDepthStencil, d3dfmt_to_str(params->AutoDepthStencilFormat),
-          params->Flags, params->FullScreen_RefreshRateInHz, params->PresentationInterval);
-
     if(!window && params->Windowed)
         window = params->hDeviceWindow;
     if(!window)

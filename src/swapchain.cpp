@@ -70,30 +70,35 @@ bool D3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window, bool
         return false;
     }
 
-    mOrigStyle = GetWindowLongW(mWindow, GWL_STYLE);
-    mOrigExStyle = GetWindowLongW(mWindow, GWL_EXSTYLE);
-
     if(!mParams.Windowed)
     {
-        LONG new_style = mOrigStyle | WS_POPUP | WS_SYSMENU;
+        LONG orig_style = GetWindowLongW(mWindow, GWL_STYLE);
+        LONG orig_exstyle = GetWindowLongW(mWindow, GWL_EXSTYLE);
+
+        LONG new_style = orig_style | WS_POPUP | WS_SYSMENU;
         new_style &= ~(WS_CAPTION | WS_THICKFRAME);
-        LONG new_exstyle = mOrigExStyle & ~(WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE);
+        LONG new_exstyle = orig_exstyle & ~(WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE);
 
         SetWindowLongW(mWindow, GWL_STYLE, new_style);
         SetWindowLongW(mWindow, GWL_EXSTYLE, new_exstyle);
         SetWindowPos(mWindow, HWND_TOPMOST, 0, 0, mParams.BackBufferWidth, mParams.BackBufferHeight,
                      SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
     }
+    else
+    {
+        SetWindowPos(mWindow, HWND_TOPMOST, 0, 0, mParams.BackBufferWidth, mParams.BackBufferHeight,
+                     SWP_NOMOVE | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+    }
 
     D3DSURFACE_DESC desc;
-    desc.Format = params->BackBufferFormat;
+    desc.Format = mParams.BackBufferFormat;
     desc.Type = D3DRTYPE_SURFACE;
     desc.Usage = D3DUSAGE_RENDERTARGET;
     desc.Pool = D3DPOOL_DEFAULT;
-    desc.MultiSampleType = params->MultiSampleType;
-    desc.MultiSampleQuality = params->MultiSampleQuality;
-    desc.Width = params->BackBufferWidth;
-    desc.Height = params->BackBufferHeight;
+    desc.MultiSampleType = mParams.MultiSampleType;
+    desc.MultiSampleQuality = mParams.MultiSampleQuality;
+    desc.Width = mParams.BackBufferWidth;
+    desc.Height = mParams.BackBufferHeight;
 
     // Enforce at least one backbuffer
     mParams.BackBufferCount = std::max(mParams.BackBufferCount, 1u);
@@ -102,23 +107,6 @@ bool D3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window, bool
         mBackbuffers.push_back(new D3DGLRenderTarget(mParent));
         if(!mBackbuffers.back()->init(&desc, true))
             return false;
-    }
-
-    return true;
-}
-
-bool D3DGLSwapChain::reset()
-{
-    if(!mParams.Windowed)
-    {
-        LONG new_style = mOrigStyle | WS_POPUP | WS_SYSMENU;
-        new_style &= ~(WS_CAPTION | WS_THICKFRAME);
-        LONG new_exstyle = mOrigExStyle & ~(WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE);
-
-        SetWindowLongW(mWindow, GWL_STYLE, new_style);
-        SetWindowLongW(mWindow, GWL_EXSTYLE, new_exstyle);
-        SetWindowPos(mWindow, HWND_TOPMOST, 0, 0, mParams.BackBufferWidth, mParams.BackBufferHeight,
-                     SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
     }
 
     return true;

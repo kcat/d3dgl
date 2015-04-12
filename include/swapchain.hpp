@@ -23,9 +23,6 @@ class D3DGLSwapChain : public IDirect3DSwapChain9 {
 
     std::atomic<ULONG> mPendingSwaps;
 
-    LONG mOrigStyle;
-    LONG mOrigExStyle;
-
     void addIface();
     void releaseIface();
 
@@ -36,7 +33,6 @@ public:
     void swapBuffersGL(size_t backbuffer);
 
     bool init(const D3DPRESENT_PARAMETERS *params, HWND window, bool isauto=false);
-    bool reset();
 
     D3DGLRenderTarget *getBackbuffer() { return mBackbuffers[0]; }
     ULONG getPendingSwaps() const { return mPendingSwaps; }
