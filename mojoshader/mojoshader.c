@@ -1213,9 +1213,9 @@ static void emit_GLSL_start(Context *ctx, const char *profilestr)
 
     if (shader_is_vertex(ctx))
     {
-        // NOTE: TMP_OUT to replace gl_Position, and PROJ_FIXUP to fix D3D/GL projection differences
+        // NOTE: TMP_OUT to replace gl_Position, and POS_FIXUP to fix D3D/GL projection differences
         push_output(ctx, &ctx->globals);
-        output_line(ctx, "layout(std140) uniform proj_fixup { mat4 PROJ_FIXUP; };");
+        output_line(ctx, "layout(std140) uniform pos_fixup { vec4 POS_FIXUP; };");
         output_line(ctx, "vec4 TMP_OUT;");
         pop_output(ctx);
     }
@@ -1244,7 +1244,10 @@ static void emit_GLSL_end(Context *ctx)
     else if(shader_is_vertex(ctx))
     {
         // NOTE: Write the real vertex position output now
-        output_line(ctx, "gl_Position = PROJ_FIXUP * TMP_OUT;");
+        output_line(ctx, "gl_ClipVertex = TMP_OUT;");
+        output_line(ctx, "gl_Position = vec4(TMP_OUT.xy*vec2(1.0,-1.0) + POS_FIXUP.xy, "
+                                            "TMP_OUT.z*2.0 - TMP_OUT.w, "
+                                            "TMP_OUT.w);");
     }
     // force a RET opcode if we're at the end of the stream without one.
     if (ctx->previous_opcode != OPCODE_RET)

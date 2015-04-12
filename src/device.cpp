@@ -1153,11 +1153,11 @@ void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
             { 0.0f, 0.0f, 1.0f, 0.0f },
             { 0.0f, 0.0f, 0.0f, 1.0f }
         };
-        glGenBuffers(1, &mGLState.proj_fixup_uniform_buffer);
-        glBindBuffer(GL_UNIFORM_BUFFER, mGLState.proj_fixup_uniform_buffer);
+        glGenBuffers(1, &mGLState.pos_fixup_uniform_buffer);
+        glBindBuffer(GL_UNIFORM_BUFFER, mGLState.pos_fixup_uniform_buffer);
         // Maybe STATIC_DRAW? Many things could cause this to change unnecessarily, though.
-        glBufferData(GL_UNIFORM_BUFFER, 4*sizeof(Vector4f), ident, GL_STREAM_DRAW);
-        glBindBufferBase(GL_UNIFORM_BUFFER, PROJECTION_BINDING_IDX, mGLState.proj_fixup_uniform_buffer);
+        glBufferData(GL_UNIFORM_BUFFER, sizeof(Vector4f), ident, GL_STREAM_DRAW);
+        glBindBufferBase(GL_UNIFORM_BUFFER, POSFIXUP_BINDING_IDX, mGLState.pos_fixup_uniform_buffer);
     }
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
     checkGLError();
@@ -1207,7 +1207,7 @@ void D3DGLDevice::deinitGL()
 {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    glDeleteBuffers(1, &mGLState.proj_fixup_uniform_buffer);
+    glDeleteBuffers(1, &mGLState.pos_fixup_uniform_buffer);
     glDeleteBuffers(1, &mGLState.ps_uniform_bufferf);
     glDeleteBuffers(1, &mGLState.vs_uniform_bufferf);
 
@@ -1536,41 +1536,11 @@ void D3DGLDevice::resetProjectionFixup(UINT width, UINT height)
     // (almost because of certain triangle edge rules GL is a bit lax on). The
     // offset is doubled since projection ranges from -1...+1 instead of 0...1.
     //
-    // Additionally, OpenGL uses -1...+1 for the Z clip space while D3D uses
-    // 0...1, so Z needs to be scaled and offset as well.
-    //
-    // Finally, offscreen rendering needs to flip the entire scene upside down
-    // so the 'top' of the image ends up at Y=0, rather than height-1.
-    //
-    // This is all accomplished with these two matrices. The matrices are
-    // combined so that the scaling applies first, followed by the translation.
-    float trans[4][4] = {
-        { 1.0f, 0.0f, 0.0f, 0.0f },
-        { 0.0f, 1.0f, 0.0f, 0.0f },
-        { 0.0f, 0.0f, 1.0f, 0.0f },
-        { 0.99f/width, 0.99f/height, -1.0f, 1.0f }
-    };
-    float scale[4][4] = {
-        { 1.0f,  0.0f, 0.0f, 0.0f },
-        { 0.0f, -1.0f, 0.0f, 0.0f },
-        { 0.0f,  0.0f, 2.0f, 0.0f },
-        { 0.0f,  0.0f, 0.0f, 1.0f }
-    };
+    // We supply the needed X/Y offsets through a (shared) vec4 uniform. The
+    // shader is also responsible for flipping Y and fixing Z depth.
+    float trans[4] = { 0.99f/width, 0.99f/height, 0.0f, 0.0f };
 
-    float result[4][4];
-    for(int r = 0;r < 4;++r)
-    {
-        for(int c = 0;c < 4;++c)
-        {
-            float sum = 0.0f;
-            for(int i = 0;i < 4;++i)
-                sum += scale[r][i]*trans[i][c];
-
-            result[r][c] = sum;
-        }
-    }
-
-    mQueue.doSend<SetBufferValues<4>>(mGLState.proj_fixup_uniform_buffer, &result[0][0], 0, 4);
+    mQueue.doSend<SetBufferValues<1>>(mGLState.pos_fixup_uniform_buffer, trans, 0, 1);
 }
 
 

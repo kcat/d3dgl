@@ -60,9 +60,9 @@ void D3DGLVertexShader::compileShaderGL(const DWORD *data)
     GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "vs_vec4f");
     if(v4f_idx != GL_INVALID_INDEX)
         glUniformBlockBinding(mProgram, v4f_idx, VSF_BINDING_IDX);
-    GLuint proj_fixup_idx = glGetUniformBlockIndex(mProgram, "proj_fixup");
-    if(proj_fixup_idx != GL_INVALID_INDEX)
-        glUniformBlockBinding(mProgram, proj_fixup_idx, PROJECTION_BINDING_IDX);
+    GLuint pos_fixup_idx = glGetUniformBlockIndex(mProgram, "pos_fixup");
+    if(pos_fixup_idx != GL_INVALID_INDEX)
+        glUniformBlockBinding(mProgram, pos_fixup_idx, POSFIXUP_BINDING_IDX);
 
     for(int i = 0;i < mShader->attribute_count;++i)
     {
