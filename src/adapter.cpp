@@ -1230,6 +1230,22 @@ void D3DAdapter::init_usage()
             }
             mUsage.insert(std::make_pair(typefmt, usage));
         }
+
+        UINT sample_count_mask = 0;
+        res = 0;
+        glGetInternalformativ(GL_RENDERBUFFER, format.second.internalformat, GL_NUM_SAMPLE_COUNTS, 1, &res);
+        if(res > 0)
+        {
+            std::vector<GLint> sample_counts(res);
+            glGetInternalformativ(GL_RENDERBUFFER, format.second.internalformat, GL_SAMPLES, sample_counts.size(), sample_counts.data());
+            for(GLint count : sample_counts)
+            {
+                if(count > 1 && count < 32)
+                    sample_count_mask |= 1<<(count-2);
+            }
+            if(sample_count_mask)
+                mSamples[(D3DFORMAT)format.first] = sample_count_mask;
+        }
     }
 
     typefmt = std::make_pair(D3DRTYPE_VERTEXBUFFER, D3DFMT_VERTEXDATA);
@@ -1301,6 +1317,14 @@ DWORD D3DAdapter::getUsage(DWORD restype, D3DFORMAT format) const
     if(usage != mUsage.end()) return usage->second;
     WARN("Usage flags not found for resource type 0x%lx, %s\n",
          restype, d3dfmt_to_str(format));
+    return 0;
+}
+
+UINT D3DAdapter::getSamples(D3DFORMAT format) const
+{
+    FormatSampleMap::const_iterator samples = mSamples.find(format);
+    if(samples != mSamples.end()) return samples->second;
+    WARN("Multisampling flags not found for format %s\n", d3dfmt_to_str(format));
     return 0;
 }
 

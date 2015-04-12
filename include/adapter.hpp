@@ -48,6 +48,7 @@ public:
     };
     typedef std::pair<DWORD,D3DFORMAT> ResTypeFormatPair;
     typedef std::map<ResTypeFormatPair,DWORD> UsageMap;
+    typedef std::map<D3DFORMAT,UINT> FormatSampleMap;
 
 private:
     UINT mOrdinal;
@@ -61,6 +62,7 @@ private:
 
     D3DCAPS9 mCaps;
     UsageMap mUsage;
+    FormatSampleMap mSamples;
 
     Limits mLimits;
 
@@ -81,6 +83,7 @@ public:
     WORD getDeviceId() const { return mDeviceId; }
     const char *getDescription() const { return mDescription; }
     DWORD getUsage(DWORD restype, D3DFORMAT format) const;
+    UINT getSamples(D3DFORMAT format) const;
 
     UINT getModeCount(D3DFORMAT format) const;
     HRESULT getModeInfo(D3DFORMAT format, UINT mode, D3DDISPLAYMODE *info) const;

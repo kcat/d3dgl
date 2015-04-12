@@ -318,21 +318,34 @@ HRESULT Direct3DGL::CheckDeviceMultiSampleType(UINT adapter, D3DDEVTYPE devType,
     if(devType != D3DDEVTYPE_HAL)
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Non-HAL type 0x%x not supported\n", devType);
 
-    if(multiSampleType != D3DMULTISAMPLE_NONE)
+    if(multiSampleType == D3DMULTISAMPLE_NONE)
     {
-        FIXME("Multisampling not currently supported\n");
+        if(qualityLevels) *qualityLevels = 0;
+        return D3D_OK;
+    }
+    if(multiSampleType == D3DMULTISAMPLE_NONMASKABLE)
+    {
+        FIXME("D3DMULTISAMPLE_NONMASKABLE not currently handled\n");
+        if(qualityLevels) *qualityLevels = 0;
+        return D3DERR_NOTAVAILABLE;
+    }
+
+    UINT mask = gAdapterList[adapter].getSamples(surfaceFormat);
+    if(!(mask&(multiSampleType-2)))
+    {
+        WARN("Multisample type 0x%x not supported with format %s\n", multiSampleType, d3dfmt_to_str(surfaceFormat));
         if(qualityLevels) *qualityLevels = 0;
         return D3DERR_NOTAVAILABLE;
     }
 
     if(qualityLevels)
-        *qualityLevels = 0;
+        *qualityLevels = 1;
     return D3D_OK;
 }
 
 HRESULT Direct3DGL::CheckDepthStencilMatch(UINT adapter, D3DDEVTYPE devType, D3DFORMAT adapterFormat, D3DFORMAT renderTargetFormat, D3DFORMAT depthStencilFormat)
 {
-    TRACE("iface %p, adapter %u, devType 0x%x, adapterFormat %s, renderTargetFormat %s, depthStencilFormat %s : semi-stub\n", this, adapter, devType, d3dfmt_to_str(adapterFormat), d3dfmt_to_str(renderTargetFormat), d3dfmt_to_str(depthStencilFormat));
+    TRACE("iface %p, adapter %u, devType 0x%x, adapterFormat %s, renderTargetFormat %s, depthStencilFormat %s\n", this, adapter, devType, d3dfmt_to_str(adapterFormat), d3dfmt_to_str(renderTargetFormat), d3dfmt_to_str(depthStencilFormat));
 
     if(adapter >= gAdapterList.size())
         WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, gAdapterList.size());
