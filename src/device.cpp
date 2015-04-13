@@ -690,6 +690,20 @@ public:
     }
 };
 
+class ElementArraySet : public Command {
+    GLuint mBufferId;
+
+public:
+    ElementArraySet(GLuint bufferid) : mBufferId(bufferid) { }
+
+    virtual ULONG execute()
+    {
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mBufferId);
+        checkGLError();
+        return sizeof(*this);
+    }
+};
+
 } // namespace
 
 
@@ -1025,17 +1039,13 @@ void D3DGLDevice::drawGL(const D3DGLDevice::GLIndexData& idxdata, const D3DGLDev
         else if(streams[i].mTarget == GL_SECONDARY_COLOR_ARRAY)
             glSecondaryColorPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
     }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     if(!idxdata.mBuffer)
         glDrawArraysInstanced(idxdata.mMode, 0, idxdata.mCount, numinstances);
     else
-    {
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, idxdata.mBuffer->getBufferId());
         glDrawElementsInstanced(idxdata.mMode, idxdata.mCount, idxdata.mType, idxdata.mPointer, numinstances);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    }
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
     checkGLError();
 }
 template<bool UseFFP>
@@ -3624,8 +3634,13 @@ HRESULT D3DGLDevice::SetIndices(IDirect3DIndexBuffer9 *index)
         if(FAILED(hr)) return D3DERR_INVALIDCALL;
     }
 
-    buffer = mIndexBuffer.exchange(buffer);
-    if(buffer) buffer->Release();
+    mQueue.lock();
+    D3DGLBufferObject *oldbuffer = mIndexBuffer.exchange(buffer);
+    if(buffer)
+        mQueue.sendAndUnlock<ElementArraySet>(buffer->getBufferId());
+    else
+        mQueue.unlock();
+    if(oldbuffer) oldbuffer->Release();
 
     return D3D_OK;
 }
