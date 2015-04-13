@@ -1203,16 +1203,10 @@ void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
         glBufferData(GL_UNIFORM_BUFFER, 256*sizeof(Vector4f), zero, GL_STREAM_DRAW);
         glBindBufferBase(GL_UNIFORM_BUFFER, PSF_BINDING_IDX, mGLState.ps_uniform_bufferf);
         // Binding index 6 = projection fixup matrix
-        float ident[4][4] = {
-            { 1.0f, 0.0f, 0.0f, 0.0f },
-            { 0.0f, 1.0f, 0.0f, 0.0f },
-            { 0.0f, 0.0f, 1.0f, 0.0f },
-            { 0.0f, 0.0f, 0.0f, 1.0f }
-        };
         glGenBuffers(1, &mGLState.pos_fixup_uniform_buffer);
         glBindBuffer(GL_UNIFORM_BUFFER, mGLState.pos_fixup_uniform_buffer);
         // Maybe STATIC_DRAW? Many things could cause this to change unnecessarily, though.
-        glBufferData(GL_UNIFORM_BUFFER, sizeof(Vector4f), ident, GL_STREAM_DRAW);
+        glBufferData(GL_UNIFORM_BUFFER, sizeof(Vector4f), zero, GL_STREAM_DRAW);
         glBindBufferBase(GL_UNIFORM_BUFFER, POSFIXUP_BINDING_IDX, mGLState.pos_fixup_uniform_buffer);
     }
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
