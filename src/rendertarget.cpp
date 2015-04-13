@@ -2,6 +2,7 @@
 #include "rendertarget.hpp"
 
 #include "trace.hpp"
+#include "glformat.hpp"
 #include "device.hpp"
 #include "private_iids.hpp"
 
@@ -80,20 +81,6 @@ bool D3DGLRenderTarget::init(const D3DSURFACE_DESC *desc, bool isauto)
     mParent->getQueue().sendSync<InitRenderTargetCmd>(this);
 
     return true;
-}
-
-GLenum D3DGLRenderTarget::getDepthStencilAttachment() const
-{
-    if(mGLFormat->internalformat == GL_DEPTH_COMPONENT16 ||
-       mGLFormat->internalformat == GL_DEPTH_COMPONENT24 ||
-       mGLFormat->internalformat == GL_DEPTH_COMPONENT32 ||
-       mGLFormat->internalformat == GL_DEPTH_COMPONENT32F)
-        return GL_DEPTH_ATTACHMENT;
-    if(mGLFormat->internalformat == GL_DEPTH24_STENCIL8 ||
-       mGLFormat->internalformat == GL_DEPTH32F_STENCIL8)
-        return GL_DEPTH_STENCIL_ATTACHMENT;
-    ERR("Unhandled internal depthstencil format: 0x%04x\n", mGLFormat->internalformat);
-    return GL_NONE;
 }
 
 

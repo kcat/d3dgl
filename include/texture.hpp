@@ -47,7 +47,7 @@ public:
 
     const D3DSURFACE_DESC &getDesc() const { return mDesc; }
     GLuint getTextureId() const { return mTexId; }
-    GLenum getDepthStencilAttachment() const;
+    const GLFormatInfo &getFormat() const { return *mGLFormat; }
 
     void initGL();
     void deinitGL();
@@ -108,8 +108,7 @@ public:
 
     void init(UINT offset, UINT length);
     D3DGLTexture *getParent() { return mParent; }
-    GLenum getDepthStencilAttachment() const
-    { return mParent->getDepthStencilAttachment(); }
+    const GLFormatInfo &getFormat() const { return mParent->getFormat(); }
     UINT getLevel() const { return mLevel; }
     UINT getDataLength() const { return mDataLength; }
 

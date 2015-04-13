@@ -4,10 +4,11 @@
 #include <limits>
 #include <array>
 
+#include "trace.hpp"
+#include "glformat.hpp"
 #include "d3dgl.hpp"
 #include "device.hpp"
 #include "adapter.hpp"
-#include "trace.hpp"
 #include "private_iids.hpp"
 
 
@@ -258,7 +259,6 @@ D3DGLCubeTexture::~D3DGLCubeTexture()
     mSurfaces.clear();
 }
 
-
 bool D3DGLCubeTexture::init(const D3DSURFACE_DESC *desc, UINT levels)
 {
     mDesc = *desc;
@@ -348,20 +348,6 @@ void D3DGLCubeTexture::updateTexture(DWORD level, GLint facenum, const RECT &rec
     queue.lock();
     ++mUpdateInProgress;
     queue.sendAndUnlock<CubeTextureLoadLevelCmd>(this, level, facenum, rect, dataPtr);
-}
-
-GLenum D3DGLCubeTexture::getDepthStencilAttachment() const
-{
-    if(mGLFormat->internalformat == GL_DEPTH_COMPONENT16 ||
-       mGLFormat->internalformat == GL_DEPTH_COMPONENT24 ||
-       mGLFormat->internalformat == GL_DEPTH_COMPONENT32 ||
-       mGLFormat->internalformat == GL_DEPTH_COMPONENT32F)
-        return GL_DEPTH_ATTACHMENT;
-    if(mGLFormat->internalformat == GL_DEPTH24_STENCIL8 ||
-       mGLFormat->internalformat == GL_DEPTH32F_STENCIL8)
-        return GL_DEPTH_STENCIL_ATTACHMENT;
-    ERR("Unhandled internal depthstencil format: 0x%04x\n", mGLFormat->internalformat);
-    return GL_NONE;
 }
 
 void D3DGLCubeTexture::addIface()

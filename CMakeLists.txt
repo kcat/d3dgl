@@ -79,6 +79,7 @@ set(HDRS  include/query.hpp
           include/device.hpp
           include/adapter.hpp
           include/d3dgl.hpp
+          include/glformat.hpp
           include/trace.hpp
           include/commandqueue.hpp
           include/misc.hpp
@@ -97,6 +98,7 @@ set(SRCS  src/query.cpp
           src/device.cpp
           src/adapter.cpp
           src/d3dgl.cpp
+          src/glformat.cpp
           src/commandqueue.cpp
           main.cpp
           glew.c

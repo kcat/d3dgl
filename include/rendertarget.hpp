@@ -31,7 +31,7 @@ public:
 
     const D3DSURFACE_DESC &getDesc() const { return mDesc; }
     GLuint getId() const { return mId; }
-    GLenum getDepthStencilAttachment() const;
+    const GLFormatInfo &getFormat() const { return *mGLFormat; }
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;

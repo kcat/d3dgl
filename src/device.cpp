@@ -8,6 +8,7 @@
 #include "glew.h"
 #include "wglew.h"
 #include "trace.hpp"
+#include "glformat.hpp"
 #include "d3dgl.hpp"
 #include "swapchain.hpp"
 #include "rendertarget.hpp"
@@ -1869,7 +1870,7 @@ HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
     mViewport.MaxZ = 1.0f;
     resetProjectionFixup(mViewport.Width, mViewport.Height);
     if(mAutoDepthStencil)
-        mQueue.doSend<SetFBAttachmentCmd>(this, mAutoDepthStencil->getDepthStencilAttachment(),
+        mQueue.doSend<SetFBAttachmentCmd>(this, mAutoDepthStencil->getFormat().getDepthStencilAttachment(),
                                           GL_RENDERBUFFER, mAutoDepthStencil->getId(), 0);
     mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER,
                                              schain->getBackbuffer()->getId(), 0);
@@ -2387,7 +2388,7 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
             return D3DERR_INVALIDCALL;
         }
 
-        GLenum attachment = tex2dsurface->getDepthStencilAttachment();
+        GLenum attachment = tex2dsurface->getFormat().getDepthStencilAttachment();
 
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(tex2dsurface);
@@ -2413,7 +2414,7 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
             return D3DERR_INVALIDCALL;
         }
 
-        GLenum attachment = surface->getDepthStencilAttachment();
+        GLenum attachment = surface->getFormat().getDepthStencilAttachment();
 
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(surface);
@@ -2433,7 +2434,7 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
             return D3DERR_INVALIDCALL;
         }
 
-        GLenum attachment = cubesurface->getDepthStencilAttachment();
+        GLenum attachment = cubesurface->getFormat().getDepthStencilAttachment();
 
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(cubesurface);

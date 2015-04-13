@@ -3,6 +3,7 @@
 
 #include "glew.h"
 #include "trace.hpp"
+#include "glformat.hpp"
 #include "d3dgl.hpp"
 
 
@@ -1153,7 +1154,7 @@ void D3DAdapter::init_usage()
         // SURFACE is either a plain surface (PBO), or a RenderTarget/DepthStencil surface (Renderbuffer)
         typefmt = std::make_pair(D3DRTYPE_SURFACE, (D3DFORMAT)format.first);
         usage = D3DUSAGE_DYNAMIC;
-        if(format.second.color)
+        if((format.second.buffermask&GL_COLOR_BUFFER_BIT))
         {
             res = GL_FALSE;
             glGetInternalformativ(GL_RENDERBUFFER, format.second.internalformat, GL_FRAMEBUFFER_RENDERABLE, 1, &res);
@@ -1208,7 +1209,7 @@ void D3DAdapter::init_usage()
             glGetInternalformativ(textype.gltype, format.second.internalformat, GL_SRGB_DECODE_ARB, 1, &res);
             if(res != GL_FALSE) usage |= D3DUSAGE_QUERY_SRGBREAD;
 
-            if(format.second.color)
+            if((format.second.buffermask&GL_COLOR_BUFFER_BIT))
             {
                 res = GL_FALSE;
                 glGetInternalformativ(textype.gltype, format.second.internalformat, GL_FRAMEBUFFER_RENDERABLE, 1, &res);
