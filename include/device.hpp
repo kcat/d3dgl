@@ -141,6 +141,16 @@ private:
     // responsible for holding the mQueue lock.
     void resetProjectionFixup(UINT width, UINT height);
 
+    // HACK: This should be GLAPIENTRY, but under Wine the callback is passed
+    // as-is to the host. Windows expects GLAPIENTRY to be stdcall, while Linux
+    // expects GLAPIENTRY to be cdecl, so the function is called improperly by
+    // the host GL.
+    static void __cdecl debugProcWrapGL(GLenum source, GLenum type, GLuint id, GLenum severity,
+                                        GLsizei length, const GLchar *message, const GLvoid *user)
+    { static_cast<const D3DGLDevice*>(user)->debugProcGL(source, type, id, severity, length, message); }
+    void GLAPIENTRY debugProcGL(GLenum source, GLenum type, GLuint id, GLenum severity,
+                                GLsizei length, const GLchar *message) const;
+
 public:
     D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags);
     virtual ~D3DGLDevice();

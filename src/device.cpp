@@ -2,6 +2,7 @@
 #include "device.hpp"
 
 #include <array>
+#include <sstream>
 #include <d3d9.h>
 
 #include "glew.h"
@@ -1096,12 +1097,67 @@ public:
     }
 };
 
+void D3DGLDevice::debugProcGL(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei /*length*/, const GLchar *message) const
+{
+    std::stringstream sstr;
+    sstr<< "<<<<<<<<< OpenGL message <<<<<<<<<" <<std::endl;
+
+    sstr<< "Source: ";
+    if(source == GL_DEBUG_SOURCE_API) sstr<< "API" <<std::endl;
+    else if(source == GL_DEBUG_SOURCE_WINDOW_SYSTEM) sstr<< "Window System" <<std::endl;
+    else if(source == GL_DEBUG_SOURCE_SHADER_COMPILER) sstr<< "Shader Compiler" <<std::endl;
+    else if(source == GL_DEBUG_SOURCE_THIRD_PARTY) sstr<< "Third Party" <<std::endl;
+    else if(source == GL_DEBUG_SOURCE_APPLICATION) sstr<< "Application" <<std::endl;
+    else if(source == GL_DEBUG_SOURCE_OTHER) sstr<< "Other" <<std::endl;
+    else sstr<< "!!Unknown!!" <<std::endl;
+
+    sstr<< "Type: ";
+    if(type == GL_DEBUG_TYPE_ERROR) sstr<< "Error" <<std::endl;
+    else if(type == GL_DEBUG_TYPE_ERROR) sstr<< "Error" <<std::endl;
+    else if(type == GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR) sstr<< "Deprecated Behavior" <<std::endl;
+    else if(type == GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR) sstr<< "Undefined Behavior" <<std::endl;
+    else if(type == GL_DEBUG_TYPE_PORTABILITY) sstr<< "Portability" <<std::endl;
+    else if(type == GL_DEBUG_TYPE_PERFORMANCE) sstr<< "Performance" <<std::endl;
+    else if(type == GL_DEBUG_TYPE_MARKER) sstr<< "Marker" <<std::endl;
+    else if(type == GL_DEBUG_TYPE_PUSH_GROUP) sstr<< "Push Group" <<std::endl;
+    else if(type == GL_DEBUG_TYPE_POP_GROUP) sstr<< "Pop GroupError" <<std::endl;
+    else if(type == GL_DEBUG_TYPE_OTHER) sstr<< "Other" <<std::endl;
+    else sstr<< "!!Unknown!!" <<std::endl;
+
+    sstr<< "ID: "<<id <<std::endl;
+    sstr<< "Message: "<<message <<std::endl;
+
+    std::string str = sstr.str();
+    if(severity == GL_DEBUG_SEVERITY_NOTIFICATION)
+        TRACE("%s", str.c_str());
+    else if(severity == GL_DEBUG_SEVERITY_LOW)
+        WARN("%s", str.c_str());
+    else if(severity == GL_DEBUG_SEVERITY_MEDIUM)
+        FIXME("%s", str.c_str());
+    else if(severity == GL_DEBUG_SEVERITY_HIGH)
+        ERR("%s", str.c_str());
+    else
+        ERR("%s\nSeverity: !!Unknown!!\n", str.c_str());
+}
+
+
 void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
 {
     if(!wglMakeCurrent(dc, glcontext))
     {
         ERR("Failed to make context current! Error: %lu\n", GetLastError());
         std::terminate();
+    }
+
+    if((GLEW_VERSION_4_3 || GLEW_KHR_debug) && DebugEnable && LogLevel != NONE_)
+    {
+        TRACE("Installing debug handler\n");
+        glDebugMessageCallback(reinterpret_cast<GLDEBUGPROC>(debugProcWrapGL), this);
+        if(LogLevel < TRACE_) glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);
+        if(LogLevel < WARN_) glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_LOW, 0, nullptr, GL_FALSE);
+        if(LogLevel < FIXME_) glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_MEDIUM, 0, nullptr, GL_FALSE);
+        if(LogLevel < ERR_) glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_HIGH, 0, nullptr, GL_FALSE);
+        checkGLError();
     }
 
     glGenSamplers(mGLState.samplers.size(), mGLState.samplers.data());
@@ -1364,7 +1420,13 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
         return false;
     }
 
-    mGLContext = wglCreateContextAttribsARB(hdc, nullptr, nullptr);
+    glattrs.clear();
+    // TODO: Switch to CORE profile if we ever do FFP emulation with shaders.
+    glattrs.push_back({WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB});
+    if(DebugEnable)
+        glattrs.push_back({WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_DEBUG_BIT_ARB});
+    glattrs.push_back({0, 0});
+    mGLContext = wglCreateContextAttribsARB(hdc, nullptr, &glattrs[0][0]);
     if(!mGLContext)
     {
         ERR("Failed to create OpenGL context, error %lu\n", GetLastError());
@@ -1462,6 +1524,12 @@ HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT start
         if(vshader)
         {
             streams[cur].mTarget = vshader->getLocation(elem.Usage, elem.UsageIndex);
+            if(streams[cur].mTarget == -1)
+            {
+                TRACE("Skipping element (usage 0x%02x, index %u, vshader %p)\n",
+                      elem.Usage, elem.UsageIndex, vshader);
+                continue;
+            }
             streams[cur].mIndex = 0;
         }
         else if(elem.Usage == D3DDECLUSAGE_POSITION || elem.Usage == D3DDECLUSAGE_POSITIONT)
