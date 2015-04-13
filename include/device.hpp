@@ -156,6 +156,8 @@ private:
     HRESULT drawVtxDecl(GLenum mode, INT startvtx, UINT startidx, UINT count, bool use_indices,
                         bool user_vtxdata);
 
+    bool mResetVtxData;
+
 public:
     D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags);
     virtual ~D3DGLDevice();
@@ -174,7 +176,8 @@ public:
     void setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord);
     void setVertexAttribArrayGL(UINT attribs);
     void setShaderProgramGL(GLbitfield stages, GLuint program);
-    void drawGL(const GLIndexData &idxdata, const GLStreamData *streams, GLuint numstreams, GLsizei numinstances, bool ffp);
+    void setVtxDataGL(const D3DGLDevice::GLStreamData *streams, GLuint numstreams, bool ffp);
+    void drawGL(const GLIndexData &idxdata, GLsizei numinstances);
     void blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect,
                            GLenum dst_target, GLuint dst_binding, GLint dst_level, const RECT &dst_rect,
                            GLenum filter);

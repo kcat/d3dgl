@@ -992,7 +992,7 @@ public:
     }
 };
 
-void D3DGLDevice::drawGL(const D3DGLDevice::GLIndexData& idxdata, const D3DGLDevice::GLStreamData *streams, GLuint numstreams, GLsizei numinstances, bool ffp)
+void D3DGLDevice::setVtxDataGL(const D3DGLDevice::GLStreamData *streams, GLuint numstreams, bool ffp)
 {
     GLuint binding = 0;
     if(!ffp)
@@ -1040,35 +1040,51 @@ void D3DGLDevice::drawGL(const D3DGLDevice::GLIndexData& idxdata, const D3DGLDev
             glSecondaryColorPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
     }
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    if(!idxdata.mBuffer)
-        glDrawArraysInstanced(idxdata.mMode, 0, idxdata.mCount, numinstances);
-    else
-        glDrawElementsInstanced(idxdata.mMode, idxdata.mCount, idxdata.mType, idxdata.mPointer, numinstances);
-
     checkGLError();
 }
 template<bool UseFFP>
-class DrawGLCmd : public Command {
+class SetVtxDataCmd : public Command {
     D3DGLDevice *mTarget;
-    D3DGLDevice::GLIndexData mIdxData;
     D3DGLDevice::GLStreamData mStreams[16];
     GLuint mNumStreams;
-    GLsizei mNumInstances;
 
 public:
-    DrawGLCmd(D3DGLDevice *target, const D3DGLDevice::GLIndexData &idxdata, const D3DGLDevice::GLStreamData *streams, GLuint numstream, GLsizei num_instances)
-      : mTarget(target), mIdxData(idxdata)
+    SetVtxDataCmd(D3DGLDevice *target, const D3DGLDevice::GLStreamData *streams, GLuint numstream)
+      : mTarget(target)
     {
         for(GLuint i = 0;i < numstream;++i)
             mStreams[i] = streams[i];
         mNumStreams = numstream;
-        mNumInstances = num_instances;
     }
 
     virtual ULONG execute()
     {
-        mTarget->drawGL(mIdxData, mStreams, mNumStreams, mNumInstances, UseFFP);
+        mTarget->setVtxDataGL(mStreams, mNumStreams, UseFFP);
+        return sizeof(*this);
+    }
+};
+
+void D3DGLDevice::drawGL(const D3DGLDevice::GLIndexData &idxdata, GLsizei numinstances)
+{
+    if(!idxdata.mBuffer)
+        glDrawArraysInstanced(idxdata.mMode, 0, idxdata.mCount, numinstances);
+    else
+        glDrawElementsInstanced(idxdata.mMode, idxdata.mCount, idxdata.mType, idxdata.mPointer, numinstances);
+    checkGLError();
+}
+class DrawGLCmd : public Command {
+    D3DGLDevice *mTarget;
+    D3DGLDevice::GLIndexData mIdxData;
+    GLsizei mNumInstances;
+
+public:
+    DrawGLCmd(D3DGLDevice *target, const D3DGLDevice::GLIndexData &idxdata, GLsizei num_instances)
+      : mTarget(target), mIdxData(idxdata), mNumInstances(num_instances)
+    { }
+
+    virtual ULONG execute()
+    {
+        mTarget->drawGL(mIdxData, mNumInstances);
         return sizeof(*this);
     }
 };
@@ -1355,6 +1371,7 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mVertexDecl(nullptr)
   , mIndexBuffer(nullptr)
   , mPrimitiveUserData(nullptr)
+  , mResetVtxData(false)
 {
     for(auto &rt : mRenderTargets) rt = nullptr;
     for(auto &tex : mTextures) tex = nullptr;
@@ -1493,90 +1510,100 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
 HRESULT D3DGLDevice::drawVtxDecl(GLenum mode, INT startvtx, UINT startidx, UINT count, bool use_indices, bool user_vtxdata)
 {
     mQueue.lock();
-    D3DGLVertexDeclaration *vtxdecl = mVertexDecl;
-    if(!vtxdecl)
-    {
-        WARN("No vertex declaration set\n");
-        mQueue.unlock();
-        return D3DERR_INVALIDCALL;
-    }
 
-    GLStreamData streams[16];
-    GLuint cur = 0;
-
-    D3DGLVertexShader *vshader = mVertexShader;
-    const std::vector<D3DGLVERTEXELEMENT> &elements = vtxdecl->getVtxElements();
-    for(const D3DGLVERTEXELEMENT &elem : elements)
+    if(mResetVtxData)
     {
-        if(cur >= 16)
+        D3DGLVertexDeclaration *vtxdecl = mVertexDecl;
+        if(!vtxdecl)
         {
-            ERR("Too many vertex elements!\n");
+            WARN("No vertex declaration set\n");
             mQueue.unlock();
             return D3DERR_INVALIDCALL;
         }
 
-        if(user_vtxdata && elem.Stream != 0)
+        GLStreamData streams[16];
+        GLuint cur = 0;
+
+        D3DGLVertexShader *vshader = mVertexShader;
+        const std::vector<D3DGLVERTEXELEMENT> &elements = vtxdecl->getVtxElements();
+        for(const D3DGLVERTEXELEMENT &elem : elements)
         {
-            ERR("Stream %u referenced with user vertex data\n", elem.Stream);
-            mQueue.unlock();
-            return D3DERR_INVALIDCALL;
+            if(cur >= 16)
+            {
+                ERR("Too many vertex elements!\n");
+                mQueue.unlock();
+                return D3DERR_INVALIDCALL;
+            }
+
+            if(user_vtxdata && elem.Stream != 0)
+            {
+                ERR("Stream %u referenced with user vertex data\n", elem.Stream);
+                mQueue.unlock();
+                return D3DERR_INVALIDCALL;
+            }
+
+            const StreamSource &stream = mStreams[elem.Stream];
+            D3DGLBufferObject *buffer = stream.mBuffer;
+
+            GLint offset = elem.Offset + stream.mOffset + stream.mStride*startvtx;
+            streams[cur].mBuffer = buffer;
+            streams[cur].mPointer = ((GLubyte*)0) + offset;
+            streams[cur].mGLCount = elem.mGLCount;
+            streams[cur].mGLType = elem.mGLType;
+            streams[cur].mNormalize = elem.mNormalize;
+            streams[cur].mStride = stream.mStride;
+            streams[cur].mDivisor = 0;
+            if((stream.mFreq&D3DSTREAMSOURCE_INSTANCEDATA))
+                streams[cur].mDivisor = stream.mFreq & 0x3fffffff;
+
+            if(vshader)
+            {
+                streams[cur].mTarget = vshader->getLocation(elem.Usage, elem.UsageIndex);
+                if(streams[cur].mTarget == -1)
+                {
+                    TRACE("Skipping element (usage 0x%02x, index %u, vshader %p)\n",
+                        elem.Usage, elem.UsageIndex, vshader);
+                    continue;
+                }
+                streams[cur].mIndex = 0;
+            }
+            else if(elem.Usage == D3DDECLUSAGE_POSITION || elem.Usage == D3DDECLUSAGE_POSITIONT)
+            {
+                streams[cur].mTarget = GL_VERTEX_ARRAY;
+                streams[cur].mIndex = 0;
+            }
+            else if(elem.Usage == D3DDECLUSAGE_TEXCOORD)
+            {
+                streams[cur].mTarget = GL_TEXTURE_COORD_ARRAY;
+                streams[cur].mIndex = 0;
+                // Apply this element data to whatever stages are using this index
+                for(UINT i = 0;i < mTexStageState.size();i++)
+                {
+                    if((mTexStageState[i][D3DTSS_TEXCOORDINDEX]&0xFFFF) == elem.UsageIndex)
+                        streams[cur].mIndex |= 1<<i;
+                }
+            }
+            else if(elem.Usage == D3DDECLUSAGE_NORMAL)
+            {
+                streams[cur].mTarget = GL_NORMAL_ARRAY;
+                streams[cur].mIndex = 0;
+            }
+            else if(elem.Usage == D3DDECLUSAGE_COLOR)
+            {
+                if(elem.UsageIndex == 0)
+                    streams[cur].mTarget = GL_COLOR_ARRAY;
+                else if(elem.UsageIndex == 1)
+                    streams[cur].mTarget = GL_SECONDARY_COLOR_ARRAY;
+                streams[cur].mIndex = 0;
+            }
+            ++cur;
         }
-
-        const StreamSource &stream = mStreams[elem.Stream];
-        D3DGLBufferObject *buffer = stream.mBuffer;
-
-        GLint offset = elem.Offset + stream.mOffset + stream.mStride*startvtx;
-        streams[cur].mBuffer = buffer;
-        streams[cur].mPointer = ((GLubyte*)0) + offset;
-        streams[cur].mGLCount = elem.mGLCount;
-        streams[cur].mGLType = elem.mGLType;
-        streams[cur].mNormalize = elem.mNormalize;
-        streams[cur].mStride = stream.mStride;
-        streams[cur].mDivisor = 0;
-        if((stream.mFreq&D3DSTREAMSOURCE_INSTANCEDATA))
-            streams[cur].mDivisor = stream.mFreq & 0x3fffffff;
 
         if(vshader)
-        {
-            streams[cur].mTarget = vshader->getLocation(elem.Usage, elem.UsageIndex);
-            if(streams[cur].mTarget == -1)
-            {
-                TRACE("Skipping element (usage 0x%02x, index %u, vshader %p)\n",
-                      elem.Usage, elem.UsageIndex, vshader);
-                continue;
-            }
-            streams[cur].mIndex = 0;
-        }
-        else if(elem.Usage == D3DDECLUSAGE_POSITION || elem.Usage == D3DDECLUSAGE_POSITIONT)
-        {
-            streams[cur].mTarget = GL_VERTEX_ARRAY;
-            streams[cur].mIndex = 0;
-        }
-        else if(elem.Usage == D3DDECLUSAGE_TEXCOORD)
-        {
-            streams[cur].mTarget = GL_TEXTURE_COORD_ARRAY;
-            streams[cur].mIndex = 0;
-            // Apply this element data to whatever stages are using this index
-            for(UINT i = 0;i < mTexStageState.size();i++)
-            {
-                if((mTexStageState[i][D3DTSS_TEXCOORDINDEX]&0xFFFF) == elem.UsageIndex)
-                    streams[cur].mIndex |= 1<<i;
-            }
-        }
-        else if(elem.Usage == D3DDECLUSAGE_NORMAL)
-        {
-            streams[cur].mTarget = GL_NORMAL_ARRAY;
-            streams[cur].mIndex = 0;
-        }
-        else if(elem.Usage == D3DDECLUSAGE_COLOR)
-        {
-            if(elem.UsageIndex == 0)
-                streams[cur].mTarget = GL_COLOR_ARRAY;
-            else if(elem.UsageIndex == 1)
-                streams[cur].mTarget = GL_SECONDARY_COLOR_ARRAY;
-            streams[cur].mIndex = 0;
-        }
-        ++cur;
+            mQueue.doSend<SetVtxDataCmd<UseShaders>>(this, streams, cur);
+        else
+            mQueue.doSend<SetVtxDataCmd<UseFFP>>(this, streams, cur);
+        mResetVtxData = false;
     }
 
     GLIndexData idxdata;
@@ -1618,11 +1645,7 @@ HRESULT D3DGLDevice::drawVtxDecl(GLenum mode, INT startvtx, UINT startidx, UINT 
     GLsizei num_instances = 1;
     if((mStreams[0].mFreq&D3DSTREAMSOURCE_INDEXEDDATA))
         num_instances = mStreams[0].mFreq & 0x3fffffff;
-
-    if(vshader)
-        mQueue.sendAndUnlock<DrawGLCmd<UseShaders>>(this, idxdata, streams, cur, num_instances);
-    else
-        mQueue.sendAndUnlock<DrawGLCmd<UseFFP>>(this, idxdata, streams, cur, num_instances);
+    mQueue.sendAndUnlock<DrawGLCmd>(this, idxdata, num_instances);
 
     return D3D_OK;
 }
@@ -3267,11 +3290,13 @@ HRESULT D3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE type, UINT count, const vo
     mStreams[0].mBuffer = mPrimitiveUserData;
     mStreams[0].mOffset = 0;
     mStreams[0].mStride = vtxStride;
+    mResetVtxData = true;
 
     HRESULT hr = drawVtxDecl(mode, 0, 0, count, false, true);
 
     mStreams[0].mBuffer = nullptr;
     mStreams[0].mStride = 0;
+    mResetVtxData = true;
 
     return hr;
 }
@@ -3319,6 +3344,7 @@ HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9 *decl)
     }
 
     mQueue.lock();
+    mResetVtxData = true;
     if(!vtxdecl)
     {
         vtxdecl = mVertexDecl.exchange(vtxdecl);
@@ -3401,6 +3427,11 @@ HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
     }
 
     mQueue.lock();
+    // FIXME: Forcing attributes to specific locations given its usage:index
+    // setup means we won't have to reset the vertex data when changing the
+    // vertex shader (though we still do when enabling/disabling the FFP). This
+    // is also true for the attribute array enables.
+    mResetVtxData = true;
     D3DGLVertexShader *oldshader = mVertexShader.exchange(vshader);
     if(vshader)
     {
@@ -3552,6 +3583,7 @@ HRESULT D3DGLDevice::SetStreamSource(UINT index, IDirect3DVertexBuffer9 *stream,
         if(FAILED(hr)) return D3DERR_INVALIDCALL;
     }
 
+    mResetVtxData = true;
     if(mStreams[index].mBuffer)
         mStreams[index].mBuffer->Release();
     mStreams[index].mBuffer = buffer;
@@ -3604,6 +3636,7 @@ HRESULT D3DGLDevice::SetStreamSourceFreq(UINT index, UINT divisor)
     if(!(divisor&(D3DSTREAMSOURCE_INDEXEDDATA|D3DSTREAMSOURCE_INSTANCEDATA)) && divisor != 1)
         FIXME("Unexpected divisor value: 0x%x\n", divisor);
 
+    mResetVtxData = true;
     mStreams[index].mFreq = divisor;
     return D3D_OK;
 }
