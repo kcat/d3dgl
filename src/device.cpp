@@ -2137,6 +2137,7 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
     GLuint src_binding = 0, dst_binding = 0;
     GLint src_level = 0, dst_level = 0;
     RECT src_rect, dst_rect;
+    GLbitfield src_mask, dst_mask;
 
     // FIXME: This doesn't handle depth or stencil blits
     union {
@@ -2152,6 +2153,7 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
         src_target = GL_TEXTURE_2D;
         src_binding = tex2dsurface->getParent()->getTextureId();
         src_level = tex2dsurface->getLevel();
+        src_mask = tex2dsurface->getFormat().buffermask;
         tex2dsurface->Release();
     }
     else if(SUCCEEDED(srcSurface->QueryInterface(IID_D3DGLRenderTarget, &pointer)))
@@ -2159,6 +2161,7 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
         src_target = GL_RENDERBUFFER;
         src_binding = surface->getId();
         src_level = 0;
+        src_mask = surface->getFormat().buffermask;
         surface->Release();
     }
     else if(SUCCEEDED(srcSurface->QueryInterface(IID_D3DGLCubeSurface, &pointer)))
@@ -2166,6 +2169,7 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
         src_target = cubesurface->getTarget();
         src_binding = cubesurface->getParent()->getTextureId();
         src_level = cubesurface->getLevel();
+        src_mask = cubesurface->getFormat().buffermask;
         cubesurface->Release();
     }
     else
@@ -2196,6 +2200,7 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
         dst_target = GL_TEXTURE_2D;
         dst_binding = tex2dsurface->getParent()->getTextureId();
         dst_level = tex2dsurface->getLevel();
+        dst_mask = tex2dsurface->getFormat().buffermask;
         tex2dsurface->Release();
     }
     else if(SUCCEEDED(dstSurface->QueryInterface(IID_D3DGLRenderTarget, &pointer)))
@@ -2203,6 +2208,7 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
         dst_target = GL_RENDERBUFFER;
         dst_binding = surface->getId();
         dst_level = 0;
+        dst_mask = surface->getFormat().buffermask;
         surface->Release();
     }
     else if(SUCCEEDED(dstSurface->QueryInterface(IID_D3DGLCubeSurface, &pointer)))
@@ -2210,6 +2216,7 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
         dst_target = cubesurface->getTarget();
         dst_binding = cubesurface->getParent()->getTextureId();
         dst_level = cubesurface->getLevel();
+        dst_mask = cubesurface->getFormat().buffermask;
         cubesurface->Release();
     }
     else
@@ -2232,6 +2239,23 @@ HRESULT D3DGLDevice::StretchRect(IDirect3DSurface9 *srcSurface, const RECT *srcR
         dst_rect.top = 0;
         dst_rect.right = desc.Width;
         dst_rect.bottom = desc.Height;
+    }
+
+    if(!(src_mask&dst_mask))
+    {
+        FIXME("Mismatched format buffer masks: 0x%x & 0x%x\n", src_mask, dst_mask);
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(!(src_mask&GL_COLOR_BUFFER_BIT))
+    {
+        if(filter != D3DTEXF_POINT)
+        {
+            FIXME("Invalid filter 0x%x for non-color blit\n", filter);
+            return D3DERR_INVALIDCALL;
+        }
+        FIXME("Unhandled non-color blit\n");
+        return D3DERR_INVALIDCALL;
     }
 
     mQueue.send<BlitFramebufferCmd>(this, src_target, src_binding, src_level, src_rect,
@@ -3181,9 +3205,9 @@ HRESULT D3DGLDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE type, INT startVtx, U
     return drawVtxDecl(type, startVtx, startIdx, count);
 }
 
-HRESULT D3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE PrimitiveType, UINT PrimitiveCount, CONST void* pVertexStreamZeroData, UINT VertexStreamZeroStride)
+HRESULT D3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE type, UINT count, const void *vtxData, UINT vtxStride)
 {
-    FIXME("iface %p : stub!\n", this);
+    FIXME("iface %p, type 0x%x, count %u, vtxData %p, vtxStride %u : stub!\n", this, type, count, vtxData, vtxStride);
     return E_NOTIMPL;
 }
 
