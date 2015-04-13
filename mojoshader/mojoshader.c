@@ -1702,8 +1702,12 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
             }
             else if (mt == MISCTYPE_TYPE_POSITION)
             {
-                index_str[0] = '\0';  // no explicit number.
-                usage_str = "gl_FragCoord";  // !!! FIXME: is this the same coord space as D3D?
+                // vpos in D3D9 is a 2-component vector that gives integer X/Y
+                // pixel coordinates. gl_FragCoord may offset the coordinates
+                // by about 0.5. So, floor it.
+                push_output(ctx, &ctx->globals);
+                output_line(ctx, "vec2 %s = floor(gl_FragCoord.xy);", var);
+                pop_output(ctx);
             }
             else
             {
