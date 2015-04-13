@@ -137,6 +137,8 @@ private:
     std::array<StreamSource,MAX_STREAMS> mStreams;
     std::atomic<D3DGLBufferObject*> mIndexBuffer;
 
+    D3DGLBufferObject *mPrimitiveUserData;
+
     // Sends buffer values to update proj_fixup_uniform_buffer. Caller is
     // responsible for holding the mQueue lock.
     void resetProjectionFixup(UINT width, UINT height);
@@ -151,6 +153,9 @@ private:
     void GLAPIENTRY debugProcGL(GLenum source, GLenum type, GLuint id, GLenum severity,
                                 GLsizei length, const GLchar *message) const;
 
+    HRESULT drawVtxDecl(GLenum mode, INT startvtx, UINT startidx, UINT count, bool use_indices,
+                        bool user_vtxdata);
+
 public:
     D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags);
     virtual ~D3DGLDevice();
@@ -159,8 +164,6 @@ public:
 
     const D3DAdapter &getAdapter() const { return mAdapter; }
     CommandQueue &getQueue() { return mQueue; }
-
-    HRESULT drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT startidx, UINT count);
 
     void initGL(HDC dc, HGLRC glcontext);
     void deinitGL();

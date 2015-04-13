@@ -45,6 +45,25 @@ public:
     }
 };
 
+void D3DGLBufferObject::resizeBufferGL()
+{
+    UINT data_len = (mLength+15) & ~15;
+    glNamedBufferDataEXT(mBufferId, data_len, nullptr, GL_STREAM_DRAW);
+    checkGLError();
+}
+class ResizeBufferCmd : public Command {
+    D3DGLBufferObject *mTarget;
+
+public:
+    ResizeBufferCmd(D3DGLBufferObject *target) : mTarget(target) { }
+
+    virtual ULONG execute()
+    {
+        mTarget->resizeBufferGL();
+        return sizeof(*this);
+    }
+};
+
 void D3DGLBufferObject::loadBufferDataGL(UINT offset, UINT length, const GLubyte *data)
 {
     glNamedBufferSubDataEXT(mBufferId, offset, length, data+offset);
@@ -180,6 +199,27 @@ bool D3DGLBufferObject::init_ibo(UINT length, DWORD usage, D3DFORMAT format, D3D
     return init_common(length, usage, pool);
 }
 
+void D3DGLBufferObject::resetBufferData(const GLubyte *data, GLuint length)
+{
+    while(mUpdateInProgress)
+        Sleep(1);
+
+    ++mUpdateInProgress;
+    mParent->getQueue().lock();
+    if(length > mLength)
+    {
+        UINT data_len = (mLength+15) & ~15;
+        mSysMem.resize(data_len);
+        mUserPtr = mSysMem.data();
+        mParent->getQueue().doSend<ResizeBufferCmd>(this);
+    }
+    memcpy(mUserPtr, data, length);
+
+    mParent->getQueue().sendAndUnlock<LoadBufferDataCmd>(this,
+        0, length, mUserPtr
+    );
+}
+
 
 HRESULT D3DGLBufferObject::QueryInterface(REFIID riid, void **obj)
 {
@@ -207,6 +247,7 @@ ULONG D3DGLBufferObject::AddRef()
 {
     ULONG ret = ++mRefCount;
     TRACE("%p New refcount: %lu\n", this, ret);
+    if(ret == 1) mParent->AddRef();
     return ret;
 }
 
@@ -214,7 +255,12 @@ ULONG D3DGLBufferObject::Release()
 {
     ULONG ret = --mRefCount;
     TRACE("%p New refcount: %lu\n", this, ret);
-    if(ret == 0) delete this;
+    if(ret == 0)
+    {
+        D3DGLDevice *parent = mParent;
+        delete this;
+        parent->Release();
+    }
     return ret;
 }
 

@@ -348,6 +348,41 @@ GLenum GetGLFilterMode(D3DTEXTUREFILTERTYPE type, D3DTEXTUREFILTERTYPE miptype)
     return GL_LINEAR_MIPMAP_LINEAR;
 }
 
+GLenum GetGLDrawMode(D3DPRIMITIVETYPE type, UINT *count)
+{
+    GLenum mode = GL_NONE;
+    if(type == D3DPT_POINTLIST)
+        mode = GL_POINTS;
+    else if(type == D3DPT_LINELIST)
+    {
+        mode = GL_LINES;
+        if(count) *count *= 2;
+    }
+    else if(type == D3DPT_LINESTRIP)
+    {
+        mode = GL_LINE_STRIP;
+        if(count) *count += 1;
+    }
+    else if(type == D3DPT_TRIANGLELIST)
+    {
+        mode = GL_TRIANGLES;
+        if(count) *count *= 3;
+    }
+    else if(type == D3DPT_TRIANGLESTRIP)
+    {
+        mode = GL_TRIANGLE_STRIP;
+        if(count) *count += 2;
+    }
+    else if(type == D3DPT_TRIANGLEFAN)
+    {
+        mode = GL_TRIANGLE_FAN;
+        if(count) *count += 2;
+    }
+    else
+        WARN("Invalid primitive type: 0x%x\n", type);
+    return mode;
+}
+
 #define D3DCOLOR_R(color) (((color)>>16)&0xff)
 #define D3DCOLOR_G(color) (((color)>> 8)&0xff)
 #define D3DCOLOR_B(color) (((color)    )&0xff)
@@ -991,11 +1026,16 @@ void D3DGLDevice::drawGL(const D3DGLDevice::GLIndexData& idxdata, const D3DGLDev
             glSecondaryColorPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
     }
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, idxdata.mBuffer->getBufferId());
-    glDrawElementsInstanced(idxdata.mMode, idxdata.mCount, idxdata.mType, idxdata.mPointer, numinstances);
+    if(!idxdata.mBuffer)
+        glDrawArraysInstanced(idxdata.mMode, 0, idxdata.mCount, numinstances);
+    else
+    {
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, idxdata.mBuffer->getBufferId());
+        glDrawElementsInstanced(idxdata.mMode, idxdata.mCount, idxdata.mType, idxdata.mPointer, numinstances);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    }
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     checkGLError();
 }
 template<bool UseFFP>
@@ -1304,6 +1344,7 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mPixelShader(nullptr)
   , mVertexDecl(nullptr)
   , mIndexBuffer(nullptr)
+  , mPrimitiveUserData(nullptr)
 {
     for(auto &rt : mRenderTargets) rt = nullptr;
     for(auto &tex : mTextures) tex = nullptr;
@@ -1323,6 +1364,9 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
 
 D3DGLDevice::~D3DGLDevice()
 {
+    delete mPrimitiveUserData;
+    mPrimitiveUserData = nullptr;
+
     D3DGLVertexDeclaration *vtxdecl = mVertexDecl.exchange(nullptr);
     if(vtxdecl) vtxdecl->releaseIface();
 
@@ -1436,54 +1480,13 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
 }
 
 
-HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT startidx, UINT count)
+HRESULT D3DGLDevice::drawVtxDecl(GLenum mode, INT startvtx, UINT startidx, UINT count, bool use_indices, bool user_vtxdata)
 {
-    GLenum mode;
-
-    if(type == D3DPT_POINTLIST)
-        mode = GL_POINTS;
-    else if(type == D3DPT_LINELIST)
-    {
-        mode = GL_LINES;
-        count *= 2;
-    }
-    else if(type == D3DPT_LINESTRIP)
-    {
-        mode = GL_LINE_STRIP;
-        count += 1;
-    }
-    else if(type == D3DPT_TRIANGLELIST)
-    {
-        mode = GL_TRIANGLES;
-        count *= 3;
-    }
-    else if(type == D3DPT_TRIANGLESTRIP)
-    {
-        mode = GL_TRIANGLE_STRIP;
-        count += 2;
-    }
-    else if(type == D3DPT_TRIANGLEFAN)
-    {
-        mode = GL_TRIANGLE_FAN;
-        count += 2;
-    }
-    else
-    {
-        WARN("Invalid primitive type: 0x%x\n", type);
-        return D3DERR_INVALIDCALL;
-    }
-
     mQueue.lock();
-    if(!mVertexDecl)
+    D3DGLVertexDeclaration *vtxdecl = mVertexDecl;
+    if(!vtxdecl)
     {
         WARN("No vertex declaration set\n");
-        mQueue.unlock();
-        return D3DERR_INVALIDCALL;
-    }
-
-    if(!mIndexBuffer)
-    {
-        WARN("No index buffer set\n");
         mQueue.unlock();
         return D3DERR_INVALIDCALL;
     }
@@ -1492,12 +1495,19 @@ HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT start
     GLuint cur = 0;
 
     D3DGLVertexShader *vshader = mVertexShader;
-    const std::vector<D3DGLVERTEXELEMENT> &elements = mVertexDecl.load()->getVtxElements();
+    const std::vector<D3DGLVERTEXELEMENT> &elements = vtxdecl->getVtxElements();
     for(const D3DGLVERTEXELEMENT &elem : elements)
     {
         if(cur >= 16)
         {
             ERR("Too many vertex elements!\n");
+            mQueue.unlock();
+            return D3DERR_INVALIDCALL;
+        }
+
+        if(user_vtxdata && elem.Stream != 0)
+        {
+            ERR("Stream %u referenced with user vertex data\n", elem.Stream);
             mQueue.unlock();
             return D3DERR_INVALIDCALL;
         }
@@ -1560,24 +1570,39 @@ HRESULT D3DGLDevice::drawVtxDecl(D3DPRIMITIVETYPE type, INT startvtx, UINT start
     }
 
     GLIndexData idxdata;
-    idxdata.mBuffer = mIndexBuffer;
     idxdata.mMode = mode;
     idxdata.mCount = count;
-    if(idxdata.mBuffer->getFormat() == D3DFMT_INDEX16)
+    if(!use_indices)
     {
-        idxdata.mType = GL_UNSIGNED_SHORT;
-        idxdata.mPointer = ((GLubyte*)0) + startidx*2;
-    }
-    else if(idxdata.mBuffer->getFormat() == D3DFMT_INDEX32)
-    {
-        idxdata.mType = GL_UNSIGNED_INT;
-        idxdata.mPointer = ((GLubyte*)0) + startidx*4;
+        idxdata.mBuffer = nullptr;
+        idxdata.mType = GL_NONE;
+        idxdata.mPointer = nullptr;
     }
     else
     {
-        // Should not happen!
-        idxdata.mType = GL_UNSIGNED_BYTE;
-        idxdata.mPointer = ((GLubyte*)0) + startidx;
+        idxdata.mBuffer = mIndexBuffer;
+        if(!idxdata.mBuffer)
+        {
+            WARN("No index buffer set\n");
+            mQueue.unlock();
+            return D3DERR_INVALIDCALL;
+        }
+        if(idxdata.mBuffer->getFormat() == D3DFMT_INDEX16)
+        {
+            idxdata.mType = GL_UNSIGNED_SHORT;
+            idxdata.mPointer = ((GLubyte*)0) + startidx*2;
+        }
+        else if(idxdata.mBuffer->getFormat() == D3DFMT_INDEX32)
+        {
+            idxdata.mType = GL_UNSIGNED_INT;
+            idxdata.mPointer = ((GLubyte*)0) + startidx*4;
+        }
+        else
+        {
+            // Should not happen!
+            idxdata.mType = GL_UNSIGNED_BYTE;
+            idxdata.mPointer = ((GLubyte*)0) + startidx;
+        }
     }
 
     GLsizei num_instances = 1;
@@ -3202,13 +3227,43 @@ HRESULT D3DGLDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE type, INT startVtx, U
         return D3DERR_INVALIDCALL;
     }
 
-    return drawVtxDecl(type, startVtx, startIdx, count);
+    GLenum mode = GetGLDrawMode(type, &count);
+    if(!mode) return D3DERR_INVALIDCALL;
+
+    return drawVtxDecl(mode, startVtx, startIdx, count, true, false);
 }
 
 HRESULT D3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE type, UINT count, const void *vtxData, UINT vtxStride)
 {
-    FIXME("iface %p, type 0x%x, count %u, vtxData %p, vtxStride %u : stub!\n", this, type, count, vtxData, vtxStride);
-    return E_NOTIMPL;
+    TRACE("iface %p, type 0x%x, count %u, vtxData %p, vtxStride %u\n", this, type, count, vtxData, vtxStride);
+
+    GLenum mode = GetGLDrawMode(type, &count);
+    if(!mode) return D3DERR_INVALIDCALL;
+
+    if(!mPrimitiveUserData)
+    {
+        mPrimitiveUserData = new D3DGLBufferObject(this);
+        if(!mPrimitiveUserData->init_vbo(vtxStride*count, D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT))
+        {
+            ERR("Failed to initialize vertex data storage\n");
+            return D3DERR_INVALIDCALL;
+        }
+    }
+    mPrimitiveUserData->resetBufferData(reinterpret_cast<const GLubyte*>(vtxData),
+                                        vtxStride*count);
+
+    if(mStreams[0].mBuffer)
+        mStreams[0].mBuffer->Release();
+    mStreams[0].mBuffer = mPrimitiveUserData;
+    mStreams[0].mOffset = 0;
+    mStreams[0].mStride = vtxStride;
+
+    HRESULT hr = drawVtxDecl(mode, 0, 0, count, false, true);
+
+    mStreams[0].mBuffer = nullptr;
+    mStreams[0].mStride = 0;
+
+    return hr;
 }
 
 HRESULT D3DGLDevice::DrawIndexedPrimitiveUP(D3DPRIMITIVETYPE PrimitiveType, UINT MinVertexIndex, UINT NumVertices, UINT PrimitiveCount, CONST void* pIndexData, D3DFORMAT IndexDataFormat, CONST void* pVertexStreamZeroData, UINT VertexStreamZeroStride)

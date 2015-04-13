@@ -6,7 +6,6 @@
 #include <d3d9.h>
 
 #include "glew.h"
-#include "misc.hpp"
 
 
 class D3DGLDevice;
@@ -14,7 +13,7 @@ class D3DGLDevice;
 class D3DGLBufferObject : public IDirect3DVertexBuffer9, public IDirect3DIndexBuffer9 {
     std::atomic<ULONG> mRefCount;
 
-    ref_ptr<D3DGLDevice> mParent;
+    D3DGLDevice *mParent;
 
     UINT mLength;
     DWORD mUsage;
@@ -49,8 +48,11 @@ public:
 
     GLuint getBufferId() const { return mBufferId; }
 
+    void resetBufferData(const GLubyte *data, GLuint length);
+
     void initGL();
     void loadBufferDataGL(UINT offset, UINT length, const GLubyte *data);
+    void resizeBufferGL();
 
     D3DFORMAT getFormat() const { return mFormat; }
 
