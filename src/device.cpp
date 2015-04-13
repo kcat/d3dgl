@@ -3368,7 +3368,7 @@ HRESULT D3DGLDevice::GetVertexShader(IDirect3DVertexShader9 **shader)
 
 HRESULT D3DGLDevice::SetVertexShaderConstantF(UINT start, const float *values, UINT count)
 {
-    WARN("iface %p, start %u, values %p, count %u : semi-stub!\n", this, start, values, count);
+    TRACE("iface %p, start %u, values %p, count %u\n", this, start, values, count);
 
     if(start >= mVSConstantsF.size() || count > mVSConstantsF.size()-start)
     {
@@ -3617,7 +3617,7 @@ HRESULT D3DGLDevice::GetPixelShader(IDirect3DPixelShader9 **shader)
 
 HRESULT D3DGLDevice::SetPixelShaderConstantF(UINT start, const float *values, UINT count)
 {
-    WARN("iface %p, start %u, values %p, count %u : semi-stub!\n", this, start, values, count);
+    TRACE("iface %p, start %u, values %p, count %u\n", this, start, values, count);
 
     if(start >= mPSConstantsF.size() || count > mPSConstantsF.size()-start)
     {
