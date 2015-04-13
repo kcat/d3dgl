@@ -1590,6 +1590,8 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                         usage_str = "gl_FrontColor";
                     else if(index == 1)
                         usage_str = "gl_FrontSecondaryColor";
+                    else
+                        failf(ctx, "Unhandled vertex output color index: %d\n", index);
                     break;
                 case MOJOSHADER_USAGE_FOG:
                     usage_str = "gl_FogFragCoord";
@@ -1611,21 +1613,19 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                     break;
                 default:
                     // !!! FIXME: we need to deal with some more built-in varyings here.
+                    failf(ctx, "Unhandled vertex output register usage: 0x%x\n", usage);
                     break;
             }
 
-            // !!! FIXME: the #define is a little hacky, but it means we don't
-            // !!! FIXME:  have to track these separately if this works.
-            push_output(ctx, &ctx->globals);
-            // no mapping to built-in var? Just make it a regular global, pray.
-            if (usage_str == NULL)
-                output_line(ctx, "vec4 %s;", var);
-            else
+            if(usage_str)
             {
+                // !!! FIXME: the #define is a little hacky, but it means we don't
+                // !!! FIXME:  have to track these separately if this works.
+                push_output(ctx, &ctx->globals);
                 output_line(ctx, "#define %s %s%s%s%s", var, usage_str,
                             arrayleft, index_str, arrayright);
+                pop_output(ctx);
             }
-            pop_output(ctx);
         }
         else
         {
@@ -1689,6 +1689,10 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                     usage_str = "gl_SecondaryColor";
                 else
                     fail(ctx, "unsupported color index");
+            }
+            else
+            {
+                fail(ctx, "unhandled texture/input usage");
             }
         }
         else if (regtype == REG_TYPE_MISCTYPE)
