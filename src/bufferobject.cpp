@@ -9,12 +9,14 @@ void D3DGLBufferObject::initGL()
 {
     UINT data_len = (mLength+15) & ~15;
 
-    glGenBuffers(1, &mBufferId);
-    glNamedBufferDataEXT(mBufferId, data_len, nullptr, GL_STREAM_DRAW);
-    checkGLError();
-
-    mSysMem.resize(data_len);
+    mSysMem.assign(data_len, 0);
     mUserPtr = mSysMem.data();
+
+    GLenum usage = (mUsage&D3DUSAGE_DYNAMIC) ? GL_DYNAMIC_DRAW : GL_STREAM_DRAW;
+
+    glGenBuffers(1, &mBufferId);
+    glNamedBufferDataEXT(mBufferId, data_len, mUserPtr, usage);
+    checkGLError();
 
     mUpdateInProgress = 0;
 }
@@ -64,9 +66,9 @@ public:
     }
 };
 
-void D3DGLBufferObject::loadBufferDataGL(UINT offset, UINT length, const GLubyte *data)
+void D3DGLBufferObject::loadBufferDataGL(UINT offset, UINT length)
 {
-    glNamedBufferSubDataEXT(mBufferId, offset, length, data+offset);
+    glNamedBufferSubDataEXT(mBufferId, offset, length, mUserPtr+offset);
     checkGLError();
 
     --mUpdateInProgress;
@@ -75,16 +77,15 @@ class LoadBufferDataCmd : public Command {
     D3DGLBufferObject *mTarget;
     UINT mOffset;
     UINT mLength;
-    const GLubyte *mData;
 
 public:
-    LoadBufferDataCmd(D3DGLBufferObject *target, UINT offset, UINT length, const GLubyte *data)
-      : mTarget(target), mOffset(offset), mLength(length), mData(data)
+    LoadBufferDataCmd(D3DGLBufferObject *target, UINT offset, UINT length)
+      : mTarget(target), mOffset(offset), mLength(length)
     { }
 
     virtual ULONG execute()
     {
-        mTarget->loadBufferDataGL(mOffset, mLength, mData);
+        mTarget->loadBufferDataGL(mOffset, mLength);
         return sizeof(*this);
     }
 };
@@ -135,7 +136,7 @@ bool D3DGLBufferObject::init_common(UINT length, DWORD usage, D3DPOOL pool)
     }
 
     mUpdateInProgress = 1;
-    mParent->getQueue().send<InitBufferObjectCmd>(this);
+    mParent->getQueue().sendSync<InitBufferObjectCmd>(this);
 
     return true;
 }
@@ -206,18 +207,17 @@ void D3DGLBufferObject::resetBufferData(const GLubyte *data, GLuint length)
 
     ++mUpdateInProgress;
     mParent->getQueue().lock();
-    if(length > mLength)
+    if(length > mSysMem.size())
     {
-        UINT data_len = (mLength+15) & ~15;
+        UINT data_len = (length+15) & ~15;
         mSysMem.resize(data_len);
         mUserPtr = mSysMem.data();
         mParent->getQueue().doSend<ResizeBufferCmd>(this);
     }
-    memcpy(mUserPtr, data, length);
+    mLength = length;
+    memcpy(mUserPtr, data, mLength);
 
-    mParent->getQueue().sendAndUnlock<LoadBufferDataCmd>(this,
-        0, length, mUserPtr
-    );
+    mParent->getQueue().sendAndUnlock<LoadBufferDataCmd>(this, 0, mLength);
 }
 
 
@@ -380,7 +380,7 @@ HRESULT D3DGLBufferObject::Unlock()
     {
         ++mUpdateInProgress;
         mParent->getQueue().send<LoadBufferDataCmd>(this,
-            mLockedOffset, mLockedLength, mUserPtr
+            mLockedOffset, mLockedLength
         );
     }
 

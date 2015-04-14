@@ -51,7 +51,7 @@ public:
     void resetBufferData(const GLubyte *data, GLuint length);
 
     void initGL();
-    void loadBufferDataGL(UINT offset, UINT length, const GLubyte *data);
+    void loadBufferDataGL(UINT offset, UINT length);
     void resizeBufferGL();
 
     D3DFORMAT getFormat() const { return mFormat; }
