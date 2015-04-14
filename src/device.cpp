@@ -267,6 +267,20 @@ GLenum GetGLBlendFunc(DWORD mode)
     return GL_ONE;
 }
 
+GLenum GetGLBlendOp(DWORD op)
+{
+    switch(op)
+    {
+        case D3DBLENDOP_ADD: return GL_FUNC_ADD;
+        case D3DBLENDOP_SUBTRACT: return GL_FUNC_SUBTRACT;
+        case D3DBLENDOP_REVSUBTRACT: return GL_FUNC_REVERSE_SUBTRACT;
+        case D3DBLENDOP_MIN: return GL_MIN;
+        case D3DBLENDOP_MAX: return GL_MAX;
+    }
+    FIXME("Unhandled D3DBLENDOP: 0x%lx\n", op);
+    return GL_FUNC_ADD;
+}
+
 GLenum GetGLStencilOp(D3DSTENCILOP op)
 {
     switch(op)
@@ -564,6 +578,20 @@ public:
     virtual ULONG execute()
     {
         glStencilFuncSeparate(mFace, mFunc, mRef, mMask);
+        return sizeof(*this);
+    }
+};
+
+class BlendOpSet : public Command {
+    GLenum mColorOp;
+    GLenum mAlphaOp;
+
+public:
+    BlendOpSet(GLenum op) : mColorOp(op), mAlphaOp(op) { }
+
+    virtual ULONG execute()
+    {
+        glBlendEquationSeparate(mColorOp, mAlphaOp);
         return sizeof(*this);
     }
 };
@@ -2825,12 +2853,18 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
                                                mRenderState[D3DRS_ALPHAREF] / 255.0f);
             break;
 
+        // FIXME: Handle D3DRS_SEPARATEALPHABLENDENABLE
         case D3DRS_SRCBLEND:
         case D3DRS_DESTBLEND:
             mQueue.lock();
             mRenderState[state] = value;
             mQueue.sendAndUnlock<BlendFuncSet>(GetGLBlendFunc(mRenderState[D3DRS_SRCBLEND]),
                                                GetGLBlendFunc(mRenderState[D3DRS_DESTBLEND]));
+            break;
+        case D3DRS_BLENDOP:
+            mQueue.lock();
+            mRenderState[state] = value;
+            mQueue.sendAndUnlock<BlendOpSet>(GetGLBlendOp(value));
             break;
 
         case D3DRS_CLIPPLANEENABLE:
