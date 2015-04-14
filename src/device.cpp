@@ -67,6 +67,14 @@ DWORD float_to_dword(float f)
     } tmp = { f };
     return tmp.d;
 }
+float dword_to_float(DWORD d)
+{
+    union {
+        DWORD d;
+        float f;
+    } tmp = { d };
+    return tmp.f;
+}
 static_assert(sizeof(DWORD)==sizeof(float), "Sizeof DWORD does not match float");
 
 std::array<DWORD,210> GenerateDefaultRSValues()
@@ -623,6 +631,20 @@ public:
     virtual ULONG execute()
     {
         glStencilMask(mMask);
+        return sizeof(*this);
+    }
+};
+
+class DepthBiasSet : public Command {
+    GLfloat mScale;
+    GLfloat mBias;
+
+public:
+    DepthBiasSet(GLfloat scale, GLfloat bias) : mScale(scale), mBias(bias) { }
+
+    virtual ULONG execute()
+    {
+        glPolygonOffset(mScale, mBias);
         return sizeof(*this);
     }
 };
@@ -1349,6 +1371,9 @@ void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
         glDrawBuffers(std::min(buffers.size(), mAdapter.getLimits().buffers),
                       buffers.data());
     }
+
+    glEnable(GL_POLYGON_OFFSET_FILL);
+
     glFrontFace(GL_CCW);
     checkGLError();
 }
@@ -1417,6 +1442,7 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mVertexDecl(nullptr)
   , mIndexBuffer(nullptr)
   , mPrimitiveUserData(nullptr)
+  , mDepthBits(0)
 {
     for(auto &rt : mRenderTargets) rt = nullptr;
     for(auto &tex : mTextures) tex = nullptr;
@@ -1922,6 +1948,7 @@ HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
     delete mAutoDepthStencil;
     mAutoDepthStencil = nullptr;
     mDepthStencil = nullptr;
+    mDepthBits = 0;
 
     HWND win = ((params->Windowed && !params->hDeviceWindow) ? mWindow : params->hDeviceWindow);
     D3DGLSwapChain *schain = new D3DGLSwapChain(this);
@@ -1955,6 +1982,8 @@ HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
         if(!mAutoDepthStencil->init(&desc, true))
             return D3DERR_INVALIDCALL;
         mDepthStencil = mAutoDepthStencil;
+
+        mDepthBits = mAutoDepthStencil->getFormat().getDepthBits();
     }
 
 
@@ -2483,10 +2512,13 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
 {
     TRACE("iface %p, depthstencil %p\n", this, depthstencil);
 
+    // FIXME: This should modify the depth bias if the depth buffer's bit depth
+    // changes.
     if(!depthstencil)
     {
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(depthstencil);
+        mDepthBits = 0;
         mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_DEPTH_STENCIL_ATTACHMENT,
                                                  GL_RENDERBUFFER, 0, 0);
         if(depthstencil) depthstencil->Release();
@@ -2513,6 +2545,7 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
 
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(tex2dsurface);
+        mDepthBits = tex2dsurface->getFormat().getDepthBits();
         if(attachment == GL_DEPTH_ATTACHMENT)
         {
             // If the previous attachment was GL_DEPTH_STENCIL_ATTACHMENT, and
@@ -2539,6 +2572,7 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
 
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(surface);
+        mDepthBits = surface->getFormat().getDepthBits();
         if(attachment == GL_DEPTH_ATTACHMENT)
             mQueue.doSend<SetFBAttachmentCmd>(this, GL_STENCIL_ATTACHMENT,
                                               GL_RENDERBUFFER, 0, 0);
@@ -2559,6 +2593,7 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
 
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(cubesurface);
+        mDepthBits = cubesurface->getFormat().getDepthBits();
         if(attachment == GL_DEPTH_ATTACHMENT)
             mQueue.doSend<SetFBAttachmentCmd>(this, GL_STENCIL_ATTACHMENT,
                                               GL_RENDERBUFFER, 0, 0);
@@ -2843,6 +2878,16 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
             mQueue.lock();
             mRenderState[state] = value;
             mQueue.sendAndUnlock<DepthFuncSet>(GetGLCompFunc((D3DCMPFUNC)mRenderState[D3DRS_ZFUNC].load()));
+            break;
+
+        case D3DRS_SLOPESCALEDEPTHBIAS:
+        case D3DRS_DEPTHBIAS:
+            mQueue.lock();
+            mRenderState[state] = value;
+            mQueue.sendAndUnlock<DepthBiasSet>(
+                dword_to_float(mRenderState[D3DRS_SLOPESCALEDEPTHBIAS]),
+                dword_to_float(mRenderState[D3DRS_DEPTHBIAS]) * (float)((1u<<mDepthBits) - 1u)
+            );
             break;
 
         case D3DRS_ALPHAFUNC:

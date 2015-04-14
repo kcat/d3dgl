@@ -79,3 +79,14 @@ GLenum GLFormatInfo::getDepthStencilAttachment() const
     ERR("Unhandled internal depthstencil format: 0x%04x\n", internalformat);
     return GL_NONE;
 }
+
+GLuint GLFormatInfo::getDepthBits() const
+{
+    if(internalformat == GL_DEPTH_COMPONENT16) return 16;
+    if(internalformat == GL_DEPTH_COMPONENT24) return 24;
+    if(internalformat == GL_DEPTH24_STENCIL8) return 24;
+    if(internalformat == GL_DEPTH_COMPONENT32) return 32;
+
+    ERR("Unhandled internal depthstencil format: 0x%04x\n", internalformat);
+    return 1;
+}

@@ -19,6 +19,7 @@ struct GLFormatInfo {
     GLbitfield buffermask;
 
     GLenum getDepthStencilAttachment() const;
+    GLuint getDepthBits() const;
 };
 extern const std::map<DWORD,GLFormatInfo> gFormatList;
 

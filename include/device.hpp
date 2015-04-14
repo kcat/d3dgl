@@ -131,6 +131,8 @@ private:
 
     D3DGLBufferObject *mPrimitiveUserData;
 
+    UINT mDepthBits;
+
     // Sends buffer values to update proj_fixup_uniform_buffer. Caller is
     // responsible for holding the mQueue lock.
     void resetProjectionFixup(UINT width, UINT height);
