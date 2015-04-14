@@ -998,7 +998,8 @@ void D3DGLDevice::clearGL(GLbitfield mask, GLuint color, GLfloat depth, GLuint s
 
     if((mask&GL_COLOR_BUFFER_BIT))
     {
-        glClearColor(D3DCOLOR_R(color), D3DCOLOR_G(color), D3DCOLOR_B(color), D3DCOLOR_A(color));
+        glClearColor(D3DCOLOR_R(color)/255.0f, D3DCOLOR_G(color)/255.0f,
+                     D3DCOLOR_B(color)/255.0f, D3DCOLOR_A(color)/255.0f);
         glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     }
     if((mask&GL_DEPTH_BUFFER_BIT))
