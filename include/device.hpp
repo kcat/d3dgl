@@ -153,10 +153,8 @@ private:
     void GLAPIENTRY debugProcGL(GLenum source, GLenum type, GLuint id, GLenum severity,
                                 GLsizei length, const GLchar *message) const;
 
-    HRESULT drawVtxDecl(GLenum mode, INT startvtx, UINT startidx, UINT count, bool use_indices,
+    HRESULT drawVtxDecl(GLenum mode, INT startvtx, UINT minvtx, UINT startidx, UINT count, bool use_indices,
                         bool user_vtxdata);
-
-    bool mResetVtxData;
 
 public:
     D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags);
@@ -177,7 +175,6 @@ public:
     void setVertexAttribArrayGL(UINT attribs);
     void setShaderProgramGL(GLbitfield stages, GLuint program);
     void setVtxDataGL(const D3DGLDevice::GLStreamData *streams, GLuint numstreams, bool ffp);
-    void drawGL(const GLIndexData &idxdata, GLsizei numinstances);
     void blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect,
                            GLenum dst_target, GLuint dst_binding, GLint dst_level, const RECT &dst_rect,
                            GLenum filter);
