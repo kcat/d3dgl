@@ -38,7 +38,7 @@ static_assert(sizeof(Vector4f)==sizeof(float[4]), "Bad Vector4f size");
 class D3DGLDevice : public IDirect3DDevice9 {
 public:
     struct GLStreamData {
-        D3DGLBufferObject *mBuffer;
+        GLuint mBufferId;
         GLubyte *mPointer;
         GLenum mGLType;
         GLint mGLCount;
@@ -47,13 +47,6 @@ public:
         GLint mTarget;
         GLsizei mIndex;
         GLuint mDivisor;
-    };
-    struct GLIndexData {
-        D3DGLBufferObject *mBuffer;
-        GLubyte *mPointer;
-        GLenum mMode;
-        GLenum mType;
-        GLint mCount;
     };
 
 private:

@@ -999,9 +999,9 @@ void D3DGLDevice::setVtxDataGL(const D3DGLDevice::GLStreamData *streams, GLuint 
     {
         for(GLuint i = 0;i < numstreams;++i)
         {
-            if(binding != streams[i].mBuffer->getBufferId())
+            if(binding != streams[i].mBufferId)
             {
-                binding = streams[i].mBuffer->getBufferId();
+                binding = streams[i].mBufferId;
                 glBindBuffer(GL_ARRAY_BUFFER, binding);
             }
             glVertexAttribPointer(streams[i].mTarget, streams[i].mGLCount,
@@ -1017,9 +1017,9 @@ void D3DGLDevice::setVtxDataGL(const D3DGLDevice::GLStreamData *streams, GLuint 
     }
     else for(GLuint i = 0;i < numstreams;++i)
     {
-        if(binding != streams[i].mBuffer->getBufferId())
+        if(binding != streams[i].mBufferId)
         {
-            binding = streams[i].mBuffer->getBufferId();
+            binding = streams[i].mBufferId;
             glBindBuffer(GL_ARRAY_BUFFER, binding);
         }
 
@@ -1561,7 +1561,7 @@ HRESULT D3DGLDevice::drawVtxDecl(GLenum mode, INT startvtx, UINT minvtx, UINT st
         D3DGLBufferObject *buffer = stream.mBuffer;
 
         GLint offset = elem.Offset + stream.mOffset + stream.mStride*startvtx;
-        streams[cur].mBuffer = buffer;
+        streams[cur].mBufferId = buffer->getBufferId();
         streams[cur].mPointer = ((GLubyte*)0) + offset;
         streams[cur].mGLCount = elem.mGLCount;
         streams[cur].mGLType = elem.mGLType;
