@@ -289,7 +289,7 @@ GLenum GetGLBlendOp(DWORD op)
     return GL_FUNC_ADD;
 }
 
-GLenum GetGLStencilOp(D3DSTENCILOP op)
+GLenum GetGLStencilOp(DWORD op)
 {
     switch(op)
     {
@@ -301,13 +301,12 @@ GLenum GetGLStencilOp(D3DSTENCILOP op)
         case D3DSTENCILOP_INVERT: return GL_INVERT;
         case D3DSTENCILOP_INCR: return GL_INCR_WRAP;
         case D3DSTENCILOP_DECR: return GL_DECR_WRAP;
-        case D3DSTENCILOP_FORCE_DWORD: break;
     }
-    FIXME("Unhandled D3DSTENCILOP: 0x%x\n", op);
+    FIXME("Unhandled D3DSTENCILOP: 0x%lx\n", op);
     return GL_KEEP;
 }
 
-GLenum GetGLCompFunc(D3DCMPFUNC func)
+GLenum GetGLCompFunc(DWORD func)
 {
     switch(func)
     {
@@ -319,13 +318,12 @@ GLenum GetGLCompFunc(D3DCMPFUNC func)
         case D3DCMP_NOTEQUAL: return GL_NOTEQUAL;
         case D3DCMP_GREATEREQUAL: return GL_GEQUAL;
         case D3DCMP_ALWAYS: return GL_ALWAYS;
-        case D3DCMP_FORCE_DWORD: break;
     }
-    FIXME("Unhandled D3DCMPFUNC: 0x%x\n", func);
+    FIXME("Unhandled D3DCMPFUNC: 0x%lx\n", func);
     return GL_ALWAYS;
 }
 
-GLenum GetGLWrapMode(D3DTEXTUREADDRESS mode)
+GLenum GetGLWrapMode(DWORD mode)
 {
     switch(mode)
     {
@@ -334,75 +332,61 @@ GLenum GetGLWrapMode(D3DTEXTUREADDRESS mode)
         case D3DTADDRESS_CLAMP: return GL_CLAMP_TO_EDGE;
         case D3DTADDRESS_BORDER: return GL_CLAMP_TO_BORDER;
         case D3DTADDRESS_MIRRORONCE: return GL_MIRROR_CLAMP_TO_EDGE;
-        case D3DTADDRESS_FORCE_DWORD: break;
     }
-    FIXME("Unhandled D3DTEXTUREADDRESS: 0x%x\n", mode);
+    FIXME("Unhandled D3DTEXTUREADDRESS: 0x%lx\n", mode);
     return GL_REPEAT;
 }
 
-GLenum GetGLFilterMode(D3DTEXTUREFILTERTYPE type, D3DTEXTUREFILTERTYPE miptype)
+GLenum GetGLFilterMode(DWORD type, DWORD miptype)
 {
     if(miptype == D3DTEXF_NONE)
     {
-        if(type <= D3DTEXF_POINT)
-            return GL_NEAREST;
-        if(type <= D3DTEXF_ANISOTROPIC)
-            return GL_LINEAR;
-        ERR("Unsupported D3DTEXTUREFILTERTYPE: 0x%x\n", type);
+        if(type <= D3DTEXF_POINT) return GL_NEAREST;
+        if(type <= D3DTEXF_ANISOTROPIC) return GL_LINEAR;
+        FIXME("Unsupported D3DTEXTUREFILTERTYPE: 0x%lx\n", type);
         return GL_LINEAR;
     }
     if(miptype == D3DTEXF_POINT)
     {
-        if(type <= D3DTEXF_POINT)
-            return GL_NEAREST_MIPMAP_NEAREST;
-        if(type <= D3DTEXF_ANISOTROPIC)
-            return GL_LINEAR_MIPMAP_NEAREST;
-        ERR("Unsupported D3DTEXTUREFILTERTYPE: 0x%x\n", type);
+        if(type <= D3DTEXF_POINT) return GL_NEAREST_MIPMAP_NEAREST;
+        if(type <= D3DTEXF_ANISOTROPIC) return GL_LINEAR_MIPMAP_NEAREST;
+        FIXME("Unsupported D3DTEXTUREFILTERTYPE: 0x%lx\n", type);
         return GL_LINEAR_MIPMAP_NEAREST;
     }
     if(miptype != D3DTEXF_LINEAR)
-        ERR("Unsupported mipmap D3DTEXTUREFILTERTYPE: 0x%x\n", miptype);
-    if(type <= D3DTEXF_POINT)
-        return GL_NEAREST_MIPMAP_LINEAR;
-    if(type <= D3DTEXF_ANISOTROPIC)
-        return GL_LINEAR_MIPMAP_LINEAR;
-    ERR("Unsupported D3DTEXTUREFILTERTYPE: 0x%x\n", type);
+        FIXME("Unsupported mipmap D3DTEXTUREFILTERTYPE: 0x%lx\n", miptype);
+    if(type <= D3DTEXF_POINT) return GL_NEAREST_MIPMAP_LINEAR;
+    if(type <= D3DTEXF_ANISOTROPIC) return GL_LINEAR_MIPMAP_LINEAR;
+    FIXME("Unsupported D3DTEXTUREFILTERTYPE: 0x%lx\n", type);
     return GL_LINEAR_MIPMAP_LINEAR;
 }
 
-GLenum GetGLDrawMode(D3DPRIMITIVETYPE type, UINT *count)
+GLenum GetGLDrawMode(D3DPRIMITIVETYPE type, UINT &count)
 {
-    GLenum mode = GL_NONE;
-    if(type == D3DPT_POINTLIST)
-        mode = GL_POINTS;
-    else if(type == D3DPT_LINELIST)
+    switch(type)
     {
-        mode = GL_LINES;
-        if(count) *count *= 2;
+        case D3DPT_POINTLIST:
+            return GL_POINTS;
+        case D3DPT_LINELIST:
+            count *= 2;
+            return GL_LINES;
+        case D3DPT_LINESTRIP:
+            count += 1;
+            return GL_LINE_STRIP;
+        case D3DPT_TRIANGLELIST:
+            count *= 3;
+            return GL_TRIANGLES;
+        case D3DPT_TRIANGLESTRIP:
+            count += 2;
+            return GL_TRIANGLE_STRIP;
+        case D3DPT_TRIANGLEFAN:
+            count += 2;
+            return GL_TRIANGLE_FAN;
+        case D3DPT_FORCE_DWORD:
+            break;
     }
-    else if(type == D3DPT_LINESTRIP)
-    {
-        mode = GL_LINE_STRIP;
-        if(count) *count += 1;
-    }
-    else if(type == D3DPT_TRIANGLELIST)
-    {
-        mode = GL_TRIANGLES;
-        if(count) *count *= 3;
-    }
-    else if(type == D3DPT_TRIANGLESTRIP)
-    {
-        mode = GL_TRIANGLE_STRIP;
-        if(count) *count += 2;
-    }
-    else if(type == D3DPT_TRIANGLEFAN)
-    {
-        mode = GL_TRIANGLE_FAN;
-        if(count) *count += 2;
-    }
-    else
-        WARN("Invalid primitive type: 0x%x\n", type);
-    return mode;
+    FIXME("Unhandled D3DPRIMITIVETYPE: 0x%x\n", type);
+    return GL_POINTS;
 }
 
 #define D3DCOLOR_R(color) (((color)>>16)&0xff)
@@ -2894,7 +2878,7 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
         case D3DRS_ZFUNC:
             mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<DepthFuncSet>(GetGLCompFunc((D3DCMPFUNC)mRenderState[D3DRS_ZFUNC].load()));
+            mQueue.sendAndUnlock<DepthFuncSet>(GetGLCompFunc(mRenderState[D3DRS_ZFUNC]));
             break;
 
         case D3DRS_SLOPESCALEDEPTHBIAS:
@@ -2911,7 +2895,7 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
         case D3DRS_ALPHAREF:
             mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<AlphaFuncSet>(GetGLCompFunc((D3DCMPFUNC)mRenderState[D3DRS_ALPHAFUNC].load()),
+            mQueue.sendAndUnlock<AlphaFuncSet>(GetGLCompFunc(mRenderState[D3DRS_ALPHAFUNC]),
                                                mRenderState[D3DRS_ALPHAREF] / 255.0f);
             break;
 
@@ -2949,8 +2933,9 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
                 GLenum face = mRenderState[D3DRS_TWOSIDEDSTENCILMODE] ? GL_FRONT : GL_FRONT_AND_BACK;
                 mRenderState[state] = value;
                 mQueue.sendAndUnlock<StencilFuncSet>(face,
-                    GetGLCompFunc((D3DCMPFUNC)mRenderState[D3DRS_STENCILFUNC].load()),
-                    mRenderState[D3DRS_STENCILREF].load(), mRenderState[D3DRS_STENCILMASK].load()
+                    GetGLCompFunc(mRenderState[D3DRS_STENCILFUNC]),
+                    mRenderState[D3DRS_STENCILREF].load(),
+                    mRenderState[D3DRS_STENCILMASK].load()
                 );
             }
             break;
@@ -2963,9 +2948,9 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
                 GLenum face = mRenderState[D3DRS_TWOSIDEDSTENCILMODE] ? GL_FRONT : GL_FRONT_AND_BACK;
                 mRenderState[state] = value;
                 mQueue.sendAndUnlock<StencilOpSet>(face,
-                    GetGLStencilOp((D3DSTENCILOP)mRenderState[D3DRS_STENCILFAIL].load()),
-                    GetGLStencilOp((D3DSTENCILOP)mRenderState[D3DRS_STENCILZFAIL].load()),
-                    GetGLStencilOp((D3DSTENCILOP)mRenderState[D3DRS_STENCILPASS].load())
+                    GetGLStencilOp(mRenderState[D3DRS_STENCILFAIL]),
+                    GetGLStencilOp(mRenderState[D3DRS_STENCILZFAIL]),
+                    GetGLStencilOp(mRenderState[D3DRS_STENCILPASS])
                 );
             }
             break;
@@ -2976,8 +2961,9 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
             mQueue.lock();
             mRenderState[state] = value;
             mQueue.sendAndUnlock<StencilFuncSet>(GL_BACK,
-                GetGLCompFunc((D3DCMPFUNC)mRenderState[D3DRS_CCW_STENCILFUNC].load()),
-                mRenderState[D3DRS_STENCILREF].load(), mRenderState[D3DRS_STENCILMASK].load()
+                GetGLCompFunc(mRenderState[D3DRS_CCW_STENCILFUNC]),
+                mRenderState[D3DRS_STENCILREF].load(),
+                mRenderState[D3DRS_STENCILMASK].load()
             );
             break;
 
@@ -2987,9 +2973,9 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
             mQueue.lock();
             mRenderState[state] = value;
             mQueue.sendAndUnlock<StencilOpSet>(GL_BACK,
-                GetGLStencilOp((D3DSTENCILOP)mRenderState[D3DRS_CCW_STENCILFAIL].load()),
-                GetGLStencilOp((D3DSTENCILOP)mRenderState[D3DRS_CCW_STENCILZFAIL].load()),
-                GetGLStencilOp((D3DSTENCILOP)mRenderState[D3DRS_CCW_STENCILPASS].load())
+                GetGLStencilOp(mRenderState[D3DRS_CCW_STENCILFAIL]),
+                GetGLStencilOp(mRenderState[D3DRS_CCW_STENCILZFAIL]),
+                GetGLStencilOp(mRenderState[D3DRS_CCW_STENCILPASS])
             );
             break;
 
@@ -3206,17 +3192,17 @@ HRESULT D3DGLDevice::SetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DW
     {
         case D3DSAMP_ADDRESSU:
             mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
-                GL_TEXTURE_WRAP_S, GetGLWrapMode((D3DTEXTUREADDRESS)value)
+                GL_TEXTURE_WRAP_S, GetGLWrapMode(value)
             );
             break;
         case D3DSAMP_ADDRESSV:
             mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
-                GL_TEXTURE_WRAP_T, GetGLWrapMode((D3DTEXTUREADDRESS)value)
+                GL_TEXTURE_WRAP_T, GetGLWrapMode(value)
             );
             break;
         case D3DSAMP_ADDRESSW:
             mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
-                GL_TEXTURE_WRAP_R, GetGLWrapMode((D3DTEXTUREADDRESS)value)
+                GL_TEXTURE_WRAP_R, GetGLWrapMode(value)
             );
             break;
         case D3DSAMP_BORDERCOLOR:
@@ -3227,7 +3213,7 @@ HRESULT D3DGLDevice::SetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DW
             break;
         case D3DSAMP_MAGFILTER:
             mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
-                GL_TEXTURE_MAG_FILTER, GetGLFilterMode((D3DTEXTUREFILTERTYPE)value, D3DTEXF_NONE)
+                GL_TEXTURE_MAG_FILTER, GetGLFilterMode(value, D3DTEXF_NONE)
             );
             break;
         case D3DSAMP_MINFILTER:
@@ -3238,16 +3224,15 @@ HRESULT D3DGLDevice::SetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DW
                                                    1ul
                 );
             mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
-                GL_TEXTURE_MIN_FILTER, GetGLFilterMode((D3DTEXTUREFILTERTYPE)value,
-                    (D3DTEXTUREFILTERTYPE)mSamplerState[sampler][D3DSAMP_MIPFILTER].load()
+                GL_TEXTURE_MIN_FILTER, GetGLFilterMode(value,
+                    mSamplerState[sampler][D3DSAMP_MIPFILTER]
                 )
             );
             break;
         case D3DSAMP_MIPFILTER:
             mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
                 GL_TEXTURE_MIN_FILTER, GetGLFilterMode(
-                    (D3DTEXTUREFILTERTYPE)mSamplerState[sampler][D3DSAMP_MINFILTER].load(),
-                    (D3DTEXTUREFILTERTYPE)value
+                    mSamplerState[sampler][D3DSAMP_MINFILTER], value
                 )
             );
             break;
@@ -3383,9 +3368,7 @@ HRESULT D3DGLDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE type, INT startVtx, U
         return D3DERR_INVALIDCALL;
     }
 
-    GLenum mode = GetGLDrawMode(type, &count);
-    if(!mode) return D3DERR_INVALIDCALL;
-
+    GLenum mode = GetGLDrawMode(type, count);
     return drawVtxDecl(mode, startVtx, minVtx, startIdx, count, true, false);
 }
 
@@ -3393,8 +3376,7 @@ HRESULT D3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE type, UINT count, const vo
 {
     TRACE("iface %p, type 0x%x, count %u, vtxData %p, vtxStride %u\n", this, type, count, vtxData, vtxStride);
 
-    GLenum mode = GetGLDrawMode(type, &count);
-    if(!mode) return D3DERR_INVALIDCALL;
+    GLenum mode = GetGLDrawMode(type, count);
 
     if(!mPrimitiveUserData)
     {
