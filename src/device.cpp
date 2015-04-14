@@ -1594,8 +1594,7 @@ HRESULT D3DGLDevice::drawVtxDecl(GLenum mode, INT startvtx, UINT minvtx, UINT st
     GLuint cur = 0;
 
     D3DGLVertexShader *vshader = mVertexShader;
-    const std::vector<D3DGLVERTEXELEMENT> &elements = vtxdecl->getVtxElements();
-    for(const D3DGLVERTEXELEMENT &elem : elements)
+    for(const D3DGLVERTEXELEMENT &elem : vtxdecl->getVtxElements())
     {
         if(cur >= 16)
         {
@@ -3352,10 +3351,12 @@ float D3DGLDevice::GetNPatchMode()
     return 0.0f;
 }
 
-HRESULT D3DGLDevice::DrawPrimitive(D3DPRIMITIVETYPE PrimitiveType, UINT StartVertex, UINT PrimitiveCount)
+HRESULT D3DGLDevice::DrawPrimitive(D3DPRIMITIVETYPE type, UINT startVtx, UINT count)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, type 0x%x, startVtx %u, count %u\n", this, type, startVtx, count);
+
+    GLenum mode = GetGLDrawMode(type, count);
+    return drawVtxDecl(mode, startVtx, 0, 0, count, false, false);
 }
 
 HRESULT D3DGLDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE type, INT startVtx, UINT minVtx, UINT numVtx, UINT startIdx, UINT count)
