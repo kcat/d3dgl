@@ -22,10 +22,8 @@ class D3DGLTexture : public IDirect3DTexture9 {
     const GLFormatInfo *mGLFormat;
     bool mIsCompressed;
     GLuint mTexId;
-    GLuint mPBO;
     std::vector<GLubyte> mSysMem;
 
-    GLubyte *mUserPtr;
     RECT mDirtyRect;
     std::atomic<ULONG> mUpdateInProgress;
 

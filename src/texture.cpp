@@ -72,23 +72,8 @@ void D3DGLTexture::initGL()
         checkGLError();
     }
 
-    /*if((mDesc.Usage&D3DUSAGE_DYNAMIC))
-    {
-        glGenBuffers(1, &mPBO);
-        if(mPBO)
-        {
-            glBindBuffer(GL_PIXEL_PACK_BUFFER, mPBO);
-            glBufferData(GL_PIXEL_PACK_BUFFER, total_size, NULL, GL_DYNAMIC_DRAW);
-            mUserPtr = (GLubyte*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_WRITE);
-            glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-        }
-        checkGLError();
-    }*/
-    if((mDesc.Pool != D3DPOOL_DEFAULT || (mDesc.Usage&D3DUSAGE_DYNAMIC)) && !mPBO)
-    {
-        mSysMem.resize(total_size);
-        mUserPtr = mSysMem.data();
-    }
+    if(mDesc.Pool != D3DPOOL_DEFAULT || (mDesc.Usage&D3DUSAGE_DYNAMIC))
+        mSysMem.assign(total_size, 0);
 
     mUpdateInProgress = 0;
 }
@@ -105,22 +90,16 @@ public:
     }
 };
 
-
-void D3DGLTexture::deinitGL()
-{
-    glDeleteTextures(1, &mTexId);
-    glDeleteBuffers(1, &mPBO);
-    checkGLError();
-}
 class TextureDeinitCmd : public Command {
-    D3DGLTexture *mTarget;
+    GLuint mTexId;
 
 public:
-    TextureDeinitCmd(D3DGLTexture *target) : mTarget(target) { }
+    TextureDeinitCmd(GLuint texid) : mTexId(texid) { }
 
     virtual ULONG execute()
     {
-        mTarget->deinitGL();
+        glDeleteTextures(1, &mTexId);
+        checkGLError();
         return sizeof(*this);
     }
 };
@@ -149,15 +128,6 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, const GLubyte *
 {
     UINT w = std::max(1u, mDesc.Width>>level);
     /*UINT h = std::max(1u, mDesc.Height>>Level);*/
-
-    if(mPBO)
-    {
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, mPBO);
-        glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
-        checkGLError();
-
-        dataPtr = (const GLubyte*)(dataPtr-mUserPtr);
-    }
 
     D3DGLTextureSurface *surface = mSurfaces[level];
     if(mIsCompressed)
@@ -193,13 +163,6 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, const GLubyte *
         glGenerateTextureMipmapEXT(mTexId, GL_TEXTURE_2D);
     checkGLError();
 
-    if(mPBO)
-    {
-        mUserPtr = (GLubyte*)glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_READ_WRITE);
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-        checkGLError();
-    }
-
     --mUpdateInProgress;
 }
 class TextureLoadLevelCmd : public Command {
@@ -227,18 +190,21 @@ D3DGLTexture::D3DGLTexture(D3DGLDevice *parent)
   , mParent(parent)
   , mGLFormat(nullptr)
   , mTexId(0)
-  , mPBO(0)
-  , mUserPtr(nullptr)
   , mDirtyRect({std::numeric_limits<LONG>::max(), std::numeric_limits<LONG>::max(),
                 std::numeric_limits<LONG>::min(), std::numeric_limits<LONG>::min()})
-  , mUpdateInProgress(1)
+  , mUpdateInProgress(0)
   , mLodLevel(0)
 {
 }
 
 D3DGLTexture::~D3DGLTexture()
 {
-    mParent->getQueue().sendSync<TextureDeinitCmd>(this);
+    if(mTexId)
+        mParent->getQueue().send<TextureDeinitCmd>(mTexId);
+    mTexId = 0;
+
+    while(mUpdateInProgress)
+        Sleep(1);
 
     for(auto surface : mSurfaces)
         delete surface;
@@ -319,7 +285,8 @@ bool D3DGLTexture::init(const D3DSURFACE_DESC *desc, UINT levels)
     for(UINT i = 0;i < levels;++i)
         mSurfaces.push_back(new D3DGLTextureSurface(this, i));
 
-    mParent->getQueue().send<TextureInitCmd>(this);
+    mUpdateInProgress = 1;
+    mParent->getQueue().sendSync<TextureInitCmd>(this);
 
     return true;
 }
@@ -704,7 +671,7 @@ HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *re
      * read from.
      * So for now, we allocate some scratch mem the first time such a texture
      * surface is locked and hold on to that. */
-    GLubyte *memPtr = mParent->mUserPtr;
+    GLubyte *memPtr = mParent->mSysMem.data();
     if(memPtr)
         memPtr += mDataOffset;
     else
@@ -759,7 +726,7 @@ HRESULT D3DGLTextureSurface::UnlockRect()
         if(mScratchMem)
             mParent->updateTexture(mLevel, mLockRegion, mScratchMem);
         else
-            mParent->updateTexture(mLevel, mLockRegion, mParent->mUserPtr+mDataOffset);
+            mParent->updateTexture(mLevel, mLockRegion, &mParent->mSysMem[mDataOffset]);
     }
 
     mLock = LT_Unlocked;

@@ -81,23 +81,8 @@ void D3DGLCubeTexture::initGL()
         checkGLError();
     }
 
-    /*if((mDesc.Usage&D3DUSAGE_DYNAMIC))
-    {
-        glGenBuffers(1, &mPBO);
-        if(mPBO)
-        {
-            glBindBuffer(GL_PIXEL_PACK_BUFFER, mPBO);
-            glBufferData(GL_PIXEL_PACK_BUFFER, total_size, NULL, GL_DYNAMIC_DRAW);
-            mUserPtr = (GLubyte*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_WRITE);
-            glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-        }
-        checkGLError();
-    }*/
-    if((mDesc.Pool != D3DPOOL_DEFAULT || (mDesc.Usage&D3DUSAGE_DYNAMIC)) && !mPBO)
-    {
-        mSysMem.resize(total_size);
-        mUserPtr = mSysMem.data();
-    }
+    if(mDesc.Pool != D3DPOOL_DEFAULT || (mDesc.Usage&D3DUSAGE_DYNAMIC))
+        mSysMem.assign(total_size, 0);
 
     mUpdateInProgress = 0;
 }
@@ -115,21 +100,16 @@ public:
 };
 
 
-void D3DGLCubeTexture::deinitGL()
-{
-    glDeleteTextures(1, &mTexId);
-    glDeleteBuffers(1, &mPBO);
-    checkGLError();
-}
 class CubeTextureDeinitCmd : public Command {
-    D3DGLCubeTexture *mTarget;
+    GLuint mTexId;
 
 public:
-    CubeTextureDeinitCmd(D3DGLCubeTexture *target) : mTarget(target) { }
+    CubeTextureDeinitCmd(GLuint texid) : mTexId(texid) { }
 
     virtual ULONG execute()
     {
-        mTarget->deinitGL();
+        glDeleteTextures(1, &mTexId);
+        checkGLError();
         return sizeof(*this);
     }
 };
@@ -158,15 +138,6 @@ void D3DGLCubeTexture::loadTexLevelGL(DWORD level, GLint facenum, const RECT &re
 {
     UINT w = std::max(1u, mDesc.Width>>level);
     /*UINT h = std::max(1u, mDesc.Height>>Level);*/
-
-    if(mPBO)
-    {
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, mPBO);
-        glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
-        checkGLError();
-
-        dataPtr = (const GLubyte*)(dataPtr-mUserPtr);
-    }
 
     if(mIsCompressed)
     {
@@ -202,13 +173,6 @@ void D3DGLCubeTexture::loadTexLevelGL(DWORD level, GLint facenum, const RECT &re
         glGenerateTextureMipmapEXT(mTexId, GL_TEXTURE_CUBE_MAP);
     checkGLError();
 
-    if(mPBO)
-    {
-        mUserPtr = (GLubyte*)glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_READ_WRITE);
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-        checkGLError();
-    }
-
     --mUpdateInProgress;
 }
 class CubeTextureLoadLevelCmd : public Command {
@@ -237,9 +201,7 @@ D3DGLCubeTexture::D3DGLCubeTexture(D3DGLDevice *parent)
   , mParent(parent)
   , mGLFormat(nullptr)
   , mTexId(0)
-  , mPBO(0)
-  , mUserPtr(nullptr)
-  , mUpdateInProgress(1)
+  , mUpdateInProgress(0)
   , mLodLevel(0)
 {
     for(RECT &rect : mDirtyRect)
@@ -249,7 +211,12 @@ D3DGLCubeTexture::D3DGLCubeTexture(D3DGLDevice *parent)
 
 D3DGLCubeTexture::~D3DGLCubeTexture()
 {
-    mParent->getQueue().sendSync<CubeTextureDeinitCmd>(this);
+    if(mTexId)
+        mParent->getQueue().send<CubeTextureDeinitCmd>(mTexId);
+    mTexId = 0;
+
+    while(mUpdateInProgress)
+        Sleep(1);
 
     for(auto &surfaces : mSurfaces)
     {
@@ -337,7 +304,8 @@ bool D3DGLCubeTexture::init(const D3DSURFACE_DESC *desc, UINT levels)
     if(mDesc.Format == D3DFMT_DXT2 || mDesc.Format == D3DFMT_DXT4)
         WARN("Pre-mulitplied alpha textures not supported; loading anyway.");
 
-    mParent->getQueue().send<CubeTextureInitCmd>(this);
+    mUpdateInProgress = 1;
+    mParent->getQueue().sendSync<CubeTextureInitCmd>(this);
 
     return true;
 }
@@ -729,7 +697,7 @@ HRESULT D3DGLCubeSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *rect,
     while(mParent->mUpdateInProgress)
         Sleep(1);
 
-    GLubyte *memPtr = mParent->mUserPtr;
+    GLubyte *memPtr = mParent->mSysMem.data();
     if(memPtr)
         memPtr += mDataOffset;
     else
@@ -783,7 +751,7 @@ HRESULT D3DGLCubeSurface::UnlockRect()
         if(mScratchMem)
             mParent->updateTexture(mLevel, mFaceNum, mLockRegion, mScratchMem);
         else
-            mParent->updateTexture(mLevel, mFaceNum, mLockRegion, mParent->mUserPtr+mDataOffset);
+            mParent->updateTexture(mLevel, mFaceNum, mLockRegion, &mParent->mSysMem[mDataOffset]);
     }
 
     mLock = LT_Unlocked;

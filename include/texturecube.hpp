@@ -23,10 +23,8 @@ class D3DGLCubeTexture : public IDirect3DCubeTexture9 {
     const GLFormatInfo *mGLFormat;
     bool mIsCompressed;
     GLuint mTexId;
-    GLuint mPBO;
     std::vector<GLubyte> mSysMem;
 
-    GLubyte *mUserPtr;
     std::array<RECT,6> mDirtyRect;
     std::atomic<ULONG> mUpdateInProgress;
 
