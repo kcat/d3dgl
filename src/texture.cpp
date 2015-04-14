@@ -201,10 +201,9 @@ D3DGLTexture::~D3DGLTexture()
 {
     if(mTexId)
         mParent->getQueue().send<TextureDeinitCmd>(mTexId);
-    mTexId = 0;
-
     while(mUpdateInProgress)
         Sleep(1);
+    mTexId = 0;
 
     for(auto surface : mSurfaces)
         delete surface;
@@ -518,13 +517,11 @@ D3DGLTextureSurface::D3DGLTextureSurface(D3DGLTexture *parent, UINT level)
   , mParent(parent)
   , mLevel(level)
   , mLock(LT_Unlocked)
-  , mScratchMem(nullptr)
 {
 }
 
 D3DGLTextureSurface::~D3DGLTextureSurface()
 {
-    delete mScratchMem;
 }
 
 void D3DGLTextureSurface::init(UINT offset, UINT length)
@@ -674,26 +671,7 @@ HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *re
     while(mParent->mUpdateInProgress)
         Sleep(1);
 
-    /* NOTE: D3DPOOL_MANAGED resources are lockable, however their main purpose
-     * (ensuring resources aren't lost) is already gauranteed by OpenGL. But
-     * because they're lockable, we need something the app can write to and
-     * read from.
-     * So for now, we allocate some scratch mem the first time such a texture
-     * surface is locked and hold on to that. */
-    GLubyte *memPtr = mParent->mSysMem.data();
-    if(memPtr)
-        memPtr += mDataOffset;
-    else
-    {
-        if(!mScratchMem)
-        {
-            UINT data_len = (mDataLength+15) & ~15;
-            TRACE("Allocating %u bytes for scratch mem\n", data_len);
-            mScratchMem = new GLubyte[data_len];
-        }
-        memPtr = mScratchMem;
-    }
-
+    GLubyte *memPtr = &mParent->mSysMem[mDataOffset];
     mLockRegion = *rect;
     if(mParent->mIsCompressed)
     {
@@ -731,12 +709,7 @@ HRESULT D3DGLTextureSurface::UnlockRect()
     }
 
     if(mLock != LT_ReadOnly)
-    {
-        if(mScratchMem)
-            mParent->updateTexture(mLevel, mLockRegion, mScratchMem);
-        else
-            mParent->updateTexture(mLevel, mLockRegion, &mParent->mSysMem[mDataOffset]);
-    }
+        mParent->updateTexture(mLevel, mLockRegion, &mParent->mSysMem[mDataOffset]);
 
     mLock = LT_Unlocked;
     return D3D_OK;

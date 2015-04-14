@@ -213,10 +213,9 @@ D3DGLCubeTexture::~D3DGLCubeTexture()
 {
     if(mTexId)
         mParent->getQueue().send<CubeTextureDeinitCmd>(mTexId);
-    mTexId = 0;
-
     while(mUpdateInProgress)
         Sleep(1);
+    mTexId = 0;
 
     for(auto &surfaces : mSurfaces)
     {
@@ -545,13 +544,11 @@ D3DGLCubeSurface::D3DGLCubeSurface(D3DGLCubeTexture *parent, UINT level, GLint f
   , mLevel(level)
   , mFaceNum(facenum)
   , mLock(LT_Unlocked)
-  , mScratchMem(nullptr)
 {
 }
 
 D3DGLCubeSurface::~D3DGLCubeSurface()
 {
-    delete mScratchMem;
 }
 
 void D3DGLCubeSurface::init(UINT offset, UINT length)
@@ -706,20 +703,7 @@ HRESULT D3DGLCubeSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *rect,
     while(mParent->mUpdateInProgress)
         Sleep(1);
 
-    GLubyte *memPtr = mParent->mSysMem.data();
-    if(memPtr)
-        memPtr += mDataOffset;
-    else
-    {
-        if(!mScratchMem)
-        {
-            UINT data_len = (mDataLength+15) & ~15;
-            TRACE("Allocating %u bytes for scratch mem\n", data_len);
-            mScratchMem = new GLubyte[data_len];
-        }
-        memPtr = mScratchMem;
-    }
-
+    GLubyte *memPtr = &mParent->mSysMem[mDataOffset];
     mLockRegion = *rect;
     if(mParent->mIsCompressed)
     {
@@ -756,12 +740,7 @@ HRESULT D3DGLCubeSurface::UnlockRect()
     }
 
     if(mLock != LT_ReadOnly)
-    {
-        if(mScratchMem)
-            mParent->updateTexture(mLevel, mFaceNum, mLockRegion, mScratchMem);
-        else
-            mParent->updateTexture(mLevel, mFaceNum, mLockRegion, &mParent->mSysMem[mDataOffset]);
-    }
+        mParent->updateTexture(mLevel, mFaceNum, mLockRegion, &mParent->mSysMem[mDataOffset]);
 
     mLock = LT_Unlocked;
     return D3D_OK;

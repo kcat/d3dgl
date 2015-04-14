@@ -112,10 +112,9 @@ D3DGLBufferObject::~D3DGLBufferObject()
 {
     if(mBufferId)
         mParent->getQueue().send<DestroyBufferCmd>(mBufferId);
-    mBufferId = 0;
-
     while(mUpdateInProgress)
         Sleep(1);
+    mBufferId = 0;
 }
 
 bool D3DGLBufferObject::init_common(UINT length, DWORD usage, D3DPOOL pool)

@@ -97,8 +97,6 @@ class D3DGLTextureSurface : public IDirect3DSurface9 {
     UINT mDataOffset;
     UINT mDataLength;
 
-    GLubyte *mScratchMem;
-
 public:
     D3DGLTextureSurface(D3DGLTexture *parent, UINT level);
     virtual ~D3DGLTextureSurface();

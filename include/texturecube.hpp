@@ -99,8 +99,6 @@ class D3DGLCubeSurface : public IDirect3DSurface9 {
     UINT mDataOffset;
     UINT mDataLength;
 
-    GLubyte *mScratchMem;
-
 public:
     D3DGLCubeSurface(D3DGLCubeTexture *parent, UINT level, GLint facenum);
     virtual ~D3DGLCubeSurface();
