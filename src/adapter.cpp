@@ -552,55 +552,49 @@ void D3DAdapter::init_limits()
     mLimits.textures = std::min(MAX_TEXTURES, gl_max);
     TRACE("Max textures: %d.\n", mLimits.textures);
 
-    {
-        GLint tmp;
-        glGetIntegerv(GL_MAX_TEXTURE_COORDS, &gl_max);
-        mLimits.texture_coords = std::min(MAX_TEXTURES, gl_max);
-        glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &tmp);
-        mLimits.fragment_samplers = std::min(MAX_FRAGMENT_SAMPLERS, tmp);
-    }
+    glGetIntegerv(GL_MAX_TEXTURE_COORDS, &gl_max);
+    mLimits.texture_coords = std::min(MAX_TEXTURES, gl_max);
     TRACE("Max texture coords: %d.\n", mLimits.texture_coords);
+    glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &gl_max);
+    mLimits.fragment_samplers = std::min(MAX_FRAGMENT_SAMPLERS, gl_max);
     TRACE("Max fragment samplers: %d.\n", mLimits.fragment_samplers);
 
-    {
-        GLint tmp;
-        glGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &tmp);
-        mLimits.vertex_samplers = tmp;
-        glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &tmp);
-        mLimits.combined_samplers = tmp;
-        glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &tmp);
-        mLimits.vertex_attribs = tmp;
-
-        /* Loading GLSL sampler uniforms is much simpler if we can assume that the sampler setup
-         * is known at shader link time. In a vertex shader + pixel shader combination this isn't
-         * an issue because then the sampler setup only depends on the two shaders. If a pixel
-         * shader is used with fixed function vertex processing we're fine too because fixed function
-         * vertex processing doesn't use any samplers. If fixed function fragment processing is
-         * used we have to make sure that all vertex sampler setups are valid together with all
-         * possible fixed function fragment processing setups. This is true if vsamplers + MAX_TEXTURES
-         * <= max_samplers. This is true on all d3d9 cards that support vtf(gf 6 and gf7 cards).
-         * dx9 radeon cards do not support vertex texture fetch. DX10 cards have 128 samplers, and
-         * dx9 is limited to 8 fixed function texture stages and 4 vertex samplers. DX10 does not have
-         * a fixed function pipeline anymore.
-         *
-         * So this is just a check to check that our assumption holds true. If not, write a warning
-         * and reduce the number of vertex samplers or probably disable vertex texture fetch.
-         */
-        if(mLimits.vertex_samplers && mLimits.combined_samplers < 12
-            && MAX_TEXTURES + mLimits.vertex_samplers > mLimits.combined_samplers)
-        {
-            FIXME("OpenGL implementation supports %u vertex samplers and %u total samplers.\n",
-                  mLimits.vertex_samplers, mLimits.combined_samplers);
-            FIXME("Expected vertex samplers + MAX_TEXTURES(=8) > combined_samplers.\n");
-            if(mLimits.combined_samplers > MAX_TEXTURES)
-                mLimits.vertex_samplers = mLimits.combined_samplers - MAX_TEXTURES;
-            else
-                mLimits.vertex_samplers = 0;
-        }
-    }
+    glGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &gl_max);
+    mLimits.vertex_samplers = gl_max;
     TRACE("Max vertex attribs: %u.\n", mLimits.vertex_attribs);
+    glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &gl_max);
+    mLimits.combined_samplers = gl_max;
     TRACE("Max vertex samplers: %u.\n", mLimits.vertex_samplers);
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &gl_max);
+    mLimits.vertex_attribs = gl_max;
     TRACE("Max combined samplers: %u.\n", mLimits.combined_samplers);
+
+    /* Loading GLSL sampler uniforms is much simpler if we can assume that the sampler setup
+     * is known at shader link time. In a vertex shader + pixel shader combination this isn't
+     * an issue because then the sampler setup only depends on the two shaders. If a pixel
+     * shader is used with fixed function vertex processing we're fine too because fixed function
+     * vertex processing doesn't use any samplers. If fixed function fragment processing is
+     * used we have to make sure that all vertex sampler setups are valid together with all
+     * possible fixed function fragment processing setups. This is true if vsamplers + MAX_TEXTURES
+     * <= max_samplers. This is true on all d3d9 cards that support vtf(gf 6 and gf7 cards).
+     * dx9 radeon cards do not support vertex texture fetch. DX10 cards have 128 samplers, and
+     * dx9 is limited to 8 fixed function texture stages and 4 vertex samplers. DX10 does not have
+     * a fixed function pipeline anymore.
+     *
+     * So this is just a check to check that our assumption holds true. If not, write a warning
+     * and reduce the number of vertex samplers or probably disable vertex texture fetch.
+     */
+    if(mLimits.vertex_samplers && mLimits.combined_samplers < 12
+        && MAX_TEXTURES + mLimits.vertex_samplers > mLimits.combined_samplers)
+    {
+        FIXME("OpenGL implementation supports %u vertex samplers and %u total samplers.\n",
+              mLimits.vertex_samplers, mLimits.combined_samplers);
+        FIXME("Expected vertex samplers + MAX_TEXTURES(=8) > combined_samplers.\n");
+        if(mLimits.combined_samplers > MAX_TEXTURES)
+            mLimits.vertex_samplers = mLimits.combined_samplers - MAX_TEXTURES;
+        else
+            mLimits.vertex_samplers = 0;
+    }
 
     if(GLEW_ARB_vertex_blend)
     {
@@ -627,7 +621,7 @@ void D3DAdapter::init_limits()
         glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_PARAMETERS_ARB, &gl_max);
         mLimits.arb_ps_native_constants = gl_max;
         TRACE("Max ARB_FRAGMENT_PROGRAM native float constants: %d.\n",
-                mLimits.arb_ps_native_constants);
+              mLimits.arb_ps_native_constants);
         glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_TEMPORARIES_ARB, &gl_max);
         mLimits.arb_ps_temps = gl_max;
         TRACE("Max ARB_FRAGMENT_PROGRAM native temporaries: %d.\n", mLimits.arb_ps_temps);
@@ -659,11 +653,11 @@ void D3DAdapter::init_limits()
     TRACE("Max ARB_VERTEX_SHADER float constants: %u.\n", mLimits.glsl_vs_float_constants);
 
     glGetIntegerv(GL_MAX_VERTEX_UNIFORM_BLOCKS, &gl_max);
-    mLimits.vertex_uniform_blocks = std::min(gl_max, D3DGL_MAX_CBS);
+    mLimits.vertex_uniform_blocks = gl_max;
     TRACE("Max vertex uniform blocks: %u (%d).\n", mLimits.vertex_uniform_blocks, gl_max);
 
     glGetIntegerv(GL_MAX_GEOMETRY_UNIFORM_BLOCKS, &gl_max);
-    mLimits.geometry_uniform_blocks = std::min(gl_max, D3DGL_MAX_CBS);
+    mLimits.geometry_uniform_blocks = gl_max;
     TRACE("Max geometry uniform blocks: %u (%d).\n", mLimits.geometry_uniform_blocks, gl_max);
 
     glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, &gl_max);
@@ -674,7 +668,7 @@ void D3DAdapter::init_limits()
     TRACE("Max GLSL varyings: %u (%u 4 component varyings).\n", gl_max, gl_max / 4);
 
     glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_BLOCKS, &gl_max);
-    mLimits.fragment_uniform_blocks = std::min(gl_max, D3DGL_MAX_CBS);
+    mLimits.fragment_uniform_blocks = gl_max;
     TRACE("Max fragment uniform blocks: %u (%d).\n", mLimits.fragment_uniform_blocks, gl_max);
 
     glGetIntegerv(GL_MAX_COMBINED_UNIFORM_BLOCKS, &gl_max);

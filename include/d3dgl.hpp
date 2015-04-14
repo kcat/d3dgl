@@ -15,8 +15,6 @@
 #define MAX_FRAGMENT_SAMPLERS       16
 #define MAX_COMBINED_SAMPLERS       (MAX_FRAGMENT_SAMPLERS + MAX_VERTEX_SAMPLERS)
 
-#define D3DGL_MAX_CBS               15
-
 
 bool CreateFakeContext(HINSTANCE hInstance, HWND &hWnd, HDC &dc, HGLRC &glrc);
 
