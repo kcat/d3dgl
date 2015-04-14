@@ -348,7 +348,11 @@ ULONG D3DGLCubeTexture::AddRef()
 {
     ULONG ret = ++mRefCount;
     TRACE("%p New refcount: %lu\n", this, ret);
-    if(ret == 1) addIface();
+    if(ret == 1)
+    {
+        mParent->AddRef();
+        addIface();
+    }
     return ret;
 }
 
@@ -356,7 +360,12 @@ ULONG D3DGLCubeTexture::Release()
 {
     ULONG ret = --mRefCount;
     TRACE("%p New refcount: %lu\n", this, ret);
-    if(ret == 0) releaseIface();
+    if(ret == 0)
+    {
+        D3DGLDevice *parent = mParent;
+        releaseIface();
+        parent->Release();
+    }
     return ret;
 }
 

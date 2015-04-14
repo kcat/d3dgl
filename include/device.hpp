@@ -7,7 +7,6 @@
 #include <array>
 
 #include "d3dgl.hpp"
-#include "misc.hpp"
 #include "commandqueue.hpp"
 
 
@@ -52,7 +51,7 @@ public:
 private:
     std::atomic<ULONG> mRefCount;
 
-    ref_ptr<Direct3DGL> mParent;
+    Direct3DGL *mParent;
 
     const D3DAdapter &mAdapter;
 

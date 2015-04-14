@@ -7,7 +7,6 @@
 #include <d3d9.h>
 
 #include "glew.h"
-#include "misc.hpp"
 
 
 struct GLFormatInfo;
@@ -18,7 +17,7 @@ class D3DGLCubeTexture : public IDirect3DCubeTexture9 {
     std::atomic<ULONG> mRefCount;
     std::atomic<ULONG> mIfaceCount;
 
-    ref_ptr<D3DGLDevice> mParent;
+    D3DGLDevice *mParent;
 
     const GLFormatInfo *mGLFormat;
     bool mIsCompressed;

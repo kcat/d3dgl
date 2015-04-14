@@ -82,7 +82,6 @@ set(HDRS  include/query.hpp
           include/glformat.hpp
           include/trace.hpp
           include/commandqueue.hpp
-          include/misc.hpp
           include/private_iids.hpp
 )
 

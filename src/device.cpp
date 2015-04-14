@@ -1404,6 +1404,8 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
         std::copy(DefaultSSValues.begin(), DefaultSSValues.end(), ss.begin());
     std::copy(DefaultRSValues.begin(), DefaultRSValues.end(), mRenderState.begin());
     mRenderState[D3DRS_POINTSIZE_MAX] = float_to_dword(mAdapter.getLimits().pointsize_max);
+
+    mParent->AddRef();
 }
 
 D3DGLDevice::~D3DGLDevice()
@@ -1431,6 +1433,7 @@ D3DGLDevice::~D3DGLDevice()
         wglDeleteContext(mGLContext);
     mGLContext = nullptr;
 
+    mParent->Release();
     mParent = nullptr;
 }
 
