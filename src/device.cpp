@@ -473,6 +473,19 @@ public:
     }
 };
 
+class ScissorRectSet : public Command {
+    RECT mRect;
+
+public:
+    ScissorRectSet(const RECT &rect) : mRect(rect) { }
+
+    virtual ULONG execute()
+    {
+        glScissor(mRect.left, mRect.top, mRect.right-mRect.left, mRect.bottom-mRect.top);
+        return sizeof(*this);
+    }
+};
+
 class PolygonModeSet : public Command {
     GLenum mMode;
 
@@ -1995,6 +2008,10 @@ HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
     mViewport.MinZ = 0.0f;
     mViewport.MaxZ = 1.0f;
     resetProjectionFixup(mViewport.Width, mViewport.Height);
+
+    mScissorRect = RECT{0, 0, (LONG)params->BackBufferWidth, (LONG)params->BackBufferHeight};
+    mQueue.doSend<ScissorRectSet>(mScissorRect);
+
     if(mAutoDepthStencil)
         mQueue.doSend<SetFBAttachmentCmd>(this, mAutoDepthStencil->getFormat().getDepthStencilAttachment(),
                                           GL_RENDERBUFFER, mAutoDepthStencil->getId(), 0);
@@ -3298,16 +3315,32 @@ HRESULT D3DGLDevice::GetCurrentTexturePalette(UINT *PaletteNumber)
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::SetScissorRect(CONST RECT* pRect)
+HRESULT D3DGLDevice::SetScissorRect(const RECT *rect)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, rect %p\n", this, rect);
+
+    if(rect->right < rect->left || rect->bottom < rect->top)
+    {
+        FIXME("Scissor rectangle has inverted region: %ld,%ld x %ld,%ld\n", rect->left, rect->top, rect->right, rect->bottom);
+        return D3DERR_INVALIDCALL;
+    }
+
+    mQueue.lock();
+    mScissorRect = *rect;
+    mQueue.sendAndUnlock<ScissorRectSet>(*rect);
+
+    return D3D_OK;
 }
 
-HRESULT D3DGLDevice::GetScissorRect(RECT* pRect)
+HRESULT D3DGLDevice::GetScissorRect(RECT *rect)
 {
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
+    TRACE("iface %p, rect %p\n", this, rect);
+
+    mQueue.lock();
+    *rect = mScissorRect;
+    mQueue.unlock();
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetSoftwareVertexProcessing(WINBOOL bSoftware)

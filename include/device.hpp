@@ -107,6 +107,7 @@ private:
     std::array<SamplerStates,MAX_COMBINED_SAMPLERS> mSamplerState;
     std::array<std::atomic<DWORD>,210> mRenderState;
     D3DVIEWPORT9 mViewport;
+    RECT mScissorRect;
     D3DMATERIAL9 mMaterial;
     std::array<Vector4f,8> mClipPlane;
     std::atomic<bool> mInScene;
