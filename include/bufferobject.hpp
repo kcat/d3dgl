@@ -24,8 +24,6 @@ class D3DGLBufferObject : public IDirect3DVertexBuffer9, public IDirect3DIndexBu
     GLuint mBufferId;
     std::vector<GLubyte> mSysMem;
 
-    GLubyte *mUserPtr;
-
     enum LockType {
         LT_Unlocked,
         LT_ReadOnly,

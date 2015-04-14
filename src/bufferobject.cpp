@@ -10,12 +10,11 @@ void D3DGLBufferObject::initGL()
     UINT data_len = (mLength+15) & ~15;
 
     mSysMem.assign(data_len, 0);
-    mUserPtr = mSysMem.data();
 
     GLenum usage = (mUsage&D3DUSAGE_DYNAMIC) ? GL_DYNAMIC_DRAW : GL_STREAM_DRAW;
 
     glGenBuffers(1, &mBufferId);
-    glNamedBufferDataEXT(mBufferId, data_len, mUserPtr, usage);
+    glNamedBufferDataEXT(mBufferId, data_len, mSysMem.data(), usage);
     checkGLError();
 
     mUpdateInProgress = 0;
@@ -68,7 +67,7 @@ public:
 
 void D3DGLBufferObject::loadBufferDataGL(UINT offset, UINT length)
 {
-    glNamedBufferSubDataEXT(mBufferId, offset, length, mUserPtr+offset);
+    glNamedBufferSubDataEXT(mBufferId, offset, length, &mSysMem[offset]);
     checkGLError();
 
     --mUpdateInProgress;
@@ -100,7 +99,6 @@ D3DGLBufferObject::D3DGLBufferObject(D3DGLDevice *parent)
   , mFvf(0)
   , mPool(D3DPOOL_DEFAULT)
   , mBufferId(0)
-  , mUserPtr(nullptr)
   , mLock(LT_Unlocked)
   , mLockedOffset(0)
   , mLockedLength(0)
@@ -210,11 +208,10 @@ void D3DGLBufferObject::resetBufferData(const GLubyte *data, GLuint length)
     {
         UINT data_len = (length+15) & ~15;
         mSysMem.resize(data_len);
-        mUserPtr = mSysMem.data();
         mParent->getQueue().doSend<ResizeBufferCmd>(this);
     }
     mLength = length;
-    memcpy(mUserPtr, data, mLength);
+    memcpy(mSysMem.data(), data, mLength);
 
     mParent->getQueue().sendAndUnlock<LoadBufferDataCmd>(this, 0, mLength);
 }
@@ -361,7 +358,7 @@ HRESULT D3DGLBufferObject::Lock(UINT offset, UINT length, void **data, DWORD fla
     mLockedOffset = offset;
     mLockedLength = length;
 
-    *data = mUserPtr + mLockedOffset;
+    *data = &mSysMem[mLockedOffset];
     return D3D_OK;
 }
 
