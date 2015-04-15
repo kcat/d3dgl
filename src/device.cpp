@@ -646,6 +646,21 @@ public:
     }
 };
 
+class FogValuefSet : public Command {
+    GLenum mParam;
+    GLfloat mValues[4];
+
+public:
+    FogValuefSet(GLenum param, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3) : mParam(param), mValues{v0, v1, v2, v3} { }
+    FogValuefSet(GLenum param, GLfloat v0) : mParam(param), mValues{v0, v0, v0, v0} { }
+
+    virtual ULONG execute()
+    {
+        glFogfv(mParam, mValues);
+        return sizeof(*this);
+    }
+};
+
 class SetSamplerParameteri : public Command {
     GLuint mSampler;
     GLenum mParameter;
@@ -3105,6 +3120,15 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
         // disabled.
         case D3DRS_TWOSIDEDSTENCILMODE:
             mRenderState[state] = value;
+            break;
+
+        case D3DRS_FOGCOLOR:
+            mQueue.lock();
+            mRenderState[state] = value;
+            mQueue.sendAndUnlock<FogValuefSet>(GL_FOG_COLOR,
+                D3DCOLOR_R(value)/255.0f, D3DCOLOR_G(value)/255.0f,
+                D3DCOLOR_B(value)/255.0f, D3DCOLOR_A(value)/255.0f
+            );
             break;
 
         default:
