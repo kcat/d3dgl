@@ -267,7 +267,8 @@ HRESULT Direct3DGL::CheckDeviceMultiSampleType(UINT adapter, D3DDEVTYPE devType,
     }
 
     UINT mask = gAdapterList[adapter].getSamples(surfaceFormat);
-    if(!(mask&(multiSampleType-2)))
+    UINT type_mask = 1<<(multiSampleType-2);
+    if(!(mask&type_mask))
     {
         WARN("Multisample type 0x%x not supported with format %s\n", multiSampleType, d3dfmt_to_str(surfaceFormat));
         if(qualityLevels) *qualityLevels = 0;
