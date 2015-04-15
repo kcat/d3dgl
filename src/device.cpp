@@ -2222,19 +2222,104 @@ HRESULT D3DGLDevice::CreateIndexBuffer(UINT length, DWORD usage, D3DFORMAT forma
     return D3D_OK;
 }
 
+HRESULT D3DGLDevice::CreateRenderTarget(UINT width, UINT height, D3DFORMAT format, D3DMULTISAMPLE_TYPE multisample, DWORD multisampleQuality, WINBOOL lockable, IDirect3DSurface9 **surface, HANDLE *handle)
+{
+    TRACE("iface %p, width %u, height %u, format %s, multisample 0x%x, multisampleQuality %lu, lockable %d, surface %p, handle %p\n", this, width, height, d3dfmt_to_str(format), multisample, multisampleQuality, lockable, surface, handle);
+
+    if(handle)
+    {
+        WARN("Non-NULL handle specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+    if(!surface)
+    {
+        WARN("NULL surface storage specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+    if(lockable)
+    {
+        FIXME("Lockable rendertargets not implemented\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    HRESULT hr = D3D_OK;
+    DWORD realusage = mAdapter.getUsage(D3DRTYPE_SURFACE, format);
+    if(!(D3DUSAGE_RENDERTARGET&realusage))
+    {
+        WARN("Format %s is missing RENDERTARGET usage\n", d3dfmt_to_str(format));
+        return D3DERR_INVALIDCALL;
+    }
+
+    D3DSURFACE_DESC desc;
+    desc.Format = format;
+    desc.Type = D3DRTYPE_SURFACE;
+    desc.Usage = D3DUSAGE_RENDERTARGET;
+    desc.Pool = D3DPOOL_DEFAULT;
+    desc.MultiSampleType = multisample;
+    desc.MultiSampleQuality = multisampleQuality;
+    desc.Width = width;
+    desc.Height = height;
+
+    D3DGLRenderTarget *rtarget = new D3DGLRenderTarget(this);
+    if(!rtarget->init(&desc))
+    {
+        delete rtarget;
+        return D3DERR_INVALIDCALL;
+    }
+
+    *surface = rtarget;
+    (*surface)->AddRef();
+
+    return hr;
+}
+
+HRESULT D3DGLDevice::CreateDepthStencilSurface(UINT width, UINT height, D3DFORMAT format, D3DMULTISAMPLE_TYPE multisample, DWORD multisampleQuality, WINBOOL discard, IDirect3DSurface9 **surface, HANDLE *handle)
+{
+    TRACE("iface %p, width %u, height %u, format %s, multisample 0x%x, multisampleQuality %lu, discard %u, surface %p, handle %p\n", this, width, height, d3dfmt_to_str(format), multisample, multisampleQuality, discard, surface, handle);
+
+    if(handle)
+    {
+        WARN("Non-NULL handle specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+    if(!surface)
+    {
+        WARN("NULL surface storage specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    HRESULT hr = D3D_OK;
+    DWORD realusage = mAdapter.getUsage(D3DRTYPE_SURFACE, format);
+    if(!(D3DUSAGE_DEPTHSTENCIL&realusage))
+    {
+        WARN("Format %s is missing DEPTHSTENCIL usage\n", d3dfmt_to_str(format));
+        return D3DERR_INVALIDCALL;
+    }
+
+    D3DSURFACE_DESC desc;
+    desc.Format = format;
+    desc.Type = D3DRTYPE_SURFACE;
+    desc.Usage = D3DUSAGE_DEPTHSTENCIL;
+    desc.Pool = D3DPOOL_DEFAULT;
+    desc.MultiSampleType = multisample;
+    desc.MultiSampleQuality = multisampleQuality;
+    desc.Width = width;
+    desc.Height = height;
+
+    D3DGLRenderTarget *rtarget = new D3DGLRenderTarget(this);
+    if(!rtarget->init(&desc))
+    {
+        delete rtarget;
+        return D3DERR_INVALIDCALL;
+    }
+
+    *surface = rtarget;
+    (*surface)->AddRef();
+
+    return hr;
+}
+
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-HRESULT D3DGLDevice::CreateRenderTarget(UINT Width, UINT Height, D3DFORMAT Format, D3DMULTISAMPLE_TYPE MultiSample, DWORD MultisampleQuality, WINBOOL Lockable, IDirect3DSurface9** ppSurface, HANDLE* pSharedHandle)
-{
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
-}
-
-HRESULT D3DGLDevice::CreateDepthStencilSurface(UINT Width, UINT Height, D3DFORMAT Format, D3DMULTISAMPLE_TYPE MultiSample, DWORD MultisampleQuality, WINBOOL Discard, IDirect3DSurface9** ppSurface, HANDLE* pSharedHandle)
-{
-    FIXME("iface %p : stub!\n", this);
-    return E_NOTIMPL;
-}
-
 HRESULT D3DGLDevice::UpdateSurface(IDirect3DSurface9* pSourceSurface, CONST RECT* pSourceRect, IDirect3DSurface9* pDestinationSurface, CONST POINT* pDestPoint)
 {
     FIXME("iface %p : stub!\n", this);
