@@ -89,8 +89,6 @@ typedef struct Context {
     int output_stack_len;
     int indent;
     const char *shader_type_str;
-    const char *endline;
-    int endline_len;
     int profileid;
     const struct Profile *profile;
     MOJOSHADER_shaderType shader_type;
@@ -329,11 +327,11 @@ static void output_line(Context *ctx, const char *fmt, ...)
         buffer_append_va(ctx->output, fmt, ap);
         va_end(ap);
     }
-    buffer_append(ctx->output, ctx->endline, ctx->endline_len);
+    buffer_append(ctx->output, "\n", 1);
 }
 
 static inline void output_blank_line(Context *ctx)
-{ if(!isfail(ctx)) buffer_append(ctx->output, ctx->endline, ctx->endline_len); }
+{ if(!isfail(ctx)) buffer_append(ctx->output, "\n", 1); }
 
 
 // !!! FIXME: this is sort of nasty.
@@ -4865,8 +4863,6 @@ static Context *build_context(const char *profile,
     ctx->swizzles_count = swizcount;
     ctx->samplermap = smap;
     ctx->samplermap_count = smapcount;
-    ctx->endline = ENDLINE_STR;
-    ctx->endline_len = strlen(ctx->endline);
     ctx->last_address_reg_component = -1;
     ctx->current_position = MOJOSHADER_POSITION_BEFORE;
     ctx->texm3x2pad_dst0 = -1;
