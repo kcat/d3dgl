@@ -2602,13 +2602,15 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
 {
     TRACE("iface %p, depthstencil %p\n", this, depthstencil);
 
-    // FIXME: This should modify the depth bias if the depth buffer's bit depth
-    // changes.
     if(!depthstencil)
     {
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(depthstencil);
         mDepthBits = 0;
+        mQueue.doSend<DepthBiasSet>(
+            dword_to_float(mRenderState[D3DRS_SLOPESCALEDEPTHBIAS]),
+            dword_to_float(mRenderState[D3DRS_DEPTHBIAS]) * (float)((1u<<mDepthBits) - 1u)
+        );
         mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_DEPTH_STENCIL_ATTACHMENT,
                                                  GL_RENDERBUFFER, 0, 0);
         if(depthstencil) depthstencil->Release();
@@ -2624,7 +2626,8 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
     };
     if(SUCCEEDED(depthstencil->QueryInterface(IID_D3DGLTextureSurface, &pointer)))
     {
-        if(!(tex2dsurface->getParent()->getDesc().Usage&D3DUSAGE_DEPTHSTENCIL))
+        D3DGLTexture *tex2d = tex2dsurface->getParent();
+        if(!(tex2d->getDesc().Usage&D3DUSAGE_DEPTHSTENCIL))
         {
             tex2dsurface->Release();
             WARN("Texture %p missing DEPTHSTENCIL usage (render target?)\n", tex2dsurface);
@@ -2635,7 +2638,20 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
 
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(tex2dsurface);
-        mDepthBits = tex2dsurface->getFormat().getDepthBits();
+        GLuint depthbits = tex2dsurface->getFormat().getDepthBits();
+        if(depthbits != mDepthBits)
+        {
+            // If the previous depth buffer had a different bit depth, the
+            // depth bias needs to be updated for the new depth (D3D specifies
+            // the bias in normalized 0...1 units, and OpenGL uses unnormalized
+            // units that are "the smallest value that is guaranteed to produce
+            // a resolvable offset").
+            mDepthBits = depthbits;
+            mQueue.doSend<DepthBiasSet>(
+                dword_to_float(mRenderState[D3DRS_SLOPESCALEDEPTHBIAS]),
+                dword_to_float(mRenderState[D3DRS_DEPTHBIAS]) * (float)((1u<<mDepthBits) - 1u)
+            );
+        }
         if(attachment == GL_DEPTH_ATTACHMENT)
         {
             // If the previous attachment was GL_DEPTH_STENCIL_ATTACHMENT, and
@@ -2645,8 +2661,7 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
                                               GL_RENDERBUFFER, 0, 0);
         }
         mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, attachment,
-            GL_TEXTURE_2D, tex2dsurface->getParent()->getTextureId(),
-            tex2dsurface->getLevel()
+            GL_TEXTURE_2D, tex2d->getTextureId(), tex2dsurface->getLevel()
         );
     }
     else if(SUCCEEDED(depthstencil->QueryInterface(IID_D3DGLRenderTarget, &pointer)))
@@ -2662,7 +2677,15 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
 
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(surface);
-        mDepthBits = surface->getFormat().getDepthBits();
+        GLuint depthbits = surface->getFormat().getDepthBits();
+        if(depthbits != mDepthBits)
+        {
+            mDepthBits = depthbits;
+            mQueue.doSend<DepthBiasSet>(
+                dword_to_float(mRenderState[D3DRS_SLOPESCALEDEPTHBIAS]),
+                dword_to_float(mRenderState[D3DRS_DEPTHBIAS]) * (float)((1u<<mDepthBits) - 1u)
+            );
+        }
         if(attachment == GL_DEPTH_ATTACHMENT)
             mQueue.doSend<SetFBAttachmentCmd>(this, GL_STENCIL_ATTACHMENT,
                                               GL_RENDERBUFFER, 0, 0);
@@ -2672,7 +2695,8 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
     }
     else if(SUCCEEDED(depthstencil->QueryInterface(IID_D3DGLCubeSurface, &pointer)))
     {
-        if(!(cubesurface->getParent()->getDesc().Usage&D3DUSAGE_DEPTHSTENCIL))
+        D3DGLCubeTexture *cubetex = cubesurface->getParent();
+        if(!(cubetex->getDesc().Usage&D3DUSAGE_DEPTHSTENCIL))
         {
             cubesurface->Release();
             WARN("Surface %p missing DETHSTENCIL usage (render target?)\n", cubesurface);
@@ -2683,12 +2707,20 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
 
         mQueue.lock();
         depthstencil = mDepthStencil.exchange(cubesurface);
-        mDepthBits = cubesurface->getFormat().getDepthBits();
+        GLuint depthbits = cubesurface->getFormat().getDepthBits();
+        if(depthbits != mDepthBits)
+        {
+            mDepthBits = depthbits;
+            mQueue.doSend<DepthBiasSet>(
+                dword_to_float(mRenderState[D3DRS_SLOPESCALEDEPTHBIAS]),
+                dword_to_float(mRenderState[D3DRS_DEPTHBIAS]) * (float)((1u<<mDepthBits) - 1u)
+            );
+        }
         if(attachment == GL_DEPTH_ATTACHMENT)
             mQueue.doSend<SetFBAttachmentCmd>(this, GL_STENCIL_ATTACHMENT,
                                               GL_RENDERBUFFER, 0, 0);
         mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, attachment,
-            cubesurface->getTarget(), cubesurface->getParent()->getTextureId(), 0
+            cubesurface->getTarget(), cubetex->getTextureId(), cubesurface->getLevel()
         );
     }
     else
