@@ -78,7 +78,8 @@ bool D3DGLRenderTarget::init(const D3DSURFACE_DESC *desc, bool isauto)
     }
     mGLFormat = &fmtinfo->second;
 
-    mParent->getQueue().sendSync<InitRenderTargetCmd>(this);
+    if(mDesc.Format != D3DFMT4CC('N','U','L','L'))
+        mParent->getQueue().sendSync<InitRenderTargetCmd>(this);
 
     return true;
 }

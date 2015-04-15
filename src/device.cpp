@@ -2441,7 +2441,8 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
     };
     if(SUCCEEDED(rtarget->QueryInterface(IID_D3DGLTextureSurface, &pointer)))
     {
-        if(!(tex2dsurface->getParent()->getDesc().Usage&D3DUSAGE_RENDERTARGET))
+        D3DGLTexture *tex2d = tex2dsurface->getParent();
+        if(!(tex2d->getDesc().Usage&D3DUSAGE_RENDERTARGET))
         {
             tex2dsurface->Release();
             WARN("Surface %p missing RENDERTARGET usage (depth stencil?)\n", tex2dsurface);
@@ -2451,8 +2452,7 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
         mQueue.lock();
         rtarget = mRenderTargets[index].exchange(tex2dsurface);
         mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_COLOR_ATTACHMENT0+index,
-            GL_TEXTURE_2D, tex2dsurface->getParent()->getTextureId(),
-            tex2dsurface->getLevel()
+            GL_TEXTURE_2D, tex2d->getTextureId(), tex2dsurface->getLevel()
         );
     }
     else if(SUCCEEDED(rtarget->QueryInterface(IID_D3DGLRenderTarget, &pointer)))
@@ -2472,7 +2472,8 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
     }
     else if(SUCCEEDED(rtarget->QueryInterface(IID_D3DGLCubeSurface, &pointer)))
     {
-        if(!(cubesurface->getParent()->getDesc().Usage&D3DUSAGE_RENDERTARGET))
+        D3DGLCubeTexture *cubetex = cubesurface->getParent();
+        if(!(cubetex->getDesc().Usage&D3DUSAGE_RENDERTARGET))
         {
             cubesurface->Release();
             WARN("Surface %p missing RENDERTARGET usage (depth stencil?)\n", cubesurface);
@@ -2482,7 +2483,7 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
         mQueue.lock();
         rtarget = mRenderTargets[index].exchange(cubesurface);
         mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_COLOR_ATTACHMENT0+index,
-            cubesurface->getTarget(), cubesurface->getParent()->getTextureId(), 0
+            cubesurface->getTarget(), cubetex->getTextureId(), 0
         );
     }
     else

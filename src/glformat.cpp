@@ -65,6 +65,8 @@ const std::map<DWORD,GLFormatInfo> gFormatList{
     // issue other than slightly darkened textures.
     { D3DFMT_DXT2, { GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, GL_RGBA, GL_UNSIGNED_BYTE, 16, GL_COLOR_BUFFER_BIT } },
     { D3DFMT_DXT4, { GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_RGBA, GL_UNSIGNED_BYTE, 16, GL_COLOR_BUFFER_BIT } },
+
+    { D3DFMT4CC('N','U','L','L'), { GL_RGBA8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, 4, GL_COLOR_BUFFER_BIT } },
 };
 
 
