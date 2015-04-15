@@ -3002,19 +3002,19 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
         case D3DRS_COLORWRITEENABLE:
             mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<ColorMaskSet>(mRenderState[D3DRS_COLORWRITEENABLE].load());
+            mQueue.sendAndUnlock<ColorMaskSet>(value);
             break;
 
         case D3DRS_ZWRITEENABLE:
             mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<DepthMaskSet>(mRenderState[D3DRS_ZWRITEENABLE].load());
+            mQueue.sendAndUnlock<DepthMaskSet>(value);
             break;
 
         case D3DRS_ZFUNC:
             mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<DepthFuncSet>(GetGLCompFunc(mRenderState[D3DRS_ZFUNC]));
+            mQueue.sendAndUnlock<DepthFuncSet>(GetGLCompFunc(value));
             break;
 
         case D3DRS_SLOPESCALEDEPTHBIAS:
