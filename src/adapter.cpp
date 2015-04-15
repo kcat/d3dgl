@@ -1235,7 +1235,7 @@ void D3DAdapter::init_usage()
             glGetInternalformativ(GL_RENDERBUFFER, format.second.internalformat, GL_SAMPLES, sample_counts.size(), sample_counts.data());
             for(GLint count : sample_counts)
             {
-                if(count > 1 && count < 32)
+                if(count > 1 && count < 34)
                     sample_count_mask |= 1<<(count-2);
             }
             if(sample_count_mask)
