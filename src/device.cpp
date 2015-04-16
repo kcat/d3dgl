@@ -1475,6 +1475,9 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
     std::copy(DefaultRSValues.begin(), DefaultRSValues.end(), mRenderState.begin());
     mRenderState[D3DRS_POINTSIZE_MAX] = float_to_dword(mAdapter.getLimits().pointsize_max);
 
+    InitializeCriticalSection(&mSwapCS);
+    InitializeConditionVariable(&mSwapCV);
+
     mParent->AddRef();
 }
 
@@ -1502,6 +1505,8 @@ D3DGLDevice::~D3DGLDevice()
     if(mGLContext)
         wglDeleteContext(mGLContext);
     mGLContext = nullptr;
+
+    DeleteCriticalSection(&mSwapCS);
 
     mParent->Release();
     mParent = nullptr;
@@ -2769,8 +2774,10 @@ HRESULT D3DGLDevice::BeginScene()
     }
 
     // Wait for the last swap to complete before starting the next scene
+    EnterCriticalSection(&mSwapCS);
     while(mSwapchains[0]->getPendingSwaps() > 0)
-        SwitchToThread();
+        SleepConditionVariableCS(&mSwapCV, &mSwapCS, INFINITE);
+    LeaveCriticalSection(&mSwapCS);
 
     // TODO: Prepare any GL state? Depends on what's allowed or not to be
     // called within a 'scene'.

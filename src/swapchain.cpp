@@ -18,6 +18,7 @@ void D3DGLSwapChain::swapBuffersGL(size_t backbuffer)
     if(!SwapBuffers(mDevCtx))
         ERR("Failed to swap buffers, error: 0x%lx\n", GetLastError());
     --mPendingSwaps;
+    mParent->signalSwapGL();
 }
 class SwapchainSwapBuffers : public Command {
     D3DGLSwapChain *mTarget;
