@@ -40,7 +40,7 @@ void D3DGLPixelShader::compileShaderGL(const DWORD *data)
         {
             std::vector<char> log(logLen+1);
             glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
-            FIXME("Compile log:\n----\n%s\n----\n", log.data());
+            FIXME("Compile failure log:\n----\n%s\n----\n", log.data());
         }
         checkGLError();
         return;
@@ -54,7 +54,7 @@ void D3DGLPixelShader::compileShaderGL(const DWORD *data)
     {
         std::vector<char> log(logLen+1);
         glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
-        WARN("Compile log:\n----\n%s\n----\n", log.data());
+        WARN("Compile warning log:\n----\n%s\n----\n", log.data());
     }
 
     GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "ps_vec4f");
