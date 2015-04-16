@@ -62,6 +62,9 @@ private:
 
         GLuint main_framebuffer;     // Used for offscreen rendering
         GLuint copy_framebuffers[2]; // Used for FBO blits (0=read, 1=draw)
+        GLuint current_framebuffer[2]; // Current framebuffers (0=read, 1=draw;
+                                       // if one is set to main_framebuffer,
+                                       // both are)
 
         GLuint vs_uniform_bufferf;
         GLuint ps_uniform_bufferf;
@@ -172,6 +175,8 @@ public:
     void setVertexAttribArrayGL(UINT attribs);
     void setShaderProgramGL(GLbitfield stages, GLuint program);
     void setVtxDataGL(const D3DGLDevice::GLStreamData *streams, GLuint numstreams, bool ffp);
+    void drawArraysGL(GLenum mode, GLint count, GLsizei numinstances);
+    void drawElementsGL(GLenum mode, GLint count, GLenum type, GLubyte *pointer, GLsizei numinstances, GLsizei basevtx);
     void blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect,
                            GLenum dst_target, GLuint dst_binding, GLint dst_level, const RECT &dst_rect,
                            GLenum filter);

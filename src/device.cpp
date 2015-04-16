@@ -859,12 +859,12 @@ public:
 void D3DGLDevice::setFBAttachmentGL(GLenum attachment, GLenum target, GLuint id, GLint level)
 {
     if(target == GL_RENDERBUFFER)
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, attachment, GL_RENDERBUFFER, id);
+        glNamedFramebufferRenderbufferEXT(mGLState.main_framebuffer, attachment, GL_RENDERBUFFER, id);
     else if(target == GL_TEXTURE_2D || target == GL_TEXTURE_CUBE_MAP_POSITIVE_X ||
             target == GL_TEXTURE_CUBE_MAP_NEGATIVE_X || target == GL_TEXTURE_CUBE_MAP_POSITIVE_Y ||
             target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Y || target == GL_TEXTURE_CUBE_MAP_POSITIVE_Z ||
             target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Z)
-        glFramebufferTexture2D(GL_FRAMEBUFFER, attachment, target, id, level);
+        glNamedFramebufferTexture2DEXT(mGLState.main_framebuffer, attachment, target, id, level);
     checkGLError();
 }
 class SetFBAttachmentCmd : public Command {
@@ -1012,6 +1012,13 @@ public:
 
 void D3DGLDevice::clearGL(GLbitfield mask, GLuint color, GLfloat depth, GLuint stencil, const RECT &rect)
 {
+    if(mGLState.current_framebuffer[0] != mGLState.main_framebuffer)
+    {
+        mGLState.current_framebuffer[0] = mGLState.main_framebuffer;
+        mGLState.current_framebuffer[1] = mGLState.main_framebuffer;
+        glBindFramebuffer(GL_FRAMEBUFFER, mGLState.main_framebuffer);
+    }
+
     glPushAttrib(mask | GL_SCISSOR_BIT);
 
     if((mask&GL_COLOR_BUFFER_BIT))
@@ -1135,24 +1142,48 @@ public:
     }
 };
 
+void D3DGLDevice::drawArraysGL(GLenum mode, GLint count, GLsizei numinstances)
+{
+    if(mGLState.current_framebuffer[0] != mGLState.main_framebuffer)
+    {
+        mGLState.current_framebuffer[0] = mGLState.main_framebuffer;
+        mGLState.current_framebuffer[1] = mGLState.main_framebuffer;
+        glBindFramebuffer(GL_FRAMEBUFFER, mGLState.main_framebuffer);
+    }
+    glDrawArraysInstanced(mode, 0, count, numinstances);
+    checkGLError();
+}
 class DrawGLArraysCmd : public Command {
+    D3DGLDevice *mTarget;
     GLenum mMode;
     GLint mCount;
     GLsizei mNumInstances;
 
 public:
-    DrawGLArraysCmd(GLenum mode, GLint count, GLsizei num_instances)
-      : mMode(mode), mCount(count), mNumInstances(num_instances)
+    DrawGLArraysCmd(D3DGLDevice *target, GLenum mode, GLint count, GLsizei num_instances)
+      : mTarget(target), mMode(mode), mCount(count), mNumInstances(num_instances)
     { }
 
     virtual ULONG execute()
     {
-        glDrawArraysInstanced(mMode, 0, mCount, mNumInstances);
-        checkGLError();
+        mTarget->drawArraysGL(mMode, mCount, mNumInstances);
         return sizeof(*this);
     }
 };
+
+void D3DGLDevice::drawElementsGL(GLenum mode, GLint count, GLenum type, GLubyte *pointer, GLsizei numinstances, GLsizei basevtx)
+{
+    if(mGLState.current_framebuffer[0] != mGLState.main_framebuffer)
+    {
+        mGLState.current_framebuffer[0] = mGLState.main_framebuffer;
+        mGLState.current_framebuffer[1] = mGLState.main_framebuffer;
+        glBindFramebuffer(GL_FRAMEBUFFER, mGLState.main_framebuffer);
+    }
+    glDrawElementsInstancedBaseVertex(mode, count, type, pointer, numinstances, basevtx);
+    checkGLError();
+}
 class DrawGLElementsCmd : public Command {
+    D3DGLDevice *mTarget;
     GLenum mMode;
     GLint mCount;
     GLenum mType;
@@ -1161,14 +1192,13 @@ class DrawGLElementsCmd : public Command {
     GLsizei mBaseVtx;
 
 public:
-    DrawGLElementsCmd(GLenum mode, GLint count, GLenum type, GLubyte *pointer, GLsizei num_instances, GLsizei basevtx)
-      : mMode(mode), mCount(count), mType(type), mPointer(pointer), mNumInstances(num_instances), mBaseVtx(basevtx)
+    DrawGLElementsCmd(D3DGLDevice *target, GLenum mode, GLint count, GLenum type, GLubyte *pointer, GLsizei num_instances, GLsizei basevtx)
+      : mTarget(target), mMode(mode), mCount(count), mType(type), mPointer(pointer), mNumInstances(num_instances), mBaseVtx(basevtx)
     { }
 
     virtual ULONG execute()
     {
-        glDrawElementsInstancedBaseVertex(mMode, mCount, mType, mPointer, mNumInstances, mBaseVtx);
-        checkGLError();
+        mTarget->drawElementsGL(mMode, mCount, mType, mPointer, mNumInstances, mBaseVtx);
         return sizeof(*this);
     }
 };
@@ -1176,7 +1206,11 @@ public:
 
 void D3DGLDevice::blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect, GLenum dst_target, GLuint dst_binding, GLint dst_level, const RECT &dst_rect, GLenum filter)
 {
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, mGLState.copy_framebuffers[0]);
+    if(mGLState.current_framebuffer[0] != mGLState.copy_framebuffers[0])
+    {
+        mGLState.current_framebuffer[0] = mGLState.copy_framebuffers[0];
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, mGLState.current_framebuffer[0]);
+    }
     if(src_target == GL_RENDERBUFFER)
         glFramebufferRenderbuffer(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, src_binding);
     else if(src_target == GL_TEXTURE_2D || src_target == GL_TEXTURE_CUBE_MAP_POSITIVE_X ||
@@ -1191,10 +1225,20 @@ void D3DGLDevice::blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint
     }
 
     if(!dst_target)
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    {
+        if(mGLState.current_framebuffer[1] != 0)
+        {
+            mGLState.current_framebuffer[1] = 0;
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        }
+    }
     else
     {
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mGLState.copy_framebuffers[1]);
+        if(mGLState.current_framebuffer[1] != mGLState.copy_framebuffers[1])
+        {
+            mGLState.current_framebuffer[1] = mGLState.copy_framebuffers[1];
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, mGLState.current_framebuffer[1]);
+        }
         if(dst_target == GL_RENDERBUFFER)
             glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, dst_binding);
         else if(dst_target == GL_TEXTURE_2D || dst_target == GL_TEXTURE_CUBE_MAP_POSITIVE_X ||
@@ -1219,7 +1263,6 @@ void D3DGLDevice::blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint
     glPopAttrib();
 
 done:
-    glBindFramebuffer(GL_FRAMEBUFFER, mGLState.main_framebuffer);
     checkGLError();
 }
 class BlitFramebufferCmd : public Command {
@@ -1386,6 +1429,8 @@ void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
         glReadBuffer(GL_COLOR_ATTACHMENT0);
         glDrawBuffers(std::min(buffers.size(), mAdapter.getLimits().buffers),
                       buffers.data());
+        mGLState.current_framebuffer[0] = mGLState.main_framebuffer;
+        mGLState.current_framebuffer[1] = mGLState.main_framebuffer;
     }
 
     glEnable(GL_POLYGON_OFFSET_FILL);
@@ -1697,7 +1742,7 @@ HRESULT D3DGLDevice::drawVtxDecl(GLenum mode, INT startvtx, UINT minvtx, UINT st
         mQueue.doSend<SetVtxDataCmd<UseFFP>>(this, streams, cur);
 
     if(!use_indices)
-        mQueue.sendAndUnlock<DrawGLArraysCmd>(mode, count, 1/*num_instances*/);
+        mQueue.sendAndUnlock<DrawGLArraysCmd>(this, mode, count, 1/*num_instances*/);
     else
     {
         GLsizei num_instances = 1;
@@ -1729,7 +1774,7 @@ HRESULT D3DGLDevice::drawVtxDecl(GLenum mode, INT startvtx, UINT minvtx, UINT st
                 return D3DERR_INVALIDCALL;
         }
 
-        mQueue.sendAndUnlock<DrawGLElementsCmd>(mode, count, type, pointer, num_instances, minvtx);
+        mQueue.sendAndUnlock<DrawGLElementsCmd>(this, mode, count, type, pointer, num_instances, minvtx);
     }
 
     return D3D_OK;
