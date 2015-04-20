@@ -1263,7 +1263,7 @@ static void output_GLSL_uniform_array(Context *ctx, const RegisterType regtype,
 {
     if (size > 0)
     {
-        const char *pre="", *post="";
+        const char *pre="uniform ", *post="";
         char buf[64];
         get_GLSL_uniform_array_varname(ctx, regtype, buf, sizeof (buf));
         if(shader_is_pixel(ctx))
@@ -1271,14 +1271,14 @@ static void output_GLSL_uniform_array(Context *ctx, const RegisterType regtype,
             switch (regtype)
             {
                 case REG_TYPE_CONST:
-                    pre = "layout(std140) uniform ps_vec4f {\n";
-                    post = "\n};"; break;
+                    pre = "layout(std140) uniform ps_vec4f { ";
+                    post = " };"; break;
                 case REG_TYPE_CONSTINT:
-                    pre = "layout(std140) uniform ps_vec4i {\n";
-                    post = "\n};"; break;
+                    pre = "layout(std140) uniform ps_vec4i { ";
+                    post = " };"; break;
                 case REG_TYPE_CONSTBOOL:
-                    pre = "layout(std140) uniform ps_vec4b {\n";
-                    post = "\n};"; break;
+                    pre = "layout(std140) uniform ps_bool { ";
+                    post = " };"; break;
                 default: fail(ctx, "BUG: used a uniform we don't know how to define.");
             }
         }
@@ -1287,18 +1287,19 @@ static void output_GLSL_uniform_array(Context *ctx, const RegisterType regtype,
             switch (regtype)
             {
                 case REG_TYPE_CONST:
-                    pre = "layout(std140) uniform vs_vec4f {\n";
-                    post = "\n};"; break;
+                    pre = "layout(std140) uniform vs_vec4f { ";
+                    post = " };"; break;
                 case REG_TYPE_CONSTINT:
-                    pre = "layout(std140) uniform vs_vec4i {\n";
-                    post = "\n};"; break;
+                    pre = "layout(std140) uniform vs_vec4i { ";
+                    post = " };"; break;
                 case REG_TYPE_CONSTBOOL:
-                    pre = "layout(std140) uniform vs_vec4b {\n";
-                    post = "\n};"; break;
+                    pre = "layout(std140) uniform vs_bool { ";
+                    post = " };"; break;
                 default: fail(ctx, "BUG: used a uniform we don't know how to define.");
             }
         }
-        output_line(ctx, "%suniform vec4 %s[%d];%s", pre, buf, size, post);
+        const char *type = get_GLSL_uniform_type(ctx, regtype);
+        output_line(ctx, "%s%s %s[%d];%s", pre, type, buf, size, post);
     }
 } // output_GLSL_uniform_array
 
