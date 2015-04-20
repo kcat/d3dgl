@@ -23,16 +23,6 @@ typedef struct ConstantsList {
     struct ConstantsList *next;
 } ConstantsList;
 
-typedef struct VariableList {
-    MOJOSHADER_uniformType type;
-    int index;
-    int count;
-    ConstantsList *constant;
-    int used;
-    int emit_position;  // used in some profiles.
-    struct VariableList *next;
-} VariableList;
-
 typedef struct RegisterList {
     RegisterType regtype;
     int regnum;
@@ -41,7 +31,6 @@ typedef struct RegisterList {
     int writemask;
     int misc;
     int written;
-    const VariableList *array;
     struct RegisterList *next;
 } RegisterList;
 
@@ -59,7 +48,6 @@ typedef struct {
     RegisterType relative_regtype;
     int relative_regnum;
     int relative_component;
-    const VariableList *relative_array;
 } SourceArgInfo;
 
 struct Profile;  // predeclare.
@@ -128,9 +116,9 @@ typedef struct Context {
     RegisterList attributes;
     int sampler_count;
     RegisterList samplers;
-    VariableList *variables;  // variables to register mapping.
     int centroid_allowed;
     int have_relative_input_registers;
+    int have_relative_const_registers;
     int have_multi_color_outputs;
     int determined_constants_arrays;
     int predicated;
@@ -170,16 +158,8 @@ typedef void (*emit_finalize)(Context *ctx);
 // one emit function for global definitions in each profile.
 typedef void (*emit_global)(Context *ctx, RegisterType regtype, int regnum);
 
-// one emit function for relative uniform arrays in each profile.
-typedef void (*emit_array)(Context *ctx, VariableList *var);
-
-// one emit function for relative constants arrays in each profile.
-typedef void (*emit_const_array)(Context *ctx, const struct ConstantsList *constslist,
-                                 int base, int size);
-
 // one emit function for uniforms in each profile.
-typedef void (*emit_uniform)(Context *ctx, RegisterType regtype, int regnum,
-                             const VariableList *var);
+typedef void (*emit_uniform)(Context *ctx, RegisterType regtype, int regnum);
 
 // one emit function for samplers in each profile.
 typedef void (*emit_sampler)(Context *ctx, int stage, TextureType ttype,
@@ -199,23 +179,17 @@ typedef void (*state_function)(Context *ctx);
 // one function for varnames in each profile.
 typedef const char *(*varname_function)(Context *c, RegisterType t, int num);
 
-// one function for const var array in each profile.
-typedef const char *(*const_array_varname_function)(Context *c, int base, int size);
-
 typedef struct Profile {
     const char *name;
     emit_start start_emitter;
     emit_end end_emitter;
     emit_phase phase_emitter;
     emit_global global_emitter;
-    emit_array array_emitter;
-    emit_const_array const_array_emitter;
     emit_uniform uniform_emitter;
     emit_sampler sampler_emitter;
     emit_attribute attribute_emitter;
     emit_finalize finalize_emitter;
     varname_function get_varname;
-    const_array_varname_function get_const_array_varname;
 } Profile;
 
 
@@ -416,7 +390,6 @@ static RegisterList *reglist_insert(RegisterList *prev,
     item->index = 0;
     item->writemask = 0;
     item->misc = 0;
-    item->array = NULL;
     item->next = prev->next;
     prev->next = item;
 
@@ -736,14 +709,15 @@ static inline const char *get_GLSL_register_string(Context *ctx,
 
 static const char *get_GLSL_uniform_type(Context *ctx, const RegisterType rtype)
 {
-    switch (rtype)
+    switch(rtype)
     {
         case REG_TYPE_CONST: return "vec4";
         case REG_TYPE_CONSTINT: return "ivec4";
         case REG_TYPE_CONSTBOOL: return "bool";
-        default: fail(ctx, "BUG: used a uniform we don't know how to define.");
-    } // switch
+        default: break;
+    }
 
+    fail(ctx, "BUG: used a uniform we don't know how to define.");
     return NULL;
 } // get_GLSL_uniform_type
 
@@ -752,8 +726,7 @@ static const char *get_GLSL_varname_in_buf(Context *ctx, RegisterType rt,
                                            const size_t len)
 {
     char regnum_str[16];
-    const char *regtype_str = get_GLSL_register_string(ctx, rt, regnum,
-                                              regnum_str, sizeof (regnum_str));
+    const char *regtype_str = get_GLSL_register_string(ctx, rt, regnum, regnum_str, sizeof(regnum_str));
     snprintf(buf,len,"%s_%s%s", ctx->shader_type_str, regtype_str, regnum_str);
     return buf;
 } // get_GLSL_varname_in_buf
@@ -762,26 +735,9 @@ static const char *get_GLSL_varname_in_buf(Context *ctx, RegisterType rt,
 static const char *get_GLSL_varname(Context *ctx, RegisterType rt, int regnum)
 {
     char buf[64];
-    get_GLSL_varname_in_buf(ctx, rt, regnum, buf, sizeof (buf));
+    get_GLSL_varname_in_buf(ctx, rt, regnum, buf, sizeof(buf));
     return strdup(buf);
 }
-
-
-static inline const char *get_GLSL_const_array_varname_in_buf(Context *ctx,
-                                                const int base, const int size,
-                                                char *buf, const size_t buflen)
-{
-    const char *type = ctx->shader_type_str;
-    snprintf(buf, buflen, "%s_const_array_%d_%d", type, base, size);
-    return buf;
-} // get_GLSL_const_array_varname_in_buf
-
-static const char *get_GLSL_const_array_varname(Context *ctx, int base, int size)
-{
-    char buf[64];
-    get_GLSL_const_array_varname_in_buf(ctx, base, size, buf, sizeof (buf));
-    return strdup(buf);
-} // get_GLSL_const_array_varname
 
 
 static inline const char *get_GLSL_input_array_varname(char *buf, const size_t buflen)
@@ -1033,74 +989,38 @@ static const char *make_GLSL_srcarg_string(Context *ctx, const size_t idx,
              break;
     }
 
-    const char *regtype_str = NULL;
-    if (!arg->relative)
-    {
-        regtype_str = get_GLSL_varname_in_buf(ctx, arg->regtype, arg->regnum,
-                                              (char *) alloca(64), 64);
-    }
-
+    char regtype_str[64] = { '\0' };
     const char *rel_lbracket = "";
     char rel_offset[32] = { '\0' };
     const char *rel_rbracket = "";
     char rel_swizzle[4] = { '\0' };
-    const char *rel_regtype_str = "";
-    if (arg->relative)
+    char rel_regtype_str[64] = { '\0' };
+    if(!arg->relative)
+    {
+        get_GLSL_varname_in_buf(ctx, arg->regtype, arg->regnum,
+                                regtype_str, sizeof(regtype_str));
+    }
+    else
     {
         if (arg->regtype == REG_TYPE_INPUT)
-            regtype_str = get_GLSL_input_array_varname((char*)alloca(64), 64);
+            get_GLSL_input_array_varname(regtype_str, sizeof(regtype_str));
         else
         {
             assert(arg->regtype == REG_TYPE_CONST);
-            if(!arg->relative_array)
-            {
-                const int offset = arg->regnum;
-                assert(offset >= 0);
 
-                regtype_str = get_GLSL_uniform_array_varname(ctx,
-                    arg->regtype, (char*)alloca(64), 64
-                );
-                if(offset == 0)
-                    rel_offset[0] = '\0';
-                else
-                    snprintf(rel_offset, sizeof(rel_offset), "%d + ", offset);
-            }
+            const int offset = arg->regnum;
+            assert(offset >= 0);
+
+            get_GLSL_uniform_array_varname(ctx, arg->regtype, regtype_str, sizeof(regtype_str));
+            if(offset == 0)
+                rel_offset[0] = '\0';
             else
-            {
-                const int arrayidx = arg->relative_array->index;
-                const int offset = arg->regnum - arrayidx;
-                assert(offset >= 0);
-                if (arg->relative_array->constant)
-                {
-                    const int arraysize = arg->relative_array->count;
-                    regtype_str = get_GLSL_const_array_varname_in_buf(ctx,
-                                    arrayidx, arraysize, (char *) alloca(64), 64);
-                    if (offset != 0)
-                        snprintf(rel_offset, sizeof (rel_offset), "%d + ", offset);
-                }
-                else
-                {
-                    regtype_str = get_GLSL_uniform_array_varname(ctx, arg->regtype,
-                                                        (char *) alloca(64), 64);
-                    if (offset == 0)
-                    {
-                        snprintf(rel_offset, sizeof (rel_offset),
-                                 "ARRAYBASE_%d + ", arrayidx);
-                    }
-                    else
-                    {
-                        snprintf(rel_offset, sizeof (rel_offset),
-                                 "(ARRAYBASE_%d + %d) + ", arrayidx, offset);
-                    }
-                }
-            }
+                snprintf(rel_offset, sizeof(rel_offset), "%d + ", offset);
         }
 
         rel_lbracket = "[";
-
-        rel_regtype_str = get_GLSL_varname_in_buf(ctx, arg->relative_regtype,
-                                                  arg->relative_regnum,
-                                                  (char *) alloca(64), 64);
+        get_GLSL_varname_in_buf(ctx, arg->relative_regtype, arg->relative_regnum,
+                                rel_regtype_str, sizeof(rel_regtype_str));
         rel_swizzle[0] = '.';
         rel_swizzle[1] = swizzle_channels[arg->relative_component];
         rel_swizzle[2] = '\0';
@@ -1110,12 +1030,6 @@ static const char *make_GLSL_srcarg_string(Context *ctx, const size_t idx,
     char swiz_str[6] = { '\0' };
     if (!isscalar(ctx, ctx->shader_type, arg->regtype, arg->regnum))
         make_GLSL_swizzle_string(swiz_str, arg->swizzle, writemask);
-
-    if (regtype_str == NULL)
-    {
-        fail(ctx, "Unknown source register type.");
-        return buf;
-    }
 
     snprintf(buf, buflen, "%s%s%s%s%s%s%s%s%s",
              premod_str, regtype_str, rel_lbracket, rel_offset,
@@ -1271,10 +1185,10 @@ static void output_GLSL_uniform_array(Context *ctx, const RegisterType regtype,
             switch (regtype)
             {
                 case REG_TYPE_CONST:
-                    pre = "layout(std140) uniform ps_vec4f { ";
+                    pre = "layout(std140) uniform ps_vec4 { ";
                     post = " };"; break;
                 case REG_TYPE_CONSTINT:
-                    pre = "layout(std140) uniform ps_vec4i { ";
+                    pre = "layout(std140) uniform ps_ivec4 { ";
                     post = " };"; break;
                 case REG_TYPE_CONSTBOOL:
                     pre = "layout(std140) uniform ps_bool { ";
@@ -1287,10 +1201,10 @@ static void output_GLSL_uniform_array(Context *ctx, const RegisterType regtype,
             switch (regtype)
             {
                 case REG_TYPE_CONST:
-                    pre = "layout(std140) uniform vs_vec4f { ";
+                    pre = "layout(std140) uniform vs_vec4 { ";
                     post = " };"; break;
                 case REG_TYPE_CONSTINT:
-                    pre = "layout(std140) uniform vs_vec4i { ";
+                    pre = "layout(std140) uniform vs_ivec4 { ";
                     post = " };"; break;
                 case REG_TYPE_CONSTBOOL:
                     pre = "layout(std140) uniform vs_bool { ";
@@ -1371,105 +1285,16 @@ static void emit_GLSL_global(Context *ctx, RegisterType regtype, int regnum)
     pop_output(ctx);
 } // emit_GLSL_global
 
-static void emit_GLSL_array(Context *ctx, VariableList *var)
-{
-    // All uniforms (except constant arrays, which only get pushed once at
-    //  compile time) are now packed into a single array, so we can batch
-    //  the uniform transfers. So this is doesn't actually define an array
-    //  here; the one, big array is emitted during finalization instead.
-    // However, we need to #define the offset into the one, big array here,
-    //  and let dereferences use that #define.
-    const int base = var->index;
-    const int glslbase = ctx->uniform_float4_count;
-    push_output(ctx, &ctx->globals);
-    output_line(ctx, "#define ARRAYBASE_%d %d", base, glslbase);
-    pop_output(ctx);
-    var->emit_position = glslbase;
-} // emit_GLSL_array
-
-static void emit_GLSL_const_array(Context *ctx, const ConstantsList *clist,
-                                  int base, int size)
-{
-    char varname[64];
-    get_GLSL_const_array_varname_in_buf(ctx, base, size, varname, sizeof(varname));
-
-    // !!! FIXME: fails on Nvidia's and Apple's GL, even with #version 120.
-    // !!! FIXME:  (the 1.20 spec says it should work, though, I think...)
-    if(0)
-    {
-        // GLSL 1.20 can do constant arrays.
-        push_output(ctx, &ctx->globals);
-        output_line(ctx, "const vec4 %s[%d] = vec4[%d](", varname, size, size);
-        ctx->indent++;
-
-        int i;
-        for (i = 0; i < size; i++)
-        {
-            while (clist->constant.type != MOJOSHADER_UNIFORM_FLOAT)
-                clist = clist->next;
-            assert(clist->constant.index == (base + i));
-
-            char val0[32];
-            char val1[32];
-            char val2[32];
-            char val3[32];
-            floatstr(ctx, val0, sizeof (val0), clist->constant.value.f[0], 1);
-            floatstr(ctx, val1, sizeof (val1), clist->constant.value.f[1], 1);
-            floatstr(ctx, val2, sizeof (val2), clist->constant.value.f[2], 1);
-            floatstr(ctx, val3, sizeof (val3), clist->constant.value.f[3], 1);
-
-            output_line(ctx, "vec4(%s, %s, %s, %s)%s", val0, val1, val2, val3,
-                        (i < (size-1)) ? "," : "");
-
-            clist = clist->next;
-        }
-
-        ctx->indent--;
-        output_line(ctx, ");");
-        pop_output(ctx);
-    }
-    else
-    {
-        // stock GLSL 1.0 can't do constant arrays, so make a uniform array
-        //  and have the OpenGL glue assign it at link time. Lame!
-        push_output(ctx, &ctx->globals);
-        output_line(ctx, "uniform vec4 %s[%d];", varname, size);
-        pop_output(ctx);
-    }
-}
-
-static void emit_GLSL_uniform(Context *ctx, RegisterType regtype, int regnum,
-                              const VariableList *var)
+static void emit_GLSL_uniform(Context *ctx, RegisterType regtype, int regnum)
 {
     char varname[64];
     char name[64];
-    int index = 0;
 
     get_GLSL_varname_in_buf(ctx, regtype, regnum, varname, sizeof (varname));
 
     push_output(ctx, &ctx->globals);
-    if (var == NULL)
-    {
-        get_GLSL_uniform_array_varname(ctx, regtype, name, sizeof (name));
-        index = regnum;
-    }
-    else
-    {
-        const int arraybase = var->index;
-        if(var->constant)
-        {
-            get_GLSL_const_array_varname_in_buf(ctx, arraybase, var->count,
-                                                name, sizeof (name));
-            index = (regnum - arraybase);
-        }
-        else
-        {
-            assert(var->emit_position != -1);
-            get_GLSL_uniform_array_varname(ctx, regtype, name, sizeof (name));
-            index = (regnum - arraybase) + var->emit_position;
-        }
-    }
-    output_line(ctx, "#define %s %s[%d]", varname, name, index);
+    get_GLSL_uniform_array_varname(ctx, regtype, name, sizeof(name));
+    output_line(ctx, "#define %s %s[%d]", varname, name, regnum);
     pop_output(ctx);
 }
 
@@ -2974,14 +2799,11 @@ static void emit_GLSL_RESERVED(Context *ctx)
     emit_##prof##_end, \
     emit_##prof##_phase, \
     emit_##prof##_global, \
-    emit_##prof##_array, \
-    emit_##prof##_const_array, \
     emit_##prof##_uniform, \
     emit_##prof##_sampler, \
     emit_##prof##_attribute, \
     emit_##prof##_finalize, \
     get_##prof##_varname, \
-    get_##prof##_const_array_varname, \
 },
 
 static const Profile profiles[] =
@@ -3156,49 +2978,6 @@ static void determine_constants_arrays(Context *ctx)
     for(i = 0; i < ctx->constant_count; i++)
         array[i]->next = array[i+1];
     ctx->constants = array[0];
-
-    // now figure out the groupings of constants and add to ctx->variables...
-    int start = -1;
-    int prev = -1;
-    int count = 0;
-    const int hi = ctx->constant_count;
-    for (i = 0; i <= hi; i++)
-    {
-        if(array[i] && array[i]->constant.type != MOJOSHADER_UNIFORM_FLOAT)
-            continue;  // we only care about REG_TYPE_CONST for array groups.
-
-        if(start == -1)
-        {
-            prev = start = i;  // first REG_TYPE_CONST we've seen. Mark it!
-            continue;
-        }
-
-        // not a match (or last item in the array)...see if we had a
-        //  contiguous set before this point...
-        if(array[i] && array[i]->constant.index == (array[prev]->constant.index+1))
-            count++;
-        else
-        {
-            // multiple constants in the set?
-            if(count > 0)
-            {
-                VariableList *var = malloc(sizeof(VariableList));
-                var->type = MOJOSHADER_UNIFORM_FLOAT;
-                var->index = array[start]->constant.index;
-                var->count = (array[prev]->constant.index - var->index) + 1;
-                var->constant = array[start];
-                var->used = 0;
-                var->emit_position = -1;
-                var->next = ctx->variables;
-                ctx->variables = var;
-            }
-
-            // set this as new start of sequence.
-            start = i;
-        }
-
-        prev = i;
-    }
 }
 
 
@@ -3293,7 +3072,7 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
 
     if (info->relative)
     {
-        if ( (shader_is_pixel(ctx)) && (!shader_version_atleast(ctx, 3, 0)) )
+        if(shader_is_pixel(ctx) && !shader_version_atleast(ctx, 3, 0))
             fail(ctx, "Relative addressing in pixel shader version < 3.0");
 
         // Shader Model 1 doesn't have an extra token to specify the
@@ -3303,8 +3082,7 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
             info->relative_regnum = 0;
             info->relative_regtype = REG_TYPE_ADDRESS;
             info->relative_component = 0;
-        } // if
-
+        }
         else  // Shader Model 2 and later...
         {
             const uint32 reltoken = SWAP32(*(ctx->tokens));
@@ -3331,7 +3109,7 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
                 default:
                     fail(ctx, "invalid register for relative address");
                     break;
-            } // switch
+            }
 
             if (info->relative_regnum != 0)  // true for now.
                 fail(ctx, "invalid register for relative address");
@@ -3342,11 +3120,11 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
             info->relative_component = (relswiz & 0x3);
 
             retval++;
-        } // else
+        }
 
         if (info->regtype == REG_TYPE_INPUT)
         {
-            if ( (shader_is_pixel(ctx)) || (!shader_version_atleast(ctx, 3, 0)) )
+            if(shader_is_pixel(ctx) || !shader_version_atleast(ctx, 3, 0))
                 fail(ctx, "relative addressing of input registers not supported in this shader model");
             ctx->have_relative_input_registers = 1;
         } // if
@@ -3355,19 +3133,8 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
             // figure out what array we're in...
             determine_constants_arrays(ctx);
 
-            VariableList *var;
-            const int reltarget = info->regnum;
-            for (var = ctx->variables; var != NULL; var = var->next)
-            {
-                const int lo = var->index;
-                if(reltarget >= lo && reltarget < (lo + var->count))
-                    break;  // match!
-            }
-
-            if(var != NULL)
-                var->used = 1;
-            info->relative_array = var;
             set_used_register(ctx, info->relative_regtype, info->relative_regnum, 0);
+            ctx->have_relative_const_registers = 1;
         }
         else
         {
@@ -4908,16 +4675,6 @@ static void free_constants_list(ConstantsList *item)
     }
 }
 
-static void free_variable_list(VariableList *item)
-{
-    while (item != NULL)
-    {
-        VariableList *next = item->next;
-        free(item);
-        item = next;
-    }
-}
-
 static void free_sym_typeinfo(MOJOSHADER_symbolTypeInfo *typeinfo)
 {
     unsigned int i;
@@ -4969,7 +4726,6 @@ static void destroy_context(Context *ctx)
     free_reglist(ctx->uniforms.next);
     free_reglist(ctx->attributes.next);
     free_reglist(ctx->samplers.next);
-    free_variable_list(ctx->variables);
     errorlist_destroy(ctx->errors);
     free(ctx);
 }
@@ -4994,13 +4750,6 @@ static inline const char *alloc_varname(Context *ctx, const RegisterList *reg)
 
 
 // !!! FIXME: this code is sort of hard to follow:
-// !!! FIXME:  "var->used" only applies to arrays (at the moment, at least,
-// !!! FIXME:  but this might be buggy at a later time?), and this code
-// !!! FIXME:  relies on that.
-// !!! FIXME: "variables" means "things we found in a CTAB" but it's not
-// !!! FIXME:  all registers, etc.
-// !!! FIXME: "const_array" means an array for d3d "const" registers (c0, c1,
-// !!! FIXME:  etc), but not a constant array, although they _can_ be.
 // !!! FIXME: It's just a mess.  :/
 static MOJOSHADER_uniform *build_uniforms(Context *ctx)
 {
@@ -5010,34 +4759,11 @@ static MOJOSHADER_uniform *build_uniforms(Context *ctx)
     MOJOSHADER_uniform *wptr = retval;
     memset(wptr, 0, len);
 
-    VariableList *var;
     int written = 0;
-    for (var = ctx->variables; var != NULL; var = var->next)
-    {
-        if(!var->used)
-            continue;
-
-        const char *name = ctx->profile->get_const_array_varname(
-            ctx, var->index, var->count
-        );
-        if(name != NULL)
-        {
-            wptr->type = MOJOSHADER_UNIFORM_FLOAT;
-            wptr->index = var->index;
-            wptr->array_count = var->count;
-            wptr->constant = (var->constant != NULL) ? 1 : 0;
-            wptr->name = name;
-            wptr++;
-            written++;
-        }
-    }
-
     RegisterList *item = ctx->uniforms.next;
     MOJOSHADER_uniformType type = MOJOSHADER_UNIFORM_FLOAT;
     while (written < ctx->uniform_count)
     {
-        int skip = 0;
-
         // !!! FIXME: does this fail if written > ctx->uniform_count?
         if (item == NULL)
         {
@@ -5049,7 +4775,6 @@ static MOJOSHADER_uniform *build_uniforms(Context *ctx)
         switch (item->regtype)
         {
             case REG_TYPE_CONST:
-                skip = (item->array != NULL);
                 type = MOJOSHADER_UNIFORM_FLOAT;
                 break;
 
@@ -5066,15 +4791,12 @@ static MOJOSHADER_uniform *build_uniforms(Context *ctx)
                 break;
         }
 
-        if (!skip)
-        {
-            wptr->type = type;
-            wptr->index = index;
-            wptr->array_count = 0;
-            wptr->name = alloc_varname(ctx, item);
-            wptr++;
-            written++;
-        }
+        wptr->type = type;
+        wptr->index = index;
+        wptr->array_count = 0;
+        wptr->name = alloc_varname(ctx, item);
+        wptr++;
+        written++;
 
         item = item->next;
     }
@@ -5438,70 +5160,33 @@ static void process_definitions(Context *ctx)
         item = next;
     }
 
-    // okay, now deal with uniform/constant arrays...
-    VariableList *var;
-    for (var = ctx->variables; var != NULL; var = var->next)
-    {
-        if (var->used)
-        {
-            if (var->constant)
-            {
-                ctx->profile->const_array_emitter(ctx, var->constant,
-                                                  var->index, var->count);
-            }
-            else
-            {
-                ctx->profile->array_emitter(ctx, var);
-                ctx->uniform_float4_count += var->count;
-                ctx->uniform_count++;
-            }
-        }
-    }
-
     // ...and uniforms...
     for (item = ctx->uniforms.next; item != NULL; item = item->next)
     {
-        int arraysize = -1;
+        ctx->profile->uniform_emitter(ctx, item->regtype, item->regnum);
 
-        // check if this is a register contained in an array...
-        if (item->regtype == REG_TYPE_CONST)
+        ctx->uniform_count++;
+        switch (item->regtype)
         {
-            for (var = ctx->variables; var != NULL; var = var->next)
-            {
-                if (!var->used)
-                    continue;
-
-                const int regnum = item->regnum;
-                const int lo = var->index;
-                if(regnum >= lo && regnum < (lo + var->count))
-                {
-                    assert(!var->constant);
-                    item->array = var;  // used when building parseData.
-                    arraysize = var->count;
-                    break;
-                }
-            }
+            case REG_TYPE_CONST:
+                ctx->uniform_float4_count = Max(ctx->uniform_float4_count, item->regnum+1);
+                break;
+            case REG_TYPE_CONSTINT:
+                ctx->uniform_int4_count = Max(ctx->uniform_int4_count, item->regnum+1);
+                break;
+            case REG_TYPE_CONSTBOOL:
+                ctx->uniform_bool_count = Max(ctx->uniform_bool_count, item->regnum+1);
+                break;
+            default: break;
         }
-
-        ctx->profile->uniform_emitter(ctx, item->regtype, item->regnum, var);
-
-        if (arraysize < 0)  // not part of an array?
-        {
-            ctx->uniform_count++;
-            switch (item->regtype)
-            {
-                case REG_TYPE_CONST:
-                    ctx->uniform_float4_count = Max(ctx->uniform_float4_count, item->regnum+1);
-                    break;
-                case REG_TYPE_CONSTINT:
-                    ctx->uniform_int4_count = Max(ctx->uniform_int4_count, item->regnum+1);
-                    break;
-                case REG_TYPE_CONSTBOOL:
-                    ctx->uniform_bool_count = Max(ctx->uniform_bool_count, item->regnum+1);
-                    break;
-                default: break;
-            }
-        }
+    }
+    if(ctx->have_relative_const_registers && ctx->uniform_float4_count > 0)
+    {
+        // If using relative constant arrays, define them all.
+        if(shader_is_vertex(ctx))
+            ctx->uniform_float4_count = Max(ctx->uniform_float4_count, 256);
+        else if(shader_is_pixel(ctx))
+            ctx->uniform_float4_count = Max(ctx->uniform_float4_count, 224);
     }
 
     // ...and samplers...

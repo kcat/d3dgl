@@ -57,7 +57,7 @@ void D3DGLPixelShader::compileShaderGL(const DWORD *data)
         WARN("Compile warning log:\n----\n%s\n----\n", log.data());
     }
 
-    GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "ps_vec4f");
+    GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "ps_vec4");
     if(v4f_idx != GL_INVALID_INDEX)
         glUniformBlockBinding(mProgram, v4f_idx, PSF_BINDING_IDX);
 

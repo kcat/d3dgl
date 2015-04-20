@@ -57,7 +57,7 @@ void D3DGLVertexShader::compileShaderGL(const DWORD *data)
         WARN("Compile warning log:\n----\n%s\n----\n", log.data());
     }
 
-    GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "vs_vec4f");
+    GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "vs_vec4");
     if(v4f_idx != GL_INVALID_INDEX)
         glUniformBlockBinding(mProgram, v4f_idx, VSF_BINDING_IDX);
     GLuint pos_fixup_idx = glGetUniformBlockIndex(mProgram, "pos_fixup");
