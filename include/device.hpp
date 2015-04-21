@@ -8,6 +8,7 @@
 
 #include "d3dgl.hpp"
 #include "commandqueue.hpp"
+#include "condwait.hpp"
 
 
 class D3DGLSwapChain;
@@ -135,8 +136,7 @@ private:
 
     D3DGLBufferObject *mPrimitiveUserData;
 
-    CRITICAL_SECTION mSwapCS;
-    CONDITION_VARIABLE mSwapCV;
+    ConditionWaiter mSwapWaiter;
     UINT mDepthBits;
 
     // Sends buffer values to update proj_fixup_uniform_buffer. Caller is
@@ -180,12 +180,7 @@ public:
     void blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect,
                            GLenum dst_target, GLuint dst_binding, GLint dst_level, const RECT &dst_rect,
                            GLenum filter);
-    void signalSwapGL()
-    {
-        EnterCriticalSection(&mSwapCS);
-        LeaveCriticalSection(&mSwapCS);
-        WakeAllConditionVariable(&mSwapCV);
-    }
+    void signalSwapGL() { mSwapWaiter.signal(); }
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;
