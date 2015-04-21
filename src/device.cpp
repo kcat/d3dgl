@@ -1659,13 +1659,13 @@ HRESULT D3DGLDevice::drawVtxDecl(GLenum mode, INT startvtx, UINT minvtx, UINT st
         return D3DERR_INVALIDCALL;
     }
 
-    GLStreamData streams[16];
+    std::array<GLStreamData,16> streams;
     GLuint cur = 0;
 
     D3DGLVertexShader *vshader = mVertexShader;
     for(const D3DGLVERTEXELEMENT &elem : vtxdecl->getVtxElements())
     {
-        if(cur >= 16)
+        if(cur >= streams.size())
         {
             ERR("Too many vertex elements!\n");
             mQueue.unlock();
@@ -1737,9 +1737,9 @@ HRESULT D3DGLDevice::drawVtxDecl(GLenum mode, INT startvtx, UINT minvtx, UINT st
     }
 
     if(vshader)
-        mQueue.doSend<SetVtxDataCmd<UseShaders>>(this, streams, cur);
+        mQueue.doSend<SetVtxDataCmd<UseShaders>>(this, streams.data(), cur);
     else
-        mQueue.doSend<SetVtxDataCmd<UseFFP>>(this, streams, cur);
+        mQueue.doSend<SetVtxDataCmd<UseFFP>>(this, streams.data(), cur);
 
     if(!use_indices)
         mQueue.sendAndUnlock<DrawGLArraysCmd>(this, mode, count, 1/*num_instances*/);
