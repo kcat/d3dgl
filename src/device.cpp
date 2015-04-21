@@ -964,7 +964,7 @@ void D3DGLDevice::setVertexAttribArrayGL(UINT attribs)
             else
             {
                 glDisableVertexAttribArray(i);
-                glVertexAttrib4f(i, 0.0f, 0.0f, 0.0f, 0.0f);
+                glVertexAttrib4f(i, 0.0f, 0.0f, 0.0f, 1.0f);
             }
         }
     }
