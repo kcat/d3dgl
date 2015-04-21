@@ -17,8 +17,11 @@ void D3DGLSwapChain::swapBuffersGL(size_t backbuffer)
 
     if(!SwapBuffers(mDevCtx))
         ERR("Failed to swap buffers, error: 0x%lx\n", GetLastError());
+
+    ConditionWaiter &waiter = mParent->getSwapWaiter();
+    waiter.prepareSignal();
     --mPendingSwaps;
-    mParent->signalSwapGL();
+    waiter.sendSignal();
 }
 class SwapchainSwapBuffers : public Command {
     D3DGLSwapChain *mTarget;

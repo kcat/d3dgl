@@ -164,6 +164,7 @@ public:
 
     const D3DAdapter &getAdapter() const { return mAdapter; }
     CommandQueue &getQueue() { return mQueue; }
+    ConditionWaiter &getSwapWaiter() { return mSwapWaiter; }
 
     void initGL(HDC dc, HGLRC glcontext);
     void deinitGL();
@@ -180,7 +181,6 @@ public:
     void blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect,
                            GLenum dst_target, GLuint dst_binding, GLint dst_level, const RECT &dst_rect,
                            GLenum filter);
-    void signalSwapGL() { mSwapWaiter.signal(); }
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;

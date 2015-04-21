@@ -8,6 +8,10 @@ class ConditionWaiter {
     CRITICAL_SECTION mCritSect;
     CONDITION_VARIABLE mCondVar;
 
+    // Non-copyable
+    ConditionWaiter(const ConditionWaiter&) = delete;
+    ConditionWaiter& operator=(const ConditionWaiter&) = delete;
+
 public:
     ConditionWaiter()
     {
@@ -17,16 +21,16 @@ public:
     ~ConditionWaiter()
     { DeleteCriticalSection(&mCritSect); }
 
-    void signal()
-    {
-        EnterCriticalSection(&mCritSect);
-        LeaveCriticalSection(&mCritSect);
-        WakeAllConditionVariable(&mCondVar);
-    }
-
     void beginWait() { EnterCriticalSection(&mCritSect); }
     void endWait() { LeaveCriticalSection(&mCritSect); }
     void wait(DWORD time=INFINITE) { SleepConditionVariableCS(&mCondVar, &mCritSect, time); }
+
+    void prepareSignal() { EnterCriticalSection(&mCritSect); }
+    void sendSignal()
+    {
+        LeaveCriticalSection(&mCritSect);
+        WakeAllConditionVariable(&mCondVar);
+    }
 };
 
 #endif /* CONDWAIT_HPP */
