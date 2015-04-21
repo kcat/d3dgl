@@ -90,27 +90,19 @@ typedef struct Context {
     int instruction_count;
     uint32 instruction_controls;
     uint32 previous_opcode;
-    int coissue;
     int loops;
     int reps;
     int max_reps;
     int cmps;
-    int scratch_registers;
-    int max_scratch_registers;
-    int branch_labels_stack_index;
-    int branch_labels_stack[32];
-    int assigned_branch_labels;
-    int assigned_vertex_attributes;
-    int last_address_reg_component;
     RegisterList used_registers;
     RegisterList defined_registers;
     ErrorList *errors;
     int constant_count;
     ConstantsList *constants;
-    int uniform_count;
     int uniform_float4_count;
     int uniform_int4_count;
     int uniform_bool_count;
+    int uniform_count;
     RegisterList uniforms;
     int attribute_count;
     RegisterList attributes;
@@ -128,7 +120,6 @@ typedef struct Context {
     int glsl_generated_texldd_setup;
     int glsl_generated_texm3x3spec_helper;
     int glsl_wrote_texregs;
-    int have_preshader;
     int reset_texmpad;
     int texm3x2pad_dst0;
     int texm3x2pad_src0;
@@ -2626,7 +2617,7 @@ static void emit_GLSL_CND(Context *ctx)
 static void emit_GLSL_DEF(Context *ctx)
 {
     const float *val = (const float *) ctx->dwords; // !!! FIXME: could be int?
-    char varname[64]; get_GLSL_destarg_varname(ctx, varname, sizeof (varname));
+    char varname[64]; get_GLSL_destarg_varname(ctx, varname, sizeof(varname));
     char val0[32]; floatstr(ctx, val0, sizeof (val0), val[0], 1);
     char val1[32]; floatstr(ctx, val1, sizeof (val1), val[1], 1);
     char val2[32]; floatstr(ctx, val2, sizeof (val2), val[2], 1);
@@ -2657,16 +2648,11 @@ static void emit_GLSL_TEXM3X3(Context *ctx)
     char code[512];
 
     // !!! FIXME: this code counts on the register not having swizzles, etc.
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst0,
-                            src0, sizeof (src0));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src0,
-                            src1, sizeof (src1));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst1,
-                            src2, sizeof (src2));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src1,
-                            src3, sizeof (src3));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum,
-                            src4, sizeof (src4));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst0, src0, sizeof(src0));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src0, src1, sizeof(src1));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst1, src2, sizeof(src2));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src1, src3, sizeof(src3));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum, src4, sizeof(src4));
     get_GLSL_destarg_varname(ctx, dst, sizeof (dst));
 
     make_GLSL_destarg_assign(ctx, code, sizeof (code),
@@ -4384,7 +4370,6 @@ static int parse_instruction_token(Context *ctx)
         return insttoks + 1;  // pray that you resync later.
     } // if
 
-    ctx->coissue = coissue;
     if (coissue)
     {
         if (!shader_is_pixel(ctx))
@@ -4435,7 +4420,6 @@ static int parse_instruction_token(Context *ctx)
     } // if
 
     ctx->previous_opcode = opcode;
-    ctx->scratch_registers = 0;  // reset after every instruction.
 
     if (!shader_version_atleast(ctx, 2, 0))
     {
@@ -4631,7 +4615,6 @@ static Context *build_context(const char *profile,
     ctx->swizzles_count = swizcount;
     ctx->samplermap = smap;
     ctx->samplermap_count = smapcount;
-    ctx->last_address_reg_component = -1;
     ctx->current_position = MOJOSHADER_POSITION_BEFORE;
     ctx->texm3x2pad_dst0 = -1;
     ctx->texm3x2pad_src0 = -1;
