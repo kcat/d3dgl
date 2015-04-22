@@ -18,6 +18,8 @@
 #define __MOJOSHADER_INTERNAL__ 1
 #include "mojoshader_internal.h"
 
+#include <math.h>
+
 typedef struct ConstantsList {
     MOJOSHADER_constant constant;
     struct ConstantsList *next;
@@ -299,37 +301,14 @@ static inline void output_blank_line(Context *ctx)
 { if(!isfail(ctx)) buffer_append(ctx->output, "\n", 1); }
 
 
-// !!! FIXME: this is sort of nasty.
-static void floatstr(Context *ctx, char *buf, size_t bufsize, float f,
-                     int leavedecimal)
+static void floatstr(char *buf, size_t bufsize, float f)
 {
-    const size_t len = snprintf(buf, bufsize, "%f", f);
-    if((len+2) >= bufsize)
-    {
-        fail(ctx, "BUG: internal buffer is too small");
-        return;
-    }
+    int idx = 1;
+    if(copysignf(1.0f, f) < 0.0f)
+        ++idx;
 
-    char *end = buf + len;
-    char *ptr = strchr(buf, '.');
-    if (ptr == NULL)
-    {
-        if(leavedecimal)
-            strcat(buf, ".0");
-        return;
-    }
-
-    while(--end != ptr)
-    {
-        if(*end != '0')
-        {
-            end++;
-            break;
-        }
-    }
-    if(leavedecimal && end == ptr)
-        end += 2;
-    *end = '\0';
+    snprintf(buf, bufsize, "%.8e", f);
+    if(isfinite(f)) buf[idx] = '.';
 }
 
 static inline TextureType cvtMojoToD3DSamplerType(const MOJOSHADER_samplerType type)
@@ -2616,12 +2595,12 @@ static void emit_GLSL_CND(Context *ctx)
 
 static void emit_GLSL_DEF(Context *ctx)
 {
-    const float *val = (const float *) ctx->dwords; // !!! FIXME: could be int?
+    const float *val = (const float*)ctx->dwords; // !!! FIXME: could be int?
     char varname[64]; get_GLSL_destarg_varname(ctx, varname, sizeof(varname));
-    char val0[32]; floatstr(ctx, val0, sizeof (val0), val[0], 1);
-    char val1[32]; floatstr(ctx, val1, sizeof (val1), val[1], 1);
-    char val2[32]; floatstr(ctx, val2, sizeof (val2), val[2], 1);
-    char val3[32]; floatstr(ctx, val3, sizeof (val3), val[3], 1);
+    char val0[32]; floatstr(val0, sizeof(val0), val[0]);
+    char val1[32]; floatstr(val1, sizeof(val1), val[1]);
+    char val2[32]; floatstr(val2, sizeof(val2), val[2]);
+    char val3[32]; floatstr(val3, sizeof(val3), val[3]);
 
     push_output(ctx, &ctx->globals);
     output_line(ctx, "const vec4 %s = vec4(%s, %s, %s, %s);",
