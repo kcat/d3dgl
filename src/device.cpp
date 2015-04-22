@@ -658,7 +658,13 @@ public:
 
     virtual ULONG execute()
     {
-        glPolygonOffset(mScale, mBias);
+        if(mScale == 0.0f && mBias == 0.0f)
+            glDisable(GL_POLYGON_OFFSET_FILL);
+        else
+        {
+            glEnable(GL_POLYGON_OFFSET_FILL);
+            glPolygonOffset(mScale, mBias);
+        }
         return sizeof(*this);
     }
 };
@@ -1449,8 +1455,6 @@ void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
         mGLState.current_framebuffer[0] = mGLState.main_framebuffer;
         mGLState.current_framebuffer[1] = mGLState.main_framebuffer;
     }
-
-    glEnable(GL_POLYGON_OFFSET_FILL);
 
     glFrontFace(GL_CCW);
     checkGLError();
