@@ -2799,17 +2799,17 @@ static int parse_destination_token(Context *ctx, DestArgInfo *info)
         return 0;
     } // if
 
-    const uint32 token = SWAP32(*(ctx->tokens));
-    const int reserved1 = (int) ((token >> 14) & 0x3); // bits 14 through 15
-    const int reserved2 = (int) ((token >> 31) & 0x1); // bit 31
+    const uint32 token = *(ctx->tokens);
+    const int reserved1 = (int)((token>>14) & 0x3); // bits 14 through 15
+    const int reserved2 = (int)((token>>31) & 0x1); // bit 31
 
     info->token = ctx->tokens;
-    info->regnum = (int) (token & 0x7ff);  // bits 0 through 10
-    info->relative = (int) ((token >> 13) & 0x1); // bit 13
-    info->orig_writemask = (int) ((token >> 16) & 0xF); // bits 16 through 19
-    info->result_mod = (int) ((token >> 20) & 0xF); // bits 20 through 23
-    info->result_shift = (int) ((token >> 24) & 0xF); // bits 24 through 27      abc
-    info->regtype = (RegisterType) (((token >> 28) & 0x7) | ((token >> 8) & 0x18));  // bits 28-30, 11-12
+    info->regnum = (int)(token & 0x7ff);  // bits 0 through 10
+    info->relative = (int)((token>>13) & 0x1); // bit 13
+    info->orig_writemask = (int)((token>>16) & 0xF); // bits 16 through 19
+    info->result_mod = (int)((token>>20) & 0xF); // bits 20 through 23
+    info->result_shift = (int)((token>>24) & 0xF); // bits 24 through 27      abc
+    info->regtype = (RegisterType)(((token>>28) & 0x7) | ((token>>8) & 0x18));  // bits 28-30, 11-12
 
     int writemask;
     if (isscalar(ctx, ctx->shader_type, info->regtype, info->regnum))
@@ -2985,16 +2985,16 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
         return 0;
     } // if
 
-    const uint32 token = SWAP32(*(ctx->tokens));
-    const int reserved1 = (int) ((token >> 14) & 0x3); // bits 14 through 15
-    const int reserved2 = (int) ((token >> 31) & 0x1); // bit 31
+    const uint32 token = *(ctx->tokens);
+    const int reserved1 = (int)((token>>14) & 0x3); // bits 14 through 15
+    const int reserved2 = (int)((token>>31) & 0x1); // bit 31
 
     info->token = ctx->tokens;
-    info->regnum = (int) (token & 0x7ff);  // bits 0 through 10
-    info->relative = (int) ((token >> 13) & 0x1); // bit 13
-    const int swizzle = (int) ((token >> 16) & 0xFF); // bits 16 through 23
-    info->src_mod = (SourceMod) ((token >> 24) & 0xF); // bits 24 through 27
-    info->regtype = (RegisterType) (((token >> 28) & 0x7) | ((token >> 8) & 0x18));  // bits 28-30, 11-12
+    info->regnum = (int)(token & 0x7ff);  // bits 0 through 10
+    info->relative = (int)((token>>13) & 0x1); // bit 13
+    const int swizzle = (int)((token>>16) & 0xFF); // bits 16 through 23
+    info->src_mod = (SourceMod)((token>>24) & 0xF); // bits 24 through 27
+    info->regtype = (RegisterType)(((token>>28) & 0x7) | ((token>>8) & 0x18));  // bits 28-30, 11-12
 
     // all the REG_TYPE_CONSTx types are the same register type, it's just
     //  split up so its regnum can be > 2047 in the bytecode. Clean it up.
@@ -3050,17 +3050,17 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
         }
         else  // Shader Model 2 and later...
         {
-            const uint32 reltoken = SWAP32(*(ctx->tokens));
+            const uint32 reltoken = *(ctx->tokens);
             // swallow token for now, for multiple calls in a row.
             adjust_token_position(ctx, 1);
 
-            const int relswiz = (int) ((reltoken >> 16) & 0xFF);
+            const int relswiz = (int)((reltoken>>16) & 0xFF);
             info->relative_regnum = (int) (reltoken & 0x7ff);
             info->relative_regtype = (RegisterType)
-                                        (((reltoken >> 28) & 0x7) |
-                                        ((reltoken >> 8) & 0x18));
+                                        (((reltoken>>28) & 0x7) |
+                                        ((reltoken>>8) & 0x18));
 
-            if (((reltoken >> 31) & 0x1) == 0)
+            if (((reltoken>>31) & 0x1) == 0)
                 fail(ctx, "bit #31 in relative address must be set");
 
             if ((reltoken & 0xF00E000) != 0)  // usused bits.
@@ -3199,10 +3199,10 @@ static int parse_args_DEF(Context *ctx)
     if (ctx->dest_arg.relative)  // I'm pretty sure this is illegal...?
         fail(ctx, "relative addressing in DEF");
 
-    ctx->dwords[0] = SWAP32(ctx->tokens[0]);
-    ctx->dwords[1] = SWAP32(ctx->tokens[1]);
-    ctx->dwords[2] = SWAP32(ctx->tokens[2]);
-    ctx->dwords[3] = SWAP32(ctx->tokens[3]);
+    ctx->dwords[0] = ctx->tokens[0];
+    ctx->dwords[1] = ctx->tokens[1];
+    ctx->dwords[2] = ctx->tokens[2];
+    ctx->dwords[3] = ctx->tokens[3];
 
     return 6;
 } // parse_args_DEF
@@ -3216,10 +3216,10 @@ static int parse_args_DEFI(Context *ctx)
     if (ctx->dest_arg.relative)  // I'm pretty sure this is illegal...?
         fail(ctx, "relative addressing in DEFI");
 
-    ctx->dwords[0] = SWAP32(ctx->tokens[0]);
-    ctx->dwords[1] = SWAP32(ctx->tokens[1]);
-    ctx->dwords[2] = SWAP32(ctx->tokens[2]);
-    ctx->dwords[3] = SWAP32(ctx->tokens[3]);
+    ctx->dwords[0] = ctx->tokens[0];
+    ctx->dwords[1] = ctx->tokens[1];
+    ctx->dwords[2] = ctx->tokens[2];
+    ctx->dwords[3] = ctx->tokens[3];
 
     return 6;
 } // parse_args_DEFI
@@ -3256,8 +3256,8 @@ static int valid_texture_type(const uint32 ttype)
 // !!! FIXME: this function is kind of a mess.
 static int parse_args_DCL(Context *ctx)
 {
-    const uint32 token = SWAP32(*(ctx->tokens));
-    const int reserved1 = (int) ((token >> 31) & 0x1); // bit 31
+    const uint32 token = *(ctx->tokens);
+    const int reserved1 = (int) ((token>>31) & 0x1); // bit 31
     uint32 reserved_mask = 0x00000000;
 
     if (reserved1 != 0x1)
@@ -4327,10 +4327,10 @@ static int parse_instruction_token(Context *ctx)
     const int start_position = ctx->current_position;
     const uint32 *start_tokens = ctx->tokens;
     const uint32 start_tokencount = ctx->tokencount;
-    const uint32 token = SWAP32(*(ctx->tokens));
+    const uint32 token = *(ctx->tokens);
     const uint32 opcode = (token & 0xFFFF);
-    const uint32 controls = ((token >> 16) & 0xFF);
-    const uint32 insttoks = ((token >> 24) & 0x0F);
+    const uint32 controls = ((token>>16) & 0xFF);
+    const uint32 insttoks = ((token>>24) & 0x0F);
     const int coissue = (token & 0x40000000) ? 1 : 0;
     const int predicated = (token & 0x10000000) ? 1 : 0;
 
@@ -4428,9 +4428,9 @@ static int parse_version_token(Context *ctx, const char *profilestr)
         return 0;
     } // if
 
-    const uint32 token = SWAP32(*(ctx->tokens));
-    const uint32 shadertype = ((token >> 16) & 0xFFFF);
-    const uint8 major = (uint8) ((token >> 8) & 0xFF);
+    const uint32 token = *(ctx->tokens);
+    const uint32 shadertype = ((token>>16) & 0xFFFF);
+    const uint8 major = (uint8) ((token>>8) & 0xFF);
     const uint8 minor = (uint8) (token & 0xFF);
 
     ctx->version_token = token;
@@ -4468,9 +4468,8 @@ static int parse_version_token(Context *ctx, const char *profilestr)
 } // parse_version_token
 
 
-static int is_comment_token(Context *ctx, const uint32 tok, uint32 *tokcount)
+static int is_comment_token(Context *ctx, const uint32 token, uint32 *tokcount)
 {
-    const uint32 token = SWAP32(tok);
     if((token&0xFFFF) == 0xFFFE)  // actually a comment token?
     {
         if ((token&0x80000000) != 0)
@@ -4494,15 +4493,15 @@ static int parse_comment_token(Context *ctx)
 
 static int parse_end_token(Context *ctx)
 {
-    if (SWAP32(*(ctx->tokens)) != 0x0000FFFF)   // end token always 0x0000FFFF.
+    if(*(ctx->tokens) != 0x0000FFFF)   // end token always 0x0000FFFF.
         return 0;  // not us, eat no tokens.
 
-    if (!ctx->know_shader_size)  // this is the end of stream!
+    if(!ctx->know_shader_size)  // this is the end of stream!
         ctx->tokencount = 1;
-    else if (ctx->tokencount != 1)  // we _must_ be last. If not: fail.
+    else if(ctx->tokencount != 1)  // we _must_ be last. If not: fail.
         fail(ctx, "end token before end of stream");
 
-    if (!isfail(ctx))
+    if(!isfail(ctx))
         ctx->profile->end_emitter(ctx);
 
     return 1;
@@ -4512,13 +4511,13 @@ static int parse_end_token(Context *ctx)
 static int parse_phase_token(Context *ctx)
 {
     // !!! FIXME: needs state; allow only one phase token per shader, I think?
-    if (SWAP32(*(ctx->tokens)) != 0x0000FFFD) // phase token always 0x0000FFFD.
+    if(*(ctx->tokens) != 0x0000FFFD) // phase token always 0x0000FFFD.
         return 0;  // not us, eat no tokens.
 
-    if ( (!shader_is_pixel(ctx)) || (!shader_version_exactly(ctx, 1, 4)) )
+    if(!shader_is_pixel(ctx) || !shader_version_exactly(ctx, 1, 4))
         fail(ctx, "phase token only available in 1.4 pixel shaders");
 
-    if (!isfail(ctx))
+    if(!isfail(ctx))
         ctx->profile->phase_emitter(ctx);
 
     return 1;

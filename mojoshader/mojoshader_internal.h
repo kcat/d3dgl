@@ -89,11 +89,6 @@ typedef uint64_t uint64;
 #define STATICARRAYLEN(x) ( (sizeof ((x))) / (sizeof ((x)[0])) )
 
 
-// Byteswap magic...
-#define SWAP16(x) (x)
-#define SWAP32(x) (x)
-#define SWAPDBL(x) (x)  // !!! FIXME
-
 static inline int Min(const int a, const int b)
 {
     return ((a < b) ? a : b);
@@ -103,49 +98,6 @@ static inline int Max(const int a, const int b)
 {
     return ((a > b) ? a : b);
 }
-
-
-// Hashtables...
-
-typedef struct HashTable HashTable;
-typedef uint32 (*HashTable_HashFn)(const void *key, void *data);
-typedef int (*HashTable_KeyMatchFn)(const void *a, const void *b, void *data);
-typedef void (*HashTable_NukeFn)(const void *key, const void *value, void *data);
-
-HashTable *hash_create(void *data, const HashTable_HashFn hashfn,
-                       const HashTable_KeyMatchFn keymatchfn,
-                       const HashTable_NukeFn nukefn,
-                       const int stackable,
-                       MOJOSHADER_malloc m, MOJOSHADER_free f, void *d);
-void hash_destroy(HashTable *table);
-int hash_insert(HashTable *table, const void *key, const void *value);
-int hash_remove(HashTable *table, const void *key);
-int hash_find(const HashTable *table, const void *key, const void **_value);
-int hash_iter(const HashTable *table, const void *key, const void **_value, void **iter);
-int hash_iter_keys(const HashTable *table, const void **_key, void **iter);
-
-uint32 hash_hash_string(const void *sym, void *unused);
-int hash_keymatch_string(const void *a, const void *b, void *unused);
-
-
-// String -> String map ...
-typedef HashTable StringMap;
-StringMap *stringmap_create(const int copy, MOJOSHADER_malloc m, MOJOSHADER_free f, void *d);
-void stringmap_destroy(StringMap *smap);
-int stringmap_insert(StringMap *smap, const char *key, const char *value);
-int stringmap_remove(StringMap *smap, const char *key);
-int stringmap_find(const StringMap *smap, const char *key, const char **_val);
-
-
-// String caching...
-
-typedef struct StringCache StringCache;
-StringCache *stringcache_create(MOJOSHADER_malloc m,MOJOSHADER_free f,void *d);
-const char *stringcache(StringCache *cache, const char *str);
-const char *stringcache_len(StringCache *cache, const char *str, const unsigned int len);
-const char *stringcache_fmt(StringCache *cache, const char *fmt, ...);
-int stringcache_iscached(StringCache *cache, const char *str);
-void stringcache_destroy(StringCache *cache);
 
 
 // Error lists...
@@ -176,19 +128,6 @@ void buffer_destroy(Buffer *buffer);
 ssize_t buffer_find(Buffer *buffer, const size_t start,
                     const void *data, const size_t len);
 
-
-// This is the ID for a D3DXSHADER_CONSTANTTABLE in the bytecode comments.
-#define CTAB_ID 0x42415443  // 0x42415443 == 'CTAB'
-#define CTAB_SIZE 28  // sizeof (D3DXSHADER_CONSTANTTABLE).
-#define CINFO_SIZE 20  // sizeof (D3DXSHADER_CONSTANTINFO).
-#define CTYPEINFO_SIZE 16  // sizeof (D3DXSHADER_TYPEINFO).
-#define CMEMBERINFO_SIZE 8  // sizeof (D3DXSHADER_STRUCTMEMBERINFO)
-
-// Preshader magic values...
-#define PRES_ID 0x53455250  // 0x53455250 == 'PRES'
-#define PRSI_ID 0x49535250  // 0x49535250 == 'PRSI'
-#define CLIT_ID 0x54494C43  // 0x54494C43 == 'CLIT'
-#define FXLC_ID 0x434C5846  // 0x434C5846 == 'FXLC'
 
 // we need to reference these by explicit value occasionally...
 #define OPCODE_RET 28
