@@ -16,7 +16,6 @@ class D3DGLPixelShader : public IDirect3DPixelShader9 {
 
     D3DGLDevice *mParent;
 
-    const MOJOSHADER_parseData *mShader;
     GLuint mProgram;
 
     std::vector<BYTE> mCode;
@@ -28,7 +27,7 @@ public:
     bool init(const DWORD *data);
 
     void deinitGL();
-    void compileShaderGL(const DWORD *data);
+    void compileShaderGL(const MOJOSHADER_parseData *shader);
 
     GLuint getProgram() const { return mProgram; }
 

@@ -9,26 +9,9 @@
 #include "private_iids.hpp"
 
 
-void D3DGLPixelShader::compileShaderGL(const DWORD *data)
+void D3DGLPixelShader::compileShaderGL(const MOJOSHADER_parseData *shader)
 {
-    TRACE("Parsing %s shader %lu.%lu using profile %s\n",
-          (((*data>>16)==0xfffe) ? "vertex" : ((*data>>16)==0xffff) ? "pixel" : "unknown"),
-          (*data>>8)&0xff, *data&0xff, MOJOSHADER_PROFILE_GLSL120);
-
-    mShader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL120,
-        reinterpret_cast<const unsigned char*>(data), 0, nullptr, 0, nullptr, 0
-    );
-    if(mShader->error_count > 0)
-    {
-        std::stringstream sstr;
-        for(int i = 0;i < mShader->error_count;++i)
-            sstr<< mShader->errors[i].error_position<<":"<<mShader->errors[i].error <<std::endl;
-        ERR("Failed to parse shader:\n----\n%s\n----\n", sstr.str().c_str());
-        return;
-    }
-
-    TRACE("Parsed shader:\n----\n%s\n----\n", mShader->output);
-    mProgram = glCreateShaderProgramv(GL_FRAGMENT_SHADER, 1, &mShader->output);
+    mProgram = glCreateShaderProgramv(GL_FRAGMENT_SHADER, 1, &shader->output);
     checkGLError();
 
     if(!mProgram)
@@ -61,26 +44,27 @@ void D3DGLPixelShader::compileShaderGL(const DWORD *data)
     if(v4f_idx != GL_INVALID_INDEX)
         glUniformBlockBinding(mProgram, v4f_idx, PSF_BINDING_IDX);
 
-    for(int i = 0;i < mShader->sampler_count;++i)
+    for(int i = 0;i < shader->sampler_count;++i)
     {
-        GLint loc = glGetUniformLocation(mProgram, mShader->samplers[i].name);
-        TRACE("Got sampler %s:%d at location %d\n", mShader->samplers[i].name, mShader->samplers[i].index, loc);
-        glProgramUniform1i(mProgram, loc, mShader->samplers[i].index);
+        GLint loc = glGetUniformLocation(mProgram, shader->samplers[i].name);
+        TRACE("Got sampler %s:%d at location %d\n", shader->samplers[i].name, shader->samplers[i].index, loc);
+        glProgramUniform1i(mProgram, loc, shader->samplers[i].index);
     }
 
     checkGLError();
 }
 class CompilePShaderCmd : public Command {
     D3DGLPixelShader *mTarget;
-    const DWORD *mData;
+    const MOJOSHADER_parseData *mShader;
 
 public:
-    CompilePShaderCmd(D3DGLPixelShader *target, const DWORD *data) : mTarget(target), mData(data)
+    CompilePShaderCmd(D3DGLPixelShader *target, const MOJOSHADER_parseData *shader)
+      : mTarget(target), mShader(shader)
     { }
 
     virtual ULONG execute()
     {
-        mTarget->compileShaderGL(mData);
+        mTarget->compileShaderGL(mShader);
         return sizeof(*this);
     }
 };
@@ -88,7 +72,6 @@ public:
 void D3DGLPixelShader::deinitGL()
 {
     glDeleteProgram(mProgram);
-    MOJOSHADER_freeParseData(mShader);
 }
 class DeinitPShaderCmd : public Command {
     D3DGLPixelShader *mTarget;
@@ -107,7 +90,6 @@ public:
 D3DGLPixelShader::D3DGLPixelShader(D3DGLDevice *parent)
   : mRefCount(0)
   , mParent(parent)
-  , mShader(nullptr)
   , mProgram(0)
 {
     mParent->AddRef();
@@ -121,7 +103,33 @@ D3DGLPixelShader::~D3DGLPixelShader()
 
 bool D3DGLPixelShader::init(const DWORD *data)
 {
-    mParent->getQueue().sendSync<CompilePShaderCmd>(this, data);
+    if(*data>>16 != 0xffff)
+    {
+        WARN("Shader is not a pixel shader (0x%04lx, expected 0xffff)\n", *data>>16);
+        return false;
+    }
+
+    TRACE("Parsing %s shader %lu.%lu using profile %s\n",
+          (((*data>>16)==0xfffe) ? "vertex" : ((*data>>16)==0xffff) ? "pixel" : "unknown"),
+          (*data>>8)&0xff, *data&0xff, MOJOSHADER_PROFILE_GLSL120);
+
+    const MOJOSHADER_parseData *shader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL120,
+        reinterpret_cast<const unsigned char*>(data), 0, nullptr, 0, nullptr, 0
+    );
+    if(shader->error_count > 0)
+    {
+        std::stringstream sstr;
+        for(int i = 0;i < shader->error_count;++i)
+            sstr<< shader->errors[i].error_position<<":"<<shader->errors[i].error <<std::endl;
+        ERR("Failed to parse shader:\n----\n%s\n----\n", sstr.str().c_str());
+        MOJOSHADER_freeParseData(shader);
+        return false;
+    }
+
+    TRACE("Parsed shader:\n----\n%s\n----\n", shader->output);
+
+    mParent->getQueue().sendSync<CompilePShaderCmd>(this, shader);
+    MOJOSHADER_freeParseData(shader);
 
     return true;
 }

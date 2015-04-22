@@ -9,26 +9,9 @@
 #include "private_iids.hpp"
 
 
-void D3DGLVertexShader::compileShaderGL(const DWORD *data)
+void D3DGLVertexShader::compileShaderGL(const MOJOSHADER_parseData *shader)
 {
-    TRACE("Parsing %s shader %lu.%lu using profile %s\n",
-          (((*data>>16)==0xfffe) ? "vertex" : ((*data>>16)==0xffff) ? "pixel" : "unknown"),
-          (*data>>8)&0xff, *data&0xff, MOJOSHADER_PROFILE_GLSL120);
-
-    mShader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL120,
-        reinterpret_cast<const unsigned char*>(data), 0, nullptr, 0, nullptr, 0
-    );
-    if(mShader->error_count > 0)
-    {
-        std::stringstream sstr;
-        for(int i = 0;i < mShader->error_count;++i)
-            sstr<< mShader->errors[i].error_position<<":"<<mShader->errors[i].error <<std::endl;
-        ERR("Failed to parse shader:\n----\n%s\n----\n", sstr.str().c_str());
-        return;
-    }
-
-    TRACE("Parsed shader:\n----\n%s\n----\n", mShader->output);
-    mProgram = glCreateShaderProgramv(GL_VERTEX_SHADER, 1, &mShader->output);
+    mProgram = glCreateShaderProgramv(GL_VERTEX_SHADER, 1, &shader->output);
     checkGLError();
 
     if(!mProgram)
@@ -64,33 +47,34 @@ void D3DGLVertexShader::compileShaderGL(const DWORD *data)
     if(pos_fixup_idx != GL_INVALID_INDEX)
         glUniformBlockBinding(mProgram, pos_fixup_idx, POSFIXUP_BINDING_IDX);
 
-    for(int i = 0;i < mShader->attribute_count;++i)
+    for(int i = 0;i < shader->attribute_count;++i)
     {
-        GLint loc = glGetAttribLocation(mProgram, mShader->attributes[i].name);
-        TRACE("Got attribute %s at location %d\n", mShader->attributes[i].name, loc);
-        mUsageMap[(mShader->attributes[i].usage<<8) | mShader->attributes[i].index] = loc;
+        GLint loc = glGetAttribLocation(mProgram, shader->attributes[i].name);
+        TRACE("Got attribute %s at location %d\n", shader->attributes[i].name, loc);
+        mUsageMap[(shader->attributes[i].usage<<8) | shader->attributes[i].index] = loc;
     }
 
-    for(int i = 0;i < mShader->sampler_count;++i)
+    for(int i = 0;i < shader->sampler_count;++i)
     {
-        GLint loc = glGetUniformLocation(mProgram, mShader->samplers[i].name);
-        TRACE("Got sampler %s:%d at location %d\n", mShader->samplers[i].name, mShader->samplers[i].index, loc);
-        glProgramUniform1i(mProgram, loc, mShader->samplers[i].index+MAX_FRAGMENT_SAMPLERS);
+        GLint loc = glGetUniformLocation(mProgram, shader->samplers[i].name);
+        TRACE("Got sampler %s:%d at location %d\n", shader->samplers[i].name, shader->samplers[i].index, loc);
+        glProgramUniform1i(mProgram, loc, shader->samplers[i].index+MAX_FRAGMENT_SAMPLERS);
     }
 
     checkGLError();
 }
 class CompileVShaderCmd : public Command {
     D3DGLVertexShader *mTarget;
-    const DWORD *mData;
+    const MOJOSHADER_parseData *mShader;
 
 public:
-    CompileVShaderCmd(D3DGLVertexShader *target, const DWORD *data) : mTarget(target), mData(data)
+    CompileVShaderCmd(D3DGLVertexShader *target, const MOJOSHADER_parseData *shader)
+      : mTarget(target), mShader(shader)
     { }
 
     virtual ULONG execute()
     {
-        mTarget->compileShaderGL(mData);
+        mTarget->compileShaderGL(mShader);
         return sizeof(*this);
     }
 };
@@ -98,7 +82,6 @@ public:
 void D3DGLVertexShader::deinitGL()
 {
     glDeleteProgram(mProgram);
-    MOJOSHADER_freeParseData(mShader);
 }
 class DeinitVShaderCmd : public Command {
     D3DGLVertexShader *mTarget;
@@ -117,7 +100,6 @@ public:
 D3DGLVertexShader::D3DGLVertexShader(D3DGLDevice *parent)
   : mRefCount(0)
   , mParent(parent)
-  , mShader(nullptr)
   , mProgram(0)
 {
     mParent->AddRef();
@@ -131,7 +113,33 @@ D3DGLVertexShader::~D3DGLVertexShader()
 
 bool D3DGLVertexShader::init(const DWORD *data)
 {
-    mParent->getQueue().sendSync<CompileVShaderCmd>(this, data);
+    if(*data>>16 != 0xfffe)
+    {
+        WARN("Shader is not a vertex shader (0x%04lx, expected 0xfffe)\n", *data>>16);
+        return false;
+    }
+
+    TRACE("Parsing %s shader %lu.%lu using profile %s\n",
+          (((*data>>16)==0xfffe) ? "vertex" : ((*data>>16)==0xffff) ? "pixel" : "unknown"),
+          (*data>>8)&0xff, *data&0xff, MOJOSHADER_PROFILE_GLSL120);
+
+    const MOJOSHADER_parseData *shader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL120,
+        reinterpret_cast<const unsigned char*>(data), 0, nullptr, 0, nullptr, 0
+    );
+    if(shader->error_count > 0)
+    {
+        std::stringstream sstr;
+        for(int i = 0;i < shader->error_count;++i)
+            sstr<< shader->errors[i].error_position<<":"<<shader->errors[i].error <<std::endl;
+        ERR("Failed to parse shader:\n----\n%s\n----\n", sstr.str().c_str());
+        MOJOSHADER_freeParseData(shader);
+        return false;
+    }
+
+    TRACE("Parsed shader:\n----\n%s\n----\n", shader->output);
+
+    mParent->getQueue().sendSync<CompileVShaderCmd>(this, shader);
+    MOJOSHADER_freeParseData(shader);
 
     return true;
 }
