@@ -389,6 +389,23 @@ GLenum GetGLDrawMode(D3DPRIMITIVETYPE type, UINT &count)
     return GL_POINTS;
 }
 
+GLenum GetGLIndexType(D3DFORMAT format, UINT &start)
+{
+    switch(format)
+    {
+        case D3DFMT_INDEX16:
+            start *= 2;
+            return GL_UNSIGNED_SHORT;
+        case D3DFMT_INDEX32:
+            start *= 4;
+            return GL_UNSIGNED_INT;
+        default:
+            break;
+    }
+    FIXME("Unhandled index data format: %s\n", d3dfmt_to_str(format));
+    return GL_UNSIGNED_BYTE;
+}
+
 #define D3DCOLOR_R(color) (((color)>>16)&0xff)
 #define D3DCOLOR_G(color) (((color)>> 8)&0xff)
 #define D3DCOLOR_B(color) (((color)    )&0xff)
@@ -1065,7 +1082,7 @@ public:
     }
 };
 
-void D3DGLDevice::setVtxDataGL(const D3DGLDevice::GLStreamData *streams, GLuint numstreams, bool ffp)
+void D3DGLDevice::setVtxDataGL(const GLStreamData *streams, GLuint numstreams, bool ffp)
 {
     GLuint binding = 0;
     if(!ffp)
@@ -1642,51 +1659,46 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
 }
 
 
-HRESULT D3DGLDevice::drawVtxDecl(GLenum mode, INT startvtx, UINT minvtx, UINT startidx, UINT count, bool use_indices, bool user_vtxdata)
+HRESULT D3DGLDevice::sendVtxData(INT startvtx, const StreamSource *sources, UINT num_sources)
 {
-    mQueue.lock();
-
     D3DGLVertexDeclaration *vtxdecl = mVertexDecl;
     if(!vtxdecl)
     {
         WARN("No vertex declaration set\n");
-        mQueue.unlock();
         return D3DERR_INVALIDCALL;
     }
 
+    D3DGLVertexShader *vshader = mVertexShader;
     std::array<GLStreamData,16> streams;
     GLuint cur = 0;
 
-    D3DGLVertexShader *vshader = mVertexShader;
     for(const D3DGLVERTEXELEMENT &elem : vtxdecl->getVtxElements())
     {
         if(cur >= streams.size())
         {
             ERR("Too many vertex elements!\n");
-            mQueue.unlock();
             return D3DERR_INVALIDCALL;
         }
 
-        if(user_vtxdata && elem.Stream != 0)
+        if(elem.Stream >= num_sources)
         {
-            ERR("Stream %u referenced with user vertex data\n", elem.Stream);
-            mQueue.unlock();
+            ERR("Invalid reference to stream %u (max: %u)\n", elem.Stream, num_sources);
             return D3DERR_INVALIDCALL;
         }
 
-        const StreamSource &stream = mStreams[elem.Stream];
-        D3DGLBufferObject *buffer = stream.mBuffer;
+        const StreamSource &source = sources[elem.Stream];
+        D3DGLBufferObject *buffer = source.mBuffer;
 
-        GLint offset = elem.Offset + stream.mOffset + stream.mStride*startvtx;
+        GLint offset = elem.Offset + source.mOffset + source.mStride*startvtx;
         streams[cur].mBufferId = buffer->getBufferId();
         streams[cur].mPointer = ((GLubyte*)0) + offset;
         streams[cur].mGLCount = elem.mGLCount;
         streams[cur].mGLType = elem.mGLType;
         streams[cur].mNormalize = elem.mNormalize;
-        streams[cur].mStride = stream.mStride;
+        streams[cur].mStride = source.mStride;
         streams[cur].mDivisor = 0;
-        if((stream.mFreq&D3DSTREAMSOURCE_INSTANCEDATA))
-            streams[cur].mDivisor = (stream.mFreq&0x3fffffff);
+        if((source.mFreq&D3DSTREAMSOURCE_INSTANCEDATA))
+            streams[cur].mDivisor = (source.mFreq&0x3fffffff);
 
         if(vshader)
         {
@@ -1735,42 +1747,6 @@ HRESULT D3DGLDevice::drawVtxDecl(GLenum mode, INT startvtx, UINT minvtx, UINT st
         mQueue.doSend<SetVtxDataCmd<UseShaders>>(this, streams.data(), cur);
     else
         mQueue.doSend<SetVtxDataCmd<UseFFP>>(this, streams.data(), cur);
-
-    if(!use_indices)
-        mQueue.sendAndUnlock<DrawGLArraysCmd>(this, mode, count, 1/*num_instances*/);
-    else
-    {
-        GLsizei num_instances = 1;
-        if((mStreams[0].mFreq&D3DSTREAMSOURCE_INDEXEDDATA))
-            num_instances = (mStreams[0].mFreq&0x3fffffff);
-
-        D3DGLBufferObject *idxbuffer = mIndexBuffer;
-        if(!idxbuffer)
-        {
-            WARN("No index buffer set\n");
-            mQueue.unlock();
-            return D3DERR_INVALIDCALL;
-        }
-        GLenum type = GL_NONE;
-        GLubyte *pointer = nullptr;
-        switch(idxbuffer->getFormat())
-        {
-            case D3DFMT_INDEX16:
-                type = GL_UNSIGNED_SHORT;
-                pointer += startidx*2;
-                break;
-            case D3DFMT_INDEX32:
-                type = GL_UNSIGNED_INT;
-                pointer += startidx*4;
-                break;
-            default:
-                mQueue.unlock();
-                ERR("Unexpected index data format, %s\n", d3dfmt_to_str(idxbuffer->getFormat()));
-                return D3DERR_INVALIDCALL;
-        }
-
-        mQueue.sendAndUnlock<DrawGLElementsCmd>(this, mode, count, type, pointer, num_instances, minvtx);
-    }
 
     return D3D_OK;
 }
@@ -3544,17 +3520,26 @@ float D3DGLDevice::GetNPatchMode()
     return 0.0f;
 }
 
-HRESULT D3DGLDevice::DrawPrimitive(D3DPRIMITIVETYPE type, UINT startVtx, UINT count)
+HRESULT D3DGLDevice::DrawPrimitive(D3DPRIMITIVETYPE type, UINT startvtx, UINT count)
 {
-    TRACE("iface %p, type 0x%x, startVtx %u, count %u\n", this, type, startVtx, count);
+    TRACE("iface %p, type 0x%x, startVtx %u, count %u\n", this, type, startvtx, count);
 
-    GLenum mode = GetGLDrawMode(type, count);
-    return drawVtxDecl(mode, startVtx, 0, 0, count, false, false);
+    mQueue.lock();
+    HRESULT hr = sendVtxData(startvtx, mStreams.data(), mStreams.size());
+    if(FAILED(hr))
+        mQueue.unlock();
+    else
+    {
+        GLenum mode = GetGLDrawMode(type, count);
+        mQueue.sendAndUnlock<DrawGLArraysCmd>(this, mode, count, 1/*num_instances*/);
+    }
+
+    return hr;
 }
 
-HRESULT D3DGLDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE type, INT startVtx, UINT minVtx, UINT numVtx, UINT startIdx, UINT count)
+HRESULT D3DGLDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE type, INT startvtx, UINT minvtx, UINT numvtx, UINT startidx, UINT count)
 {
-    TRACE("iface %p, type 0x%x, startVtx %d, minVtx %u, numVtx %u, startIdx %u, count %u\n", this, type, startVtx, minVtx, numVtx, startIdx, count);
+    TRACE("iface %p, type 0x%x, startvtx %d, minvtx %u, numvtx %u, startidx %u, count %u\n", this, type, startvtx, minvtx, numvtx, startidx, count);
 
     if(type == D3DPT_POINTLIST)
     {
@@ -3562,8 +3547,30 @@ HRESULT D3DGLDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE type, INT startVtx, U
         return D3DERR_INVALIDCALL;
     }
 
-    GLenum mode = GetGLDrawMode(type, count);
-    return drawVtxDecl(mode, startVtx, minVtx, startIdx, count, true, false);
+    mQueue.lock();
+    D3DGLBufferObject *idxbuffer = mIndexBuffer;
+    if(!idxbuffer)
+    {
+        WARN("No index buffer set\n");
+        mQueue.unlock();
+        return D3DERR_INVALIDCALL;
+    }
+
+    HRESULT hr = sendVtxData(startvtx, mStreams.data(), mStreams.size());
+    if(FAILED(hr))
+        mQueue.unlock();
+    else
+    {
+        GLsizei num_instances = 1;
+        if((mStreams[0].mFreq&D3DSTREAMSOURCE_INDEXEDDATA))
+            num_instances = (mStreams[0].mFreq&0x3fffffff);
+
+        GLenum mode = GetGLDrawMode(type, count);
+        GLenum type = GetGLIndexType(idxbuffer->getFormat(), startidx);
+        GLubyte *pointer = ((GLubyte*)nullptr) + startidx;
+        mQueue.sendAndUnlock<DrawGLElementsCmd>(this, mode, count, type, pointer, num_instances, minvtx);
+    }
+    return hr;
 }
 
 HRESULT D3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE type, UINT count, const void *vtxData, UINT vtxStride)
@@ -3590,7 +3597,12 @@ HRESULT D3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE type, UINT count, const vo
     mStreams[0].mOffset = 0;
     mStreams[0].mStride = vtxStride;
 
-    HRESULT hr = drawVtxDecl(mode, 0, 0, 0, count, false, true);
+    mQueue.lock();
+    HRESULT hr = sendVtxData(0, &mStreams[0], 1);
+    if(FAILED(hr))
+        mQueue.unlock();
+    else
+        mQueue.sendAndUnlock<DrawGLArraysCmd>(this, mode, count, 1/*num_instances*/);
 
     mStreams[0].mBuffer = nullptr;
     mStreams[0].mStride = 0;

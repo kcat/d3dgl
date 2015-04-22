@@ -153,8 +153,7 @@ private:
     void GLAPIENTRY debugProcGL(GLenum source, GLenum type, GLuint id, GLenum severity,
                                 GLsizei length, const GLchar *message) const;
 
-    HRESULT drawVtxDecl(GLenum mode, INT startvtx, UINT minvtx, UINT startidx, UINT count, bool use_indices,
-                        bool user_vtxdata);
+    HRESULT sendVtxData(INT startvtx, const StreamSource *srcstreams, UINT num_sources);
 
 public:
     D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND window, DWORD flags);
