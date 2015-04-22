@@ -9,8 +9,6 @@ void D3DGLBufferObject::initGL()
 {
     UINT data_len = (mLength+15) & ~15;
 
-    mSysMem.assign(data_len, 0);
-
     GLenum usage = (mUsage&D3DUSAGE_DYNAMIC) ? GL_DYNAMIC_DRAW : GL_STREAM_DRAW;
 
     glGenBuffers(1, &mBufferId);
@@ -131,6 +129,9 @@ bool D3DGLBufferObject::init_common(UINT length, DWORD usage, D3DPOOL pool)
         WARN("Managed dynamic buffers aren't allowed\n");
         return false;
     }
+
+    UINT data_len = (mLength+15) & ~15;
+    mSysMem.assign(data_len, 0);
 
     mUpdateInProgress = 1;
     mParent->getQueue().sendSync<InitBufferObjectCmd>(this);
