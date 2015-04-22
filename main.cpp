@@ -21,7 +21,7 @@
 
 eLogLevel LogLevel = FIXME_;
 FILE *LogFile = stderr;
-bool DebugEnable = false;
+eLogLevel DebugEnable = NONE_;
 
 
 static CRITICAL_SECTION LogLock;
@@ -129,7 +129,14 @@ BOOL WINAPI DllMain(HINSTANCE hModule, DWORD reason, void */*lpReserved*/)
 
             str = getenv("D3DGL_DEBUGGL");
             if(str && str[0] != '\0')
-                DebugEnable = true;
+            {
+                char *end = nullptr;
+                unsigned long val = strtoul(str, &end, 10);
+                if(end && *end == '\0')
+                    DebugEnable = eLogLevel(std::min<unsigned long>(val, TRACE_));
+                else
+                    ERR("Invalid log level: %s\n", str);
+            }
 
             TRACE("DLL_PROCESS_ATTACH\n");
             break;

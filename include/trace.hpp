@@ -15,13 +15,13 @@ enum eLogLevel {
 };
 extern eLogLevel LogLevel;
 extern FILE *LogFile;
-extern bool DebugEnable;
+extern eLogLevel DebugEnable;
 
 void log_printf(FILE *file, const char *fmt, ...) __attribute__((format(printf,2,3)));
 
 
 #define D3DGL_PRINT(TYPE, MSG, ...) \
-    log_printf(LogFile, "%04lx:" TYPE ":d3dgl:%s " MSG, GetCurrentThreadId(), __PRETTY_FUNCTION__ , ## __VA_ARGS__);
+    log_printf(LogFile, "%04lx:" TYPE ":d3dgl:%s " MSG, GetCurrentThreadId(), __PRETTY_FUNCTION__ , ## __VA_ARGS__)
 
 #define TRACE(...) do {                                                       \
     if(LogLevel >= TRACE_)                                                    \

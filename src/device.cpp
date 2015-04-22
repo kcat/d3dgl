@@ -1346,13 +1346,13 @@ void D3DGLDevice::debugProcGL(GLenum source, GLenum type, GLuint id, GLenum seve
 
     std::string str = sstr.str();
     if(severity == GL_DEBUG_SEVERITY_NOTIFICATION)
-        TRACE("%s", str.c_str());
+        D3DGL_PRINT("gldebug0", "%s", str.c_str());
     else if(severity == GL_DEBUG_SEVERITY_LOW)
-        WARN("%s", str.c_str());
+        D3DGL_PRINT("gldebug1", "%s", str.c_str());
     else if(severity == GL_DEBUG_SEVERITY_MEDIUM)
-        FIXME("%s", str.c_str());
+        D3DGL_PRINT("gldebug2", "%s", str.c_str());
     else if(severity == GL_DEBUG_SEVERITY_HIGH)
-        ERR("%s", str.c_str());
+        D3DGL_PRINT("gldebug3", "%s", str.c_str());
     else
         ERR("%s\nSeverity: !!Unknown!!\n", str.c_str());
 }
@@ -1366,14 +1366,14 @@ void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
         std::terminate();
     }
 
-    if((GLEW_VERSION_4_3 || GLEW_KHR_debug) && DebugEnable && LogLevel != NONE_)
+    if((GLEW_VERSION_4_3 || GLEW_KHR_debug) && DebugEnable > NONE_)
     {
         TRACE("Installing debug handler\n");
         glDebugMessageCallback(reinterpret_cast<GLDEBUGPROC>(debugProcWrapGL), this);
-        if(LogLevel < TRACE_) glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);
-        if(LogLevel < WARN_) glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_LOW, 0, nullptr, GL_FALSE);
-        if(LogLevel < FIXME_) glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_MEDIUM, 0, nullptr, GL_FALSE);
-        if(LogLevel < ERR_) glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_HIGH, 0, nullptr, GL_FALSE);
+        if(DebugEnable < TRACE_) glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, nullptr, GL_FALSE);
+        if(DebugEnable < WARN_) glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_LOW, 0, nullptr, GL_FALSE);
+        if(DebugEnable < FIXME_) glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_MEDIUM, 0, nullptr, GL_FALSE);
+        if(DebugEnable < ERR_) glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_HIGH, 0, nullptr, GL_FALSE);
         checkGLError();
     }
 
@@ -1645,7 +1645,7 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
     glattrs.clear();
     // TODO: Switch to CORE profile if we ever do FFP emulation with shaders.
     glattrs.push_back({WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB});
-    if(DebugEnable)
+    if(DebugEnable > NONE_)
         glattrs.push_back({WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_DEBUG_BIT_ARB});
     glattrs.push_back({0, 0});
     mGLContext = wglCreateContextAttribsARB(hdc, nullptr, &glattrs[0][0]);
