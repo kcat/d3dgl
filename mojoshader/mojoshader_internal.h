@@ -103,7 +103,7 @@ static inline int Max(const int a, const int b)
 // Error lists...
 
 typedef struct ErrorList ErrorList;
-ErrorList *errorlist_create(MOJOSHADER_malloc m, MOJOSHADER_free f, void *d);
+ErrorList *errorlist_create(void);
 int errorlist_add(ErrorList *list, const char *fname, const int errpos, const char *str);
 int errorlist_add_fmt(ErrorList *list, const char *fname, const int errpos, const char *fmt, ...) ISPRINTF(4,5);
 int errorlist_add_va(ErrorList *list, const char *_fname, const int errpos, const char *fmt, va_list va);
@@ -115,7 +115,7 @@ void errorlist_destroy(ErrorList *list);
 // Dynamic buffers...
 
 typedef struct Buffer Buffer;
-Buffer *buffer_create(size_t blksz, MOJOSHADER_malloc m, MOJOSHADER_free f, void *d);
+Buffer *buffer_create(size_t blksz);
 char *buffer_reserve(Buffer *buffer, const size_t len);
 int buffer_append(Buffer *buffer, const void *_data, size_t len);
 int buffer_append_fmt(Buffer *buffer, const char *fmt, ...) ISPRINTF(2,3);

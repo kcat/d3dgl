@@ -186,26 +186,15 @@ typedef struct Profile {
 } Profile;
 
 
-// !!! FIXME: cut and paste between every damned source file follows...
-// !!! FIXME: We need to make some sort of ContextBase that applies to all
-// !!! FIXME:  files and move this stuff to mojoshader_common.c ...
-
-static void *MallocBridge(int bytes, void *data)
-{ return malloc((size_t)bytes); (void)data; }
-
-static void FreeBridge(void *ptr, void *data)
-{ free(ptr); (void)data; }
-
-
 // jump between output sections in the context...
 
 static int set_output(Context *ctx, Buffer **section)
 {
     // only create output sections on first use.
-    if (*section == NULL)
+    if(*section == NULL)
     {
-        *section = buffer_create(256, MallocBridge, FreeBridge, ctx);
-        if (*section == NULL) return 0;
+        *section = buffer_create(256);
+        if(*section == NULL) return 0;
     }
 
     ctx->output = *section;
@@ -214,11 +203,11 @@ static int set_output(Context *ctx, Buffer **section)
 
 static void push_output(Context *ctx, Buffer **section)
 {
-    assert(ctx->output_stack_len < (int) (STATICARRAYLEN(ctx->output_stack)));
+    assert(ctx->output_stack_len < (int)STATICARRAYLEN(ctx->output_stack));
     ctx->output_stack[ctx->output_stack_len] = ctx->output;
     ctx->indent_stack[ctx->output_stack_len] = ctx->indent;
     ctx->output_stack_len++;
-    if (!set_output(ctx, section))
+    if(!set_output(ctx, section))
         return;
     ctx->indent = 0;
 }
@@ -284,7 +273,7 @@ static void output_line(Context *ctx, const char *fmt, ...)
         const int indent = ctx->indent;
         if (indent > 0)
         {
-            char *indentbuf = (char *) alloca(indent);
+            char *indentbuf = (char*)alloca(indent);
             memset(indentbuf, '\t', indent);
             buffer_append(ctx->output, indentbuf, indent);
         }
@@ -464,7 +453,7 @@ static inline void add_sampler(Context *ctx, const int regnum,
         }
     }
 
-    item->index = (int) ttype;
+    item->index = (int)ttype;
     item->misc |= texbem;
 }
 
@@ -575,7 +564,7 @@ static const char *get_D3D_register_string(Context *ctx, RegisterType regtype,
             break;
 
         case REG_TYPE_RASTOUT:
-            switch ((RastOutType) regnum)
+            switch((RastOutType)regnum)
             {
                 case RASTOUT_TYPE_POSITION: retval = "oPos"; break;
                 case RASTOUT_TYPE_FOG: retval = "oFog"; break;
@@ -589,7 +578,7 @@ static const char *get_D3D_register_string(Context *ctx, RegisterType regtype,
             break;
 
         case REG_TYPE_OUTPUT: // (or REG_TYPE_TEXCRDOUT, same value.)
-            if (shader_is_vertex(ctx) && shader_version_atleast(ctx, 3, 0))
+            if(shader_is_vertex(ctx) && shader_version_atleast(ctx, 3, 0))
                 retval = "o";
             else
                 retval = "oT";
@@ -622,7 +611,7 @@ static const char *get_D3D_register_string(Context *ctx, RegisterType regtype,
             break;
 
         case REG_TYPE_MISCTYPE:
-            switch ((const MiscTypeType) regnum)
+            switch((const MiscTypeType)regnum)
             {
                 case MISCTYPE_TYPE_POSITION: retval = "vPos"; break;
                 case MISCTYPE_TYPE_FACE: retval = "vFace"; break;
@@ -4601,7 +4590,7 @@ static Context *build_context(const char *profile,
     ctx->texm3x3pad_dst1 = -1;
     ctx->texm3x3pad_src1 = -1;
 
-    ctx->errors = errorlist_create(MallocBridge, FreeBridge, ctx);
+    ctx->errors = errorlist_create();
     if(ctx->errors == NULL)
     {
         free(ctx);
@@ -4633,39 +4622,6 @@ static void free_constants_list(ConstantsList *item)
         ConstantsList *next = item->next;
         free(item);
         item = next;
-    }
-}
-
-static void free_sym_typeinfo(MOJOSHADER_symbolTypeInfo *typeinfo)
-{
-    unsigned int i;
-    for (i = 0; i < typeinfo->member_count; i++)
-    {
-        free((void*)typeinfo->members[i].name);
-        free_sym_typeinfo(&typeinfo->members[i].info);
-    }
-    free((void*)typeinfo->members);
-}
-
-static void free_symbols(MOJOSHADER_symbol *syms, const int symcount)
-{
-    int i;
-    for (i = 0; i < symcount; i++)
-    {
-        free((void*)syms[i].name);
-        free_sym_typeinfo(&syms[i].info);
-    }
-    free(syms);
-}
-
-static void free_preshader(MOJOSHADER_preshader *preshader)
-{
-    if (preshader != NULL)
-    {
-        free(preshader->literals);
-        free(preshader->instructions);
-        free_symbols(preshader->symbols, preshader->symbol_count);
-        free(preshader);
     }
 }
 
@@ -5321,9 +5277,6 @@ void MOJOSHADER_freeParseData(const MOJOSHADER_parseData *_data)
     for(i = 0; i < data->sampler_count; i++)
         free((void*)data->samplers[i].name);
     free((void*)data->samplers);
-
-    free_symbols(data->symbols, data->symbol_count);
-    free_preshader(data->preshader);
 
     free(data);
 }
