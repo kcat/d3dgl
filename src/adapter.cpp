@@ -555,19 +555,20 @@ void D3DAdapter::init_limits()
     glGetIntegerv(GL_MAX_TEXTURE_COORDS, &gl_max);
     mLimits.texture_coords = std::min(MAX_TEXTURES, gl_max);
     TRACE("Max texture coords: %d.\n", mLimits.texture_coords);
+
     glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &gl_max);
     mLimits.fragment_samplers = std::min(MAX_FRAGMENT_SAMPLERS, gl_max);
     TRACE("Max fragment samplers: %d.\n", mLimits.fragment_samplers);
-
     glGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &gl_max);
     mLimits.vertex_samplers = gl_max;
-    TRACE("Max vertex attribs: %u.\n", mLimits.vertex_attribs);
+    TRACE("Max vertex samplers: %u.\n", mLimits.vertex_samplers);
     glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &gl_max);
     mLimits.combined_samplers = gl_max;
-    TRACE("Max vertex samplers: %u.\n", mLimits.vertex_samplers);
+    TRACE("Max combined samplers: %u.\n", mLimits.combined_samplers);
+
     glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &gl_max);
     mLimits.vertex_attribs = gl_max;
-    TRACE("Max combined samplers: %u.\n", mLimits.combined_samplers);
+    TRACE("Max vertex attribs: %u.\n", mLimits.vertex_attribs);
 
     /* Loading GLSL sampler uniforms is much simpler if we can assume that the sampler setup
      * is known at shader link time. In a vertex shader + pixel shader combination this isn't
