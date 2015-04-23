@@ -35,21 +35,42 @@ union Vector4f {
 };
 static_assert(sizeof(Vector4f)==sizeof(float[4]), "Bad Vector4f size");
 
-class D3DGLDevice : public IDirect3DDevice9 {
-public:
-    struct GLStreamData {
-        GLuint mBufferId;
-        GLubyte *mPointer;
-        GLenum mGLType;
-        GLint mGLCount;
-        GLenum mNormalize;
-        GLsizei mStride;
-        GLint mTarget;
-        GLsizei mIndex;
-        GLuint mDivisor;
-    };
+struct GLStreamData {
+    GLuint mBufferId;
+    GLubyte *mPointer;
+    GLenum mGLType;
+    GLint mGLCount;
+    GLenum mNormalize;
+    GLsizei mStride;
+    GLint mTarget;
+    GLsizei mIndex;
+    GLuint mDivisor;
+};
 
-private:
+struct GLState {
+    std::array<GLuint,MAX_COMBINED_SAMPLERS> samplers;
+    GLuint pipeline;
+
+    GLuint main_framebuffer;     // Used for offscreen rendering
+    GLuint copy_framebuffers[2]; // Used for FBO blits (0=read, 1=draw)
+    GLuint current_framebuffer[2]; // Current framebuffers (0=read, 1=draw;
+                                   // if one is set to main_framebuffer,
+                                   // both are)
+
+    GLuint vs_uniform_bufferf;
+    GLuint ps_uniform_bufferf;
+    GLuint pos_fixup_uniform_buffer;
+
+    GLenum active_stage;
+    std::array<GLenum,MAX_COMBINED_SAMPLERS> sampler_type;
+    std::array<GLuint,MAX_COMBINED_SAMPLERS> sampler_binding;
+
+    UINT attrib_array_enabled; // Bitmask, 1<<attrib
+
+    UINT clip_plane_enabled; // Bitmask, 1<<plane_index
+};
+
+class D3DGLDevice : public IDirect3DDevice9 {
     std::atomic<ULONG> mRefCount;
 
     Direct3DGL *mParent;
@@ -57,28 +78,7 @@ private:
     const D3DAdapter &mAdapter;
 
     HGLRC mGLContext;
-    struct {
-        std::array<GLuint,MAX_COMBINED_SAMPLERS> samplers;
-        GLuint pipeline;
-
-        GLuint main_framebuffer;     // Used for offscreen rendering
-        GLuint copy_framebuffers[2]; // Used for FBO blits (0=read, 1=draw)
-        GLuint current_framebuffer[2]; // Current framebuffers (0=read, 1=draw;
-                                       // if one is set to main_framebuffer,
-                                       // both are)
-
-        GLuint vs_uniform_bufferf;
-        GLuint ps_uniform_bufferf;
-        GLuint pos_fixup_uniform_buffer;
-
-        GLenum active_stage;
-        std::array<GLenum,MAX_COMBINED_SAMPLERS> sampler_type;
-        std::array<GLuint,MAX_COMBINED_SAMPLERS> sampler_binding;
-
-        UINT attrib_array_enabled; // Bitmask, 1<<attrib
-
-        UINT clip_plane_enabled; // Bitmask, 1<<plane_index
-    } mGLState;
+    GLState mGLState;
 
     CommandQueue mQueue;
 

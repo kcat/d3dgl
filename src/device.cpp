@@ -1039,11 +1039,11 @@ void D3DGLDevice::setVtxDataGL(const GLStreamData *streams, GLuint numstreams)
 }
 class SetVtxDataCmd : public Command {
     D3DGLDevice *mTarget;
-    D3DGLDevice::GLStreamData mStreams[16];
+    GLStreamData mStreams[16];
     GLuint mNumStreams;
 
 public:
-    SetVtxDataCmd(D3DGLDevice *target, const D3DGLDevice::GLStreamData *streams, GLuint numstream)
+    SetVtxDataCmd(D3DGLDevice *target, const GLStreamData *streams, GLuint numstream)
       : mTarget(target)
     {
         for(GLuint i = 0;i < numstream;++i)
