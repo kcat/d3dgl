@@ -10,14 +10,6 @@ D3DGLVertexDeclaration::D3DGLVertexDeclaration(D3DGLDevice *parent)
   : mRefCount(0)
   , mIfaceCount(0)
   , mParent(parent)
-  , mHasPosition(false)
-  , mHasPositionT(false)
-  , mHasNormal(false)
-  , mHasBinormal(false)
-  , mHasTangent(false)
-  , mHasColor(false)
-  , mHasSpecular(false)
-  , mHasTexCoord(0)
 {
 }
 
@@ -27,43 +19,34 @@ D3DGLVertexDeclaration::~D3DGLVertexDeclaration()
 
 bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems)
 {
+    bool haspos=false, haspost=false;
     size_t size = 0;
     while(!isEnd(elems[size]))
     {
         if(elems[size].Usage == D3DDECLUSAGE_POSITION)
-            mHasPosition = true;
+            haspos = true;
         else if(elems[size].Usage == D3DDECLUSAGE_POSITIONT)
-            mHasPositionT = true;
-        else if(elems[size].Usage == D3DDECLUSAGE_NORMAL)
-            mHasNormal = true;
-        else if(elems[size].Usage == D3DDECLUSAGE_BINORMAL)
-            mHasBinormal = true;
-        else if(elems[size].Usage == D3DDECLUSAGE_TANGENT)
-            mHasTangent = true;
-        else if(elems[size].Usage == D3DDECLUSAGE_COLOR)
-        {
-            if(elems[size].UsageIndex == 0)
-                mHasColor = true;
-            else if(elems[size].UsageIndex == 1)
-                mHasSpecular = true;
+            haspost = true;
+        else if(elems[size].Usage == D3DDECLUSAGE_NORMAL) {
         }
-        else if(elems[size].Usage == D3DDECLUSAGE_TEXCOORD)
-        {
-            if(elems[size].UsageIndex < 32)
-                mHasTexCoord = 1<<elems[size].UsageIndex;
+        else if(elems[size].Usage == D3DDECLUSAGE_BINORMAL) {
         }
-        else if(elems[size].Usage == D3DDECLUSAGE_BLENDWEIGHT || elems[size].Usage == D3DDECLUSAGE_BLENDINDICES)
-        {
-            // These are ignored by fixed-function OpenGL
+        else if(elems[size].Usage == D3DDECLUSAGE_TANGENT) {
+        }
+        else if(elems[size].Usage == D3DDECLUSAGE_COLOR) {
+        }
+        else if(elems[size].Usage == D3DDECLUSAGE_TEXCOORD) {
+        }
+        else if(elems[size].Usage == D3DDECLUSAGE_BLENDWEIGHT || elems[size].Usage == D3DDECLUSAGE_BLENDINDICES) {
         }
         else
             FIXME("Unhandled element usage type: 0x%x\n", elems[size].Usage);
         ++size;
     }
 
-    if(mHasPosition && mHasPositionT)
+    if(haspos && haspost)
     {
-        WARN("Position and PositionT specified in declaration\n");
+        FIXME("Position and PositionT specified in declaration\n");
         return false;
     }
 
@@ -164,16 +147,6 @@ bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems)
             default:
                 ERR("Unhandled element type: 0x%x\n", (UINT)elem.Type);
                 return false;
-        }
-
-        if(elem.Usage == D3DDECLUSAGE_NORMAL)
-        {
-            // This is fine for shaders, but will fail hard for fixed-function
-            // (glNormalPointer doesn't take a count parameter, and assumes 3).
-            if(elem.mGLCount == GL_BGRA)
-                WARN("Usage 'normal' has BGRA element format\n");
-            else if(elem.mGLCount != 3)
-                WARN("Usage 'normal' has %d elements\n", elem.mGLCount);
         }
 
         TRACE("Index: %u, Offset: %u, Type: 0x%x, Method: 0x%x, Usage: 0x%x, UsageIndex: %u\n",

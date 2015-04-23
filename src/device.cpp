@@ -800,25 +800,9 @@ void D3DGLDevice::setTextureGL(GLuint stage, GLenum type, GLuint binding)
         glActiveTexture(GL_TEXTURE0 + stage);
     }
 
-    // Stupid nVidia. Their drivers only report 4 fixed-function texture
-    // stages regardless of the number of fragment samplers and texture coords
-    // provided by the hardware. This means that glEnable/Disable with the
-    // various GL_TEXTURE_ types on stages at/above GL_MAX_TEXTURE_UNITS is
-    // invalid. This also effectively means only 4 blending stages will work.
-    // Fixing this requires manual FFP emulation with shaders.
-    if(stage >= getAdapter().getLimits().textures)
-        mGLState.sampler_type[stage] = type;
-    else if(type != mGLState.sampler_type[stage])
+    if(type != mGLState.sampler_type[stage] || binding != mGLState.sampler_binding[stage])
     {
-        if(mGLState.sampler_type[stage] != GL_NONE)
-            glDisable(mGLState.sampler_type[stage]);
         mGLState.sampler_type[stage] = type;
-        if(type != GL_NONE)
-            glEnable(type);
-    }
-
-    if(binding != mGLState.sampler_binding[stage])
-    {
         mGLState.sampler_binding[stage] = binding;
         if(type)
             glBindTexture(type, binding);
@@ -909,66 +893,6 @@ public:
     }
 };
 
-
-void D3DGLDevice::setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord)
-{
-#define SET_CLIENT_STATE(f, e) do { \
-    if(f) glEnableClientState(e);   \
-    else glDisableClientState(e);   \
-} while(0)
-    if(vertex != mGLState.vertex_array_enabled)
-    {
-        mGLState.vertex_array_enabled = vertex;
-        SET_CLIENT_STATE(vertex, GL_VERTEX_ARRAY);
-    }
-    if(normal != mGLState.normal_array_enabled)
-    {
-        mGLState.normal_array_enabled = normal;
-        SET_CLIENT_STATE(normal, GL_NORMAL_ARRAY);
-    }
-    if(color != mGLState.color_array_enabled)
-    {
-        mGLState.color_array_enabled = color;
-        SET_CLIENT_STATE(color, GL_COLOR_ARRAY);
-    }
-    if(specular != mGLState.specular_array_enabled)
-    {
-        mGLState.specular_array_enabled = specular;
-        SET_CLIENT_STATE(specular, GL_SECONDARY_COLOR_ARRAY);
-    }
-    if(texcoord != mGLState.texcoord_array_enabled)
-    {
-        UINT numcoords = std::min<UINT>(mAdapter.getLimits().texture_coords, D3DDP_MAXTEXCOORD);
-        for(UINT i = 0;i < numcoords;++i)
-        {
-            UINT t = 1<<i;
-            if((texcoord&t) != (mGLState.texcoord_array_enabled&t))
-            {
-                glClientActiveTexture(GL_TEXTURE0 + i);
-                SET_CLIENT_STATE((texcoord&t), GL_TEXTURE_COORD_ARRAY);
-            }
-        }
-        mGLState.texcoord_array_enabled = texcoord;
-    }
-#undef SET_CLIENT_STATE
-    checkGLError();
-}
-class SetVertexArrayStateCmd : public Command {
-    D3DGLDevice *mTarget;
-    bool mVertex, mNormal, mColor, mSpecular;
-    UINT mTexcoord;
-
-public:
-    SetVertexArrayStateCmd(D3DGLDevice *target, bool vertex, bool normal, bool color, bool specular, UINT texcoord)
-      : mTarget(target), mVertex(vertex), mNormal(normal), mColor(color), mSpecular(specular), mTexcoord(texcoord)
-    { }
-
-    virtual ULONG execute()
-    {
-        mTarget->setVertexArrayStateGL(mVertex, mNormal, mColor, mSpecular, mTexcoord);
-        return sizeof(*this);
-    }
-};
 
 void D3DGLDevice::setVertexAttribArrayGL(UINT attribs)
 {
@@ -1088,62 +1012,31 @@ public:
     }
 };
 
-void D3DGLDevice::setVtxDataGL(const GLStreamData *streams, GLuint numstreams, bool ffp)
+void D3DGLDevice::setVtxDataGL(const GLStreamData *streams, GLuint numstreams)
 {
     GLuint binding = 0;
-    if(!ffp)
-    {
-        for(GLuint i = 0;i < numstreams;++i)
-        {
-            if(binding != streams[i].mBufferId)
-            {
-                binding = streams[i].mBufferId;
-                glBindBuffer(GL_ARRAY_BUFFER, binding);
-            }
-            glVertexAttribPointer(streams[i].mTarget, streams[i].mGLCount,
-                                  streams[i].mGLType, streams[i].mNormalize,
-                                  streams[i].mStride, streams[i].mPointer);
-            // Setting a high divisor will keep the vertex attribute from
-            // incrementing, just like D3D's stride==0 setting.
-            if(streams[i].mStride == 0)
-                glVertexAttribDivisor(streams[i].mTarget, 65535);
-            else
-                glVertexAttribDivisor(streams[i].mTarget, streams[i].mDivisor);
-        }
-    }
-    else for(GLuint i = 0;i < numstreams;++i)
+
+    for(GLuint i = 0;i < numstreams;++i)
     {
         if(binding != streams[i].mBufferId)
         {
             binding = streams[i].mBufferId;
             glBindBuffer(GL_ARRAY_BUFFER, binding);
         }
-
-        if(streams[i].mTarget == GL_VERTEX_ARRAY)
-            glVertexPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
-        else if(streams[i].mTarget == GL_TEXTURE_COORD_ARRAY)
-        {
-            UINT numcoords = std::min<UINT>(mAdapter.getLimits().texture_coords, D3DDP_MAXTEXCOORD);
-            for(UINT t = 0;t < numcoords;++t)
-            {
-                if((streams[i].mIndex&(1<<t)))
-                {
-                    glClientActiveTexture(GL_TEXTURE0 + t);
-                    glTexCoordPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
-                }
-            }
-        }
-        else if(streams[i].mTarget == GL_NORMAL_ARRAY)
-            glNormalPointer(streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
-        else if(streams[i].mTarget == GL_COLOR_ARRAY)
-            glColorPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
-        else if(streams[i].mTarget == GL_SECONDARY_COLOR_ARRAY)
-            glSecondaryColorPointer(streams[i].mGLCount, streams[i].mGLType, streams[i].mStride, streams[i].mPointer);
+        glVertexAttribPointer(streams[i].mTarget, streams[i].mGLCount,
+                              streams[i].mGLType, streams[i].mNormalize,
+                              streams[i].mStride, streams[i].mPointer);
+        // Setting a high divisor will keep the vertex attribute from
+        // incrementing, just like D3D's stride==0 setting.
+        if(streams[i].mStride == 0)
+            glVertexAttribDivisor(streams[i].mTarget, 65535);
+        else
+            glVertexAttribDivisor(streams[i].mTarget, streams[i].mDivisor);
     }
+
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     checkGLError();
 }
-template<bool UseFFP>
 class SetVtxDataCmd : public Command {
     D3DGLDevice *mTarget;
     D3DGLDevice::GLStreamData mStreams[16];
@@ -1160,7 +1053,7 @@ public:
 
     virtual ULONG execute()
     {
-        mTarget->setVtxDataGL(mStreams, mNumStreams, UseFFP);
+        mTarget->setVtxDataGL(mStreams, mNumStreams);
         return sizeof(*this);
     }
 };
@@ -1436,12 +1329,6 @@ void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
     glActiveTexture(GL_TEXTURE0);
     mGLState.active_stage = 0;
 
-    mGLState.vertex_array_enabled = false;
-    mGLState.normal_array_enabled = false;
-    mGLState.color_array_enabled = false;
-    mGLState.specular_array_enabled = false;
-    mGLState.texcoord_array_enabled = 0;
-
     mGLState.attrib_array_enabled = 0;
 
     {
@@ -1673,6 +1560,12 @@ HRESULT D3DGLDevice::sendVtxData(INT startvtx, const StreamSource *sources, UINT
     }
 
     D3DGLVertexShader *vshader = mVertexShader;
+    if(!vshader)
+    {
+        FIXME("Cannot draw without a vertex shader\n");
+        return D3D_OK;
+    }
+
     std::array<GLStreamData,16> streams;
     GLuint cur = 0;
 
@@ -1704,53 +1597,17 @@ HRESULT D3DGLDevice::sendVtxData(INT startvtx, const StreamSource *sources, UINT
         if((source.mFreq&D3DSTREAMSOURCE_INSTANCEDATA))
             streams[cur].mDivisor = (source.mFreq&0x3fffffff);
 
-        if(vshader)
+        streams[cur].mTarget = vshader->getLocation(elem.Usage, elem.UsageIndex);
+        if(streams[cur].mTarget == -1)
         {
-            streams[cur].mTarget = vshader->getLocation(elem.Usage, elem.UsageIndex);
-            if(streams[cur].mTarget == -1)
-            {
-                TRACE("Skipping element (usage 0x%02x, index %u, vshader %p)\n",
-                      elem.Usage, elem.UsageIndex, vshader);
-                continue;
-            }
-            streams[cur].mIndex = 0;
-        }
-        else if(elem.Usage == D3DDECLUSAGE_POSITION || elem.Usage == D3DDECLUSAGE_POSITIONT)
-        {
-            streams[cur].mTarget = GL_VERTEX_ARRAY;
-            streams[cur].mIndex = 0;
-        }
-        else if(elem.Usage == D3DDECLUSAGE_TEXCOORD)
-        {
-            streams[cur].mTarget = GL_TEXTURE_COORD_ARRAY;
-            streams[cur].mIndex = 0;
-            // Apply this element data to whatever stages are using this index
-            for(UINT i = 0;i < mTexStageState.size();i++)
-            {
-                if((mTexStageState[i][D3DTSS_TEXCOORDINDEX]&0xFFFF) == elem.UsageIndex)
-                    streams[cur].mIndex |= 1<<i;
-            }
-        }
-        else if(elem.Usage == D3DDECLUSAGE_NORMAL)
-        {
-            streams[cur].mTarget = GL_NORMAL_ARRAY;
-            streams[cur].mIndex = 0;
-        }
-        else if(elem.Usage == D3DDECLUSAGE_COLOR)
-        {
-            if(elem.UsageIndex == 0)
-                streams[cur].mTarget = GL_COLOR_ARRAY;
-            else if(elem.UsageIndex == 1)
-                streams[cur].mTarget = GL_SECONDARY_COLOR_ARRAY;
-            streams[cur].mIndex = 0;
+            TRACE("Skipping element (usage 0x%02x, index %u, vshader %p)\n",
+                  elem.Usage, elem.UsageIndex, vshader);
+            continue;
         }
         ++cur;
     }
 
-    if(vshader)
-        mQueue.doSend<SetVtxDataCmd<UseShaders>>(this, streams.data(), cur);
-    else
-        mQueue.doSend<SetVtxDataCmd<UseFFP>>(this, streams.data(), cur);
+    mQueue.doSend<SetVtxDataCmd>(this, streams.data(), cur);
 
     return D3D_OK;
 }
@@ -3247,12 +3104,12 @@ HRESULT D3DGLDevice::SetTexture(DWORD stage, IDirect3DBaseTexture9 *texture)
     {
         mQueue.lock();
         texture = mTextures[stage].exchange(texture);
-        mQueue.sendAndUnlock<SetTextureCmd>(this, stage, GL_NONE, 0);
+        mQueue.sendAndUnlock<SetTextureCmd>(this, stage, GL_TEXTURE_2D, 0);
         if(texture) texture->Release();
     }
     else
     {
-        GLenum type = GL_NONE;
+        GLenum type = GL_TEXTURE_2D;
         GLuint binding = 0;
         union {
             void *pointer;
@@ -3676,13 +3533,9 @@ HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9 *decl)
     }
     else
     {
-        bool pos = vtxdecl->hasPos() || vtxdecl->hasPosT();
-        bool normal = vtxdecl->hasNormal();
-        bool color = vtxdecl->hasColor();
-        bool specular = vtxdecl->hasSpecular();
-        UINT texcoord = vtxdecl->hasTexCoord();
+        // FIXME: Set according to fixed-function emulation shader
         vtxdecl = mVertexDecl.exchange(vtxdecl);
-        mQueue.sendAndUnlock<SetVertexArrayStateCmd>(this, pos, normal, color, specular, texcoord);
+        mQueue.unlock();
     }
     if(vtxdecl) vtxdecl->releaseIface();
 
@@ -3739,18 +3592,9 @@ HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
     }
 
     mQueue.lock();
-    // FIXME: Forcing attributes to specific locations given its usage:index
-    // setup means we won't have to reset attribute array state (though we
-    // still do when enabling/disabling the FFP).
     D3DGLVertexShader *oldshader = mVertexShader.exchange(vshader);
     if(vshader)
     {
-        if(!oldshader)
-        {
-            // Need to disable fixed-function client state
-            mQueue.doSend<SetVertexArrayStateCmd>(this, false, false, false, false, 0);
-        }
-
         UINT attribs = 0;
         if(D3DGLVertexDeclaration *vtxdecl = mVertexDecl)
         {
@@ -3768,17 +3612,8 @@ HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
     }
     else if(oldshader)
     {
+        // FIXME: Set according to fixed-function emulation shader
         mQueue.doSend<SetVertexAttribArrayCmd>(this, 0);
-        if(D3DGLVertexDeclaration *vtxdecl = mVertexDecl)
-        {
-            bool pos = vtxdecl->hasPos() || vtxdecl->hasPosT();
-            bool normal = vtxdecl->hasNormal();
-            bool color = vtxdecl->hasColor();
-            bool specular = vtxdecl->hasSpecular();
-            UINT texcoord = vtxdecl->hasTexCoord();
-            vtxdecl = mVertexDecl.exchange(vtxdecl);
-            mQueue.doSend<SetVertexArrayStateCmd>(this, pos, normal, color, specular, texcoord);
-        }
         mQueue.sendAndUnlock<SetShaderProgramCmd>(this, GL_VERTEX_SHADER_BIT, 0u);
     }
     else

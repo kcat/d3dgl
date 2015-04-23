@@ -75,21 +75,10 @@ private:
         std::array<GLenum,MAX_COMBINED_SAMPLERS> sampler_type;
         std::array<GLuint,MAX_COMBINED_SAMPLERS> sampler_binding;
 
-        bool vertex_array_enabled;
-        bool normal_array_enabled;
-        bool color_array_enabled;
-        bool specular_array_enabled;
-        UINT texcoord_array_enabled; // Bitmask, 1<<texture_stage
-
         UINT attrib_array_enabled; // Bitmask, 1<<attrib
 
         UINT clip_plane_enabled; // Bitmask, 1<<plane_index
     } mGLState;
-
-    enum FFPSelector {
-        UseShaders=0,
-        UseFFP=1
-    };
 
     CommandQueue mQueue;
 
@@ -171,10 +160,9 @@ public:
     void setTextureGL(GLuint stage, GLenum type, GLuint binding);
     void setClipPlanesGL(UINT planes);
     void setFBAttachmentGL(GLenum attachment, GLenum target, GLuint id, GLint level);
-    void setVertexArrayStateGL(bool vertex, bool normal, bool color, bool specular, UINT texcoord);
     void setVertexAttribArrayGL(UINT attribs);
     void setShaderProgramGL(GLbitfield stages, GLuint program);
-    void setVtxDataGL(const D3DGLDevice::GLStreamData *streams, GLuint numstreams, bool ffp);
+    void setVtxDataGL(const GLStreamData *streams, GLuint numstreams);
     void drawArraysGL(GLenum mode, GLint count, GLsizei numinstances);
     void drawElementsGL(GLenum mode, GLint count, GLenum type, GLubyte *pointer, GLsizei numinstances, GLsizei basevtx);
     void blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect,

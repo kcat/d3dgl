@@ -23,14 +23,6 @@ class D3DGLVertexDeclaration : public IDirect3DVertexDeclaration9 {
     D3DGLDevice *mParent;
 
     std::vector<D3DGLVERTEXELEMENT> mElements;
-    bool mHasPosition;
-    bool mHasPositionT;
-    bool mHasNormal;
-    bool mHasBinormal;
-    bool mHasTangent;
-    bool mHasColor;
-    bool mHasSpecular;
-    UINT mHasTexCoord;
 
 public:
     D3DGLVertexDeclaration(D3DGLDevice *parent);
@@ -40,15 +32,6 @@ public:
 
     ULONG addIface() { return ++mIfaceCount; }
     ULONG releaseIface();
-
-    bool hasPos() const { return mHasPosition; }
-    bool hasPosT() const { return mHasPositionT; }
-    bool hasNormal() const { return mHasNormal; }
-    bool hasBinormal() const { return mHasBinormal; }
-    bool hasTangent() const { return mHasTangent; }
-    bool hasColor() const { return mHasColor; }
-    bool hasSpecular() const { return mHasSpecular; }
-    UINT hasTexCoord() const { return mHasTexCoord; }
 
     const std::vector<D3DGLVERTEXELEMENT> &getVtxElements() const
     { return mElements; }
