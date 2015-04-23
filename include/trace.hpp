@@ -15,7 +15,7 @@ enum eLogLevel {
 };
 extern eLogLevel LogLevel;
 extern FILE *LogFile;
-extern eLogLevel DebugEnable;
+extern eLogLevel GLDebugLevel;
 
 void log_printf(FILE *file, const char *fmt, ...) __attribute__((format(printf,2,3)));
 
