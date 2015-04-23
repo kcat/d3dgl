@@ -553,7 +553,7 @@ void D3DAdapter::init_limits()
     TRACE("Max texture coords: %d.\n", mLimits.texture_coords);
 
     glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &gl_max);
-    mLimits.fragment_samplers = std::min(MAX_FRAGMENT_SAMPLERS, gl_max);
+    mLimits.fragment_samplers = gl_max;
     TRACE("Max fragment samplers: %d.\n", mLimits.fragment_samplers);
     glGetIntegerv(GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &gl_max);
     mLimits.vertex_samplers = gl_max;
@@ -562,36 +562,28 @@ void D3DAdapter::init_limits()
     mLimits.combined_samplers = gl_max;
     TRACE("Max combined samplers: %u.\n", mLimits.combined_samplers);
 
+    if(mLimits.fragment_samplers < 16)
+        FIXME("OpenGL implementation supports %u fragment samplers, but 16 are required.\n", mLimits.fragment_samplers);
+    if(mLimits.vertex_samplers < 4)
+        FIXME("OpenGL implementation supports %u vertex samplers, but 4 are required.\n", mLimits.vertex_samplers);
+
+    /* Loading GLSL sampler uniforms is much simpler if we can assume that the sampler setup
+     * is known at shader link time. Specifically, this means pixel shader registers s0 to s15 are
+     * set to sampler indices 0 to 15, and vertex shader registers s0 to s3 are set to sampler
+     * indices 16 to 19. Ergo, OpenGL must support at least 20 combined samplers.
+     *
+     * Theoretically, we could work as long as the number of samplers used by shaders don't exceed
+     * their individual stage limits and together don't exceed the combined limit. But there's no
+     * guarantee of this, and there's no way to tell apps of this limit (MaxSimultaneousTextures is
+     * for fixed functiomn, MSDN says PS3.0 always has 16 sampler registers). Not to mention the
+     * extra management overhead when switching shaders.
+     */
+    if(mLimits.combined_samplers < 20)
+        FIXME("OpenGL implementation supports %u total samplers, but 20 are required.\n", mLimits.combined_samplers);
+
     glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &gl_max);
     mLimits.vertex_attribs = gl_max;
     TRACE("Max vertex attribs: %u.\n", mLimits.vertex_attribs);
-
-    /* Loading GLSL sampler uniforms is much simpler if we can assume that the sampler setup
-     * is known at shader link time. In a vertex shader + pixel shader combination this isn't
-     * an issue because then the sampler setup only depends on the two shaders. If a pixel
-     * shader is used with fixed function vertex processing we're fine too because fixed function
-     * vertex processing doesn't use any samplers. If fixed function fragment processing is
-     * used we have to make sure that all vertex sampler setups are valid together with all
-     * possible fixed function fragment processing setups. This is true if vsamplers + MAX_TEXTURES
-     * <= max_samplers. This is true on all d3d9 cards that support vtf(gf 6 and gf7 cards).
-     * dx9 radeon cards do not support vertex texture fetch. DX10 cards have 128 samplers, and
-     * dx9 is limited to 8 fixed function texture stages and 4 vertex samplers. DX10 does not have
-     * a fixed function pipeline anymore.
-     *
-     * So this is just a check to check that our assumption holds true. If not, write a warning
-     * and reduce the number of vertex samplers or probably disable vertex texture fetch.
-     */
-    if(mLimits.vertex_samplers && mLimits.combined_samplers < 12
-        && MAX_TEXTURES + mLimits.vertex_samplers > mLimits.combined_samplers)
-    {
-        FIXME("OpenGL implementation supports %u vertex samplers and %u total samplers.\n",
-              mLimits.vertex_samplers, mLimits.combined_samplers);
-        FIXME("Expected vertex samplers + MAX_TEXTURES(=8) > combined_samplers.\n");
-        if(mLimits.combined_samplers > MAX_TEXTURES)
-            mLimits.vertex_samplers = mLimits.combined_samplers - MAX_TEXTURES;
-        else
-            mLimits.vertex_samplers = 0;
-    }
 
     if(GLEW_ARB_vertex_blend)
     {
