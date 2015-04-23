@@ -502,12 +502,8 @@ void D3DAdapter::init_limits()
     mLimits.vertex_attribs = 16;
     mLimits.glsl_vs_float_constants = 0;
     mLimits.glsl_ps_float_constants = 0;
-    mLimits.arb_vs_float_constants = 0;
-    mLimits.arb_vs_native_constants = 0;
     mLimits.arb_vs_instructions = 0;
     mLimits.arb_vs_temps = 0;
-    mLimits.arb_ps_float_constants = 0;
-    mLimits.arb_ps_local_constants = 0;
     mLimits.arb_ps_instructions = 0;
     mLimits.arb_ps_temps = 0;
 
@@ -616,31 +612,15 @@ void D3DAdapter::init_limits()
     }
     if(GLEW_ARB_fragment_program)
     {
-        glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_ENV_PARAMETERS_ARB, &gl_max);
-        mLimits.arb_ps_float_constants = gl_max;
-        TRACE("Max ARB_FRAGMENT_PROGRAM float constants: %d.\n", mLimits.arb_ps_float_constants);
-        glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_PARAMETERS_ARB, &gl_max);
-        mLimits.arb_ps_native_constants = gl_max;
-        TRACE("Max ARB_FRAGMENT_PROGRAM native float constants: %d.\n",
-              mLimits.arb_ps_native_constants);
         glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_TEMPORARIES_ARB, &gl_max);
         mLimits.arb_ps_temps = gl_max;
         TRACE("Max ARB_FRAGMENT_PROGRAM native temporaries: %d.\n", mLimits.arb_ps_temps);
         glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_INSTRUCTIONS_ARB, &gl_max);
         mLimits.arb_ps_instructions = gl_max;
         TRACE("Max ARB_FRAGMENT_PROGRAM native instructions: %d.\n", mLimits.arb_ps_instructions);
-        glGetProgramivARB(GL_FRAGMENT_PROGRAM_ARB, GL_MAX_PROGRAM_LOCAL_PARAMETERS_ARB, &gl_max);
-        mLimits.arb_ps_local_constants = gl_max;
-        TRACE("Max ARB_FRAGMENT_PROGRAM local parameters: %d.\n", mLimits.arb_ps_instructions);
     }
     if(GLEW_ARB_vertex_program)
     {
-        glGetProgramivARB(GL_VERTEX_PROGRAM_ARB, GL_MAX_PROGRAM_ENV_PARAMETERS_ARB, &gl_max);
-        mLimits.arb_vs_float_constants = gl_max;
-        TRACE("Max ARB_VERTEX_PROGRAM float constants: %d.\n", mLimits.arb_vs_float_constants);
-        glGetProgramivARB(GL_VERTEX_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_PARAMETERS_ARB, &gl_max);
-        mLimits.arb_vs_native_constants = gl_max;
-        TRACE("Max ARB_VERTEX_PROGRAM native float constants: %d.\n", mLimits.arb_vs_native_constants);
         glGetProgramivARB(GL_VERTEX_PROGRAM_ARB, GL_MAX_PROGRAM_NATIVE_TEMPORARIES_ARB, &gl_max);
         mLimits.arb_vs_temps = gl_max;
         TRACE("Max ARB_VERTEX_PROGRAM native temporaries: %d.\n", mLimits.arb_vs_temps);
@@ -651,7 +631,7 @@ void D3DAdapter::init_limits()
 
     glGetIntegerv(GL_MAX_VERTEX_UNIFORM_COMPONENTS, &gl_max);
     mLimits.glsl_vs_float_constants = gl_max / 4;
-    TRACE("Max ARB_VERTEX_SHADER float constants: %u.\n", mLimits.glsl_vs_float_constants);
+    TRACE("Max vertex uniform float constants: %u.\n", mLimits.glsl_vs_float_constants);
 
     glGetIntegerv(GL_MAX_VERTEX_UNIFORM_BLOCKS, &gl_max);
     mLimits.vertex_uniform_blocks = gl_max;
@@ -663,7 +643,7 @@ void D3DAdapter::init_limits()
 
     glGetIntegerv(GL_MAX_FRAGMENT_UNIFORM_COMPONENTS, &gl_max);
     mLimits.glsl_ps_float_constants = gl_max / 4;
-    TRACE("Max ARB_FRAGMENT_SHADER float constants: %u.\n", mLimits.glsl_ps_float_constants);
+    TRACE("Max fragment uniform float constants: %u.\n", mLimits.glsl_ps_float_constants);
     glGetIntegerv(GL_MAX_VARYING_FLOATS, &gl_max);
     mLimits.glsl_varyings = gl_max;
     TRACE("Max GLSL varyings: %u (%u 4 component varyings).\n", gl_max, gl_max / 4);

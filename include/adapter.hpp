@@ -36,13 +36,8 @@ public:
         UINT glsl_vs_float_constants;
         UINT glsl_ps_float_constants;
 
-        UINT arb_vs_float_constants;
-        UINT arb_vs_native_constants;
         UINT arb_vs_instructions;
         UINT arb_vs_temps;
-        UINT arb_ps_float_constants;
-        UINT arb_ps_local_constants;
-        UINT arb_ps_native_constants;
         UINT arb_ps_instructions;
         UINT arb_ps_temps;
     };
