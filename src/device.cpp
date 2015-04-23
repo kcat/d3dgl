@@ -520,17 +520,18 @@ public:
 };
 
 class ColorMaskSet : public Command {
+    UINT mIndex;
     UINT mEnable;
 
 public:
-    ColorMaskSet(UINT enable) : mEnable(enable) { }
+    ColorMaskSet(UINT index, UINT enable) : mIndex(index), mEnable(enable) { }
 
     virtual ULONG execute()
     {
-        glColorMask(!!(mEnable&D3DCOLORWRITEENABLE_RED),
-                    !!(mEnable&D3DCOLORWRITEENABLE_GREEN),
-                    !!(mEnable&D3DCOLORWRITEENABLE_BLUE),
-                    !!(mEnable&D3DCOLORWRITEENABLE_ALPHA));
+        glColorMaski(mIndex,
+            !!(mEnable&D3DCOLORWRITEENABLE_RED), !!(mEnable&D3DCOLORWRITEENABLE_GREEN),
+            !!(mEnable&D3DCOLORWRITEENABLE_BLUE), !!(mEnable&D3DCOLORWRITEENABLE_ALPHA)
+        );
         return sizeof(*this);
     }
 };
@@ -2884,9 +2885,12 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
         }
 
         case D3DRS_COLORWRITEENABLE:
+        case D3DRS_COLORWRITEENABLE1:
+        case D3DRS_COLORWRITEENABLE2:
+        case D3DRS_COLORWRITEENABLE3:
             mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<ColorMaskSet>(value);
+            mQueue.sendAndUnlock<ColorMaskSet>(state-D3DRS_COLORWRITEENABLE, value);
             break;
 
         case D3DRS_ZWRITEENABLE:
