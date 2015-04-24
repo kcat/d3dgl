@@ -27,6 +27,23 @@ namespace
 {
 
 template<typename T>
+struct ref_holder {
+    typedef T value_type;
+    value_type &mValue;
+
+    ref_holder(ref_holder<T> &rhs) : mValue(rhs.mValue) { }
+    ref_holder(value_type &value) : mValue(value) { }
+
+    ref_holder<T>& operator=(ref_holder<T>&) = delete;
+
+    operator value_type&() { return mValue; }
+    operator const value_type&() const { return mValue; }
+};
+template<typename T>
+ref_holder<T> make_ref(T &value) { return ref_holder<T>(value); };
+
+
+template<typename T>
 bool fmt_to_glattrs(D3DFORMAT fmt, T inserter)
 {
     switch(fmt)
@@ -790,211 +807,154 @@ public:
     }
 };
 
-} // namespace
 
-
-void D3DGLDevice::setTextureGL(GLuint stage, GLenum type, GLuint binding)
-{
-    if(stage != mGLState.active_stage)
-    {
-        mGLState.active_stage = stage;
-        glActiveTexture(GL_TEXTURE0 + stage);
-    }
-
-    if(type != mGLState.sampler_type[stage] || binding != mGLState.sampler_binding[stage])
-    {
-        mGLState.sampler_type[stage] = type;
-        mGLState.sampler_binding[stage] = binding;
-        if(type)
-            glBindTexture(type, binding);
-        else
-            glBindTexture(GL_TEXTURE_2D, 0);
-    }
-    checkGLError();
-}
 class SetTextureCmd : public Command {
-    D3DGLDevice *mTarget;
+    GLState &mGLState;
     GLuint mStage;
     GLenum mType;
     GLuint mBinding;
 
 public:
-    SetTextureCmd(D3DGLDevice *target, GLuint stage, GLenum type, GLuint binding)
-      : mTarget(target), mStage(stage), mType(type), mBinding(binding)
+    SetTextureCmd(GLState &glstate, GLuint stage, GLenum type, GLuint binding)
+      : mGLState(glstate), mStage(stage), mType(type), mBinding(binding)
     { }
 
     virtual ULONG execute()
     {
-        mTarget->setTextureGL(mStage, mType, mBinding);
+        if(mStage != mGLState.active_stage)
+        {
+            mGLState.active_stage = mStage;
+            glActiveTexture(GL_TEXTURE0 + mStage);
+        }
+
+        if(mType != mGLState.sampler_type[mStage] || mBinding != mGLState.sampler_binding[mStage])
+        {
+            mGLState.sampler_type[mStage] = mType;
+            mGLState.sampler_binding[mStage] = mBinding;
+            glBindTexture(mType, mBinding);
+        }
+        checkGLError();
+
         return sizeof(*this);
     }
 };
 
 
-void D3DGLDevice::setClipPlanesGL(UINT planes)
-{
-    if(planes == mGLState.clip_plane_enabled)
-        return;
-
-    UINT num_planes = std::min(mAdapter.getLimits().clipplanes, 32u);
-    for(UINT i = 0;i < num_planes;++i)
-    {
-        UINT m = 1<<i;
-        if((planes&m) != (mGLState.clip_plane_enabled&m))
-        {
-            if((planes&m)) glEnable(GL_CLIP_PLANE0+i);
-            else glDisable(GL_CLIP_PLANE0+i);
-        }
-    }
-    mGLState.clip_plane_enabled = planes;
-    checkGLError();
-}
 class ClipPlaneEnableCmd : public Command {
-    D3DGLDevice *mTarget;
+    GLState &mGLState;
     UINT mPlanes;
 
 public:
-    ClipPlaneEnableCmd(D3DGLDevice *target, UINT planes) : mTarget(target), mPlanes(planes) { }
+    ClipPlaneEnableCmd(GLState &glstate, UINT planes) : mGLState(glstate), mPlanes(planes) { }
 
     virtual ULONG execute()
     {
-        mTarget->setClipPlanesGL(mPlanes);
+        if(mPlanes != mGLState.clip_plane_enabled)
+        {
+            UINT old_planes = mGLState.clip_plane_enabled;
+            mGLState.clip_plane_enabled = mPlanes;
+
+            for(UINT i = 0;old_planes || mPlanes;++i)
+            {
+                if((mPlanes&1) && !(old_planes&1))
+                    glEnable(GL_CLIP_PLANE0+i);
+                else if(!(mPlanes&1) && (old_planes&1))
+                    glDisable(GL_CLIP_PLANE0+i);
+
+                old_planes >>= 1;
+                mPlanes >>= 1;
+            }
+            checkGLError();
+        }
         return sizeof(*this);
     }
 };
 
 
-void D3DGLDevice::setFBAttachmentGL(GLenum attachment, GLenum target, GLuint id, GLint level)
-{
-    if(target == GL_RENDERBUFFER)
-        glNamedFramebufferRenderbufferEXT(mGLState.main_framebuffer, attachment, GL_RENDERBUFFER, id);
-    else if(target == GL_TEXTURE_2D || target == GL_TEXTURE_CUBE_MAP_POSITIVE_X ||
-            target == GL_TEXTURE_CUBE_MAP_NEGATIVE_X || target == GL_TEXTURE_CUBE_MAP_POSITIVE_Y ||
-            target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Y || target == GL_TEXTURE_CUBE_MAP_POSITIVE_Z ||
-            target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Z)
-        glNamedFramebufferTexture2DEXT(mGLState.main_framebuffer, attachment, target, id, level);
-    checkGLError();
-}
 class SetFBAttachmentCmd : public Command {
-    D3DGLDevice *mTarget;
+    GLState &mGLState;
     GLenum mAttachment;
-    GLenum mRTarget;
+    GLenum mTarget;
     GLuint mId;
     GLint mLevel;
 
 public:
-    SetFBAttachmentCmd(D3DGLDevice *target, GLenum attachment, GLenum rtarget, GLuint id, GLint level)
-      : mTarget(target), mAttachment(attachment), mRTarget(rtarget), mId(id), mLevel(level)
+    SetFBAttachmentCmd(GLState &glstate, GLenum attachment, GLenum target, GLuint id, GLint level)
+      : mGLState(glstate), mAttachment(attachment), mTarget(target), mId(id), mLevel(level)
     { }
 
     virtual ULONG execute()
     {
-        mTarget->setFBAttachmentGL(mAttachment, mRTarget, mId, mLevel);
+        if(mTarget == GL_RENDERBUFFER)
+            glNamedFramebufferRenderbufferEXT(mGLState.main_framebuffer, mAttachment, GL_RENDERBUFFER, mId);
+        else if(mTarget == GL_TEXTURE_2D || mTarget == GL_TEXTURE_CUBE_MAP_POSITIVE_X ||
+                mTarget == GL_TEXTURE_CUBE_MAP_NEGATIVE_X || mTarget == GL_TEXTURE_CUBE_MAP_POSITIVE_Y ||
+                mTarget == GL_TEXTURE_CUBE_MAP_NEGATIVE_Y || mTarget == GL_TEXTURE_CUBE_MAP_POSITIVE_Z ||
+                mTarget == GL_TEXTURE_CUBE_MAP_NEGATIVE_Z)
+            glNamedFramebufferTexture2DEXT(mGLState.main_framebuffer, mAttachment, mTarget, mId, mLevel);
+        checkGLError();
+
         return sizeof(*this);
     }
 };
 
 
-void D3DGLDevice::setVertexAttribArrayGL(UINT attribs)
-{
-    // Early out
-    if(attribs == mGLState.attrib_array_enabled)
-        return;
-
-    UINT numattribs = mAdapter.getLimits().vertex_attribs;
-    for(UINT i = 0;i < numattribs;++i)
-    {
-        UINT a = 1<<i;
-        if((attribs&a) != (mGLState.attrib_array_enabled&a))
-        {
-            if((attribs&a))
-                glEnableVertexAttribArray(i);
-            else
-            {
-                glDisableVertexAttribArray(i);
-                glVertexAttrib4f(i, 0.0f, 0.0f, 0.0f, 1.0f);
-            }
-        }
-    }
-    mGLState.attrib_array_enabled = attribs;
-    checkGLError();
-}
 class SetVertexAttribArrayCmd : public Command {
-    D3DGLDevice *mTarget;
+    GLState &mGLState;
     UINT mAttribs;
 
 public:
-    SetVertexAttribArrayCmd(D3DGLDevice *target, UINT attribs)
-      : mTarget(target), mAttribs(attribs)
-    { }
+    SetVertexAttribArrayCmd(GLState &glstate, UINT attribs) : mGLState(glstate), mAttribs(attribs) { }
 
     virtual ULONG execute()
     {
-        mTarget->setVertexAttribArrayGL(mAttribs);
+        if(mAttribs != mGLState.attrib_array_enabled)
+        {
+            UINT old_attribs = mGLState.attrib_array_enabled;
+            mGLState.attrib_array_enabled = mAttribs;
+
+            for(UINT i = 0;old_attribs || mAttribs;++i)
+            {
+                if((mAttribs&1) && !(old_attribs&1))
+                    glEnableVertexAttribArray(i);
+                else if(!(mAttribs&1) && (old_attribs&1))
+                {
+                    glDisableVertexAttribArray(i);
+                    glVertexAttrib4f(i, 0.0f, 0.0f, 0.0f, 1.0f);
+                }
+
+                old_attribs >>= 1;
+                mAttribs >>= 1;
+            }
+            checkGLError();
+        }
+
         return sizeof(*this);
     }
 };
 
-void D3DGLDevice::setShaderProgramGL(GLbitfield stages, GLuint program)
-{
-    glUseProgramStages(mGLState.pipeline, stages, program);
-    checkGLError();
-}
 class SetShaderProgramCmd : public Command {
-    D3DGLDevice *mTarget;
+    GLState &mGLState;
     GLbitfield mStages;
     GLuint mProgram;
 
 public:
-    SetShaderProgramCmd(D3DGLDevice *target, GLbitfield stages, GLuint program)
-      : mTarget(target), mStages(stages), mProgram(program)
+    SetShaderProgramCmd(GLState &glstate, GLbitfield stages, GLuint program)
+      : mGLState(glstate), mStages(stages), mProgram(program)
     { }
 
     virtual ULONG execute()
     {
-        mTarget->setShaderProgramGL(mStages, mProgram);
+        glUseProgramStages(mGLState.pipeline, mStages, mProgram);
+        checkGLError();
+
         return sizeof(*this);
     }
 };
 
 
-void D3DGLDevice::clearGL(GLbitfield mask, GLuint color, GLfloat depth, GLuint stencil, const RECT &rect)
-{
-    if(mGLState.current_framebuffer[0] != mGLState.main_framebuffer)
-    {
-        mGLState.current_framebuffer[0] = mGLState.main_framebuffer;
-        mGLState.current_framebuffer[1] = mGLState.main_framebuffer;
-        glBindFramebuffer(GL_FRAMEBUFFER, mGLState.main_framebuffer);
-    }
-
-    glPushAttrib(mask | GL_SCISSOR_BIT);
-
-    if((mask&GL_COLOR_BUFFER_BIT))
-    {
-        glClearColor(D3DCOLOR_R(color)/255.0f, D3DCOLOR_G(color)/255.0f,
-                     D3DCOLOR_B(color)/255.0f, D3DCOLOR_A(color)/255.0f);
-        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    }
-    if((mask&GL_DEPTH_BUFFER_BIT))
-    {
-        glClearDepth(depth);
-        glDepthMask(GL_TRUE);
-    }
-    if((mask&GL_STENCIL_BUFFER_BIT))
-    {
-        glClearStencil(stencil);
-        glStencilMask(GL_TRUE);
-    }
-
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top);
-    glClear(mask);
-
-    glPopAttrib();
-    checkGLError();
-}
 class ClearCmd : public Command {
-    D3DGLDevice *mTarget;
+    GLState &mGLState;
     GLbitfield mMask;
     GLuint mColor;
     GLfloat mDepth;
@@ -1002,50 +962,55 @@ class ClearCmd : public Command {
     RECT mRect;
 
 public:
-    ClearCmd(D3DGLDevice *target, GLbitfield mask, GLuint color, GLfloat depth, GLuint stencil, const RECT &rect)
-      : mTarget(target), mMask(mask), mColor(color), mDepth(depth), mStencil(stencil), mRect(rect)
+    ClearCmd(GLState &glstate, GLbitfield mask, GLuint color, GLfloat depth, GLuint stencil, const RECT &rect)
+      : mGLState(glstate), mMask(mask), mColor(color), mDepth(depth), mStencil(stencil), mRect(rect)
     { }
 
     virtual ULONG execute()
     {
-        mTarget->clearGL(mMask, mColor, mDepth, mStencil, mRect);
+        if(mGLState.current_framebuffer[0] != mGLState.main_framebuffer)
+        {
+            mGLState.current_framebuffer[0] = mGLState.main_framebuffer;
+            mGLState.current_framebuffer[1] = mGLState.main_framebuffer;
+            glBindFramebuffer(GL_FRAMEBUFFER, mGLState.main_framebuffer);
+        }
+
+        glPushAttrib(mMask | GL_SCISSOR_BIT);
+
+        if((mMask&GL_COLOR_BUFFER_BIT))
+        {
+            glClearColor(D3DCOLOR_R(mColor)/255.0f, D3DCOLOR_G(mColor)/255.0f,
+                         D3DCOLOR_B(mColor)/255.0f, D3DCOLOR_A(mColor)/255.0f);
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        }
+        if((mMask&GL_DEPTH_BUFFER_BIT))
+        {
+            glClearDepth(mDepth);
+            glDepthMask(GL_TRUE);
+        }
+        if((mMask&GL_STENCIL_BUFFER_BIT))
+        {
+            glClearStencil(mStencil);
+            glStencilMask(GL_TRUE);
+        }
+
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(mRect.left, mRect.top, mRect.right-mRect.left, mRect.bottom-mRect.top);
+        glClear(mMask);
+
+        glPopAttrib();
+        checkGLError();
+
         return sizeof(*this);
     }
 };
 
-void D3DGLDevice::setVtxDataGL(const GLStreamData *streams, GLuint numstreams)
-{
-    GLuint binding = 0;
-
-    for(GLuint i = 0;i < numstreams;++i)
-    {
-        if(binding != streams[i].mBufferId)
-        {
-            binding = streams[i].mBufferId;
-            glBindBuffer(GL_ARRAY_BUFFER, binding);
-        }
-        glVertexAttribPointer(streams[i].mTarget, streams[i].mGLCount,
-                              streams[i].mGLType, streams[i].mNormalize,
-                              streams[i].mStride, streams[i].mPointer);
-        // Setting a high divisor will keep the vertex attribute from
-        // incrementing, just like D3D's stride==0 setting.
-        if(streams[i].mStride == 0)
-            glVertexAttribDivisor(streams[i].mTarget, 65535);
-        else
-            glVertexAttribDivisor(streams[i].mTarget, streams[i].mDivisor);
-    }
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    checkGLError();
-}
 class SetVtxDataCmd : public Command {
-    D3DGLDevice *mTarget;
     GLStreamData mStreams[16];
     GLuint mNumStreams;
 
 public:
-    SetVtxDataCmd(D3DGLDevice *target, const GLStreamData *streams, GLuint numstream)
-      : mTarget(target)
+    SetVtxDataCmd(const GLStreamData *streams, GLuint numstream)
     {
         for(GLuint i = 0;i < numstream;++i)
             mStreams[i] = streams[i];
@@ -1054,53 +1019,60 @@ public:
 
     virtual ULONG execute()
     {
-        mTarget->setVtxDataGL(mStreams, mNumStreams);
+        GLuint binding = 0;
+
+        for(GLuint i = 0;i < mNumStreams;++i)
+        {
+            if(binding != mStreams[i].mBufferId)
+            {
+                binding = mStreams[i].mBufferId;
+                glBindBuffer(GL_ARRAY_BUFFER, binding);
+            }
+            glVertexAttribPointer(mStreams[i].mTarget, mStreams[i].mGLCount,
+                                  mStreams[i].mGLType, mStreams[i].mNormalize,
+                                  mStreams[i].mStride, mStreams[i].mPointer);
+            // Setting a high divisor will keep the vertex attribute from
+            // incrementing, just like D3D's stride==0 setting.
+            if(mStreams[i].mStride == 0)
+                glVertexAttribDivisor(mStreams[i].mTarget, 65535);
+            else
+                glVertexAttribDivisor(mStreams[i].mTarget, mStreams[i].mDivisor);
+        }
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        checkGLError();
+
         return sizeof(*this);
     }
 };
 
-void D3DGLDevice::drawArraysGL(GLenum mode, GLint count, GLsizei numinstances)
-{
-    if(mGLState.current_framebuffer[0] != mGLState.main_framebuffer)
-    {
-        mGLState.current_framebuffer[0] = mGLState.main_framebuffer;
-        mGLState.current_framebuffer[1] = mGLState.main_framebuffer;
-        glBindFramebuffer(GL_FRAMEBUFFER, mGLState.main_framebuffer);
-    }
-    glDrawArraysInstanced(mode, 0, count, numinstances);
-    checkGLError();
-}
 class DrawGLArraysCmd : public Command {
-    D3DGLDevice *mTarget;
+    GLState &mGLState;
     GLenum mMode;
     GLint mCount;
     GLsizei mNumInstances;
 
 public:
-    DrawGLArraysCmd(D3DGLDevice *target, GLenum mode, GLint count, GLsizei num_instances)
-      : mTarget(target), mMode(mode), mCount(count), mNumInstances(num_instances)
+    DrawGLArraysCmd(GLState &glstate, GLenum mode, GLint count, GLsizei num_instances)
+      : mGLState(glstate), mMode(mode), mCount(count), mNumInstances(num_instances)
     { }
 
     virtual ULONG execute()
     {
-        mTarget->drawArraysGL(mMode, mCount, mNumInstances);
+        if(mGLState.current_framebuffer[0] != mGLState.main_framebuffer)
+        {
+            mGLState.current_framebuffer[0] = mGLState.main_framebuffer;
+            mGLState.current_framebuffer[1] = mGLState.main_framebuffer;
+            glBindFramebuffer(GL_FRAMEBUFFER, mGLState.main_framebuffer);
+        }
+        glDrawArraysInstanced(mMode, 0, mCount, mNumInstances);
+        checkGLError();
+
         return sizeof(*this);
     }
 };
 
-void D3DGLDevice::drawElementsGL(GLenum mode, GLint count, GLenum type, GLubyte *pointer, GLsizei numinstances, GLsizei basevtx)
-{
-    if(mGLState.current_framebuffer[0] != mGLState.main_framebuffer)
-    {
-        mGLState.current_framebuffer[0] = mGLState.main_framebuffer;
-        mGLState.current_framebuffer[1] = mGLState.main_framebuffer;
-        glBindFramebuffer(GL_FRAMEBUFFER, mGLState.main_framebuffer);
-    }
-    glDrawElementsInstancedBaseVertex(mode, count, type, pointer, numinstances, basevtx);
-    checkGLError();
-}
 class DrawGLElementsCmd : public Command {
-    D3DGLDevice *mTarget;
+    GLState &mGLState;
     GLenum mMode;
     GLint mCount;
     GLenum mType;
@@ -1109,16 +1081,26 @@ class DrawGLElementsCmd : public Command {
     GLsizei mBaseVtx;
 
 public:
-    DrawGLElementsCmd(D3DGLDevice *target, GLenum mode, GLint count, GLenum type, GLubyte *pointer, GLsizei num_instances, GLsizei basevtx)
-      : mTarget(target), mMode(mode), mCount(count), mType(type), mPointer(pointer), mNumInstances(num_instances), mBaseVtx(basevtx)
+    DrawGLElementsCmd(GLState &glstate, GLenum mode, GLint count, GLenum type, GLubyte *pointer, GLsizei num_instances, GLsizei basevtx)
+      : mGLState(glstate), mMode(mode), mCount(count), mType(type), mPointer(pointer), mNumInstances(num_instances), mBaseVtx(basevtx)
     { }
 
     virtual ULONG execute()
     {
-        mTarget->drawElementsGL(mMode, mCount, mType, mPointer, mNumInstances, mBaseVtx);
+        if(mGLState.current_framebuffer[0] != mGLState.main_framebuffer)
+        {
+            mGLState.current_framebuffer[0] = mGLState.main_framebuffer;
+            mGLState.current_framebuffer[1] = mGLState.main_framebuffer;
+            glBindFramebuffer(GL_FRAMEBUFFER, mGLState.main_framebuffer);
+        }
+        glDrawElementsInstancedBaseVertex(mMode, mCount, mType, mPointer, mNumInstances, mBaseVtx);
+        checkGLError();
+
         return sizeof(*this);
     }
 };
+
+} // namespace
 
 
 void D3DGLDevice::blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect, GLenum dst_target, GLuint dst_binding, GLint dst_level, const RECT &dst_rect, GLenum filter)
@@ -1607,7 +1589,7 @@ HRESULT D3DGLDevice::sendVtxData(INT startvtx, const StreamSource *sources, UINT
         ++cur;
     }
 
-    mQueue.doSend<SetVtxDataCmd>(this, streams.data(), cur);
+    mQueue.doSend<SetVtxDataCmd>(streams.data(), cur);
 
     return D3D_OK;
 }
@@ -1897,10 +1879,13 @@ HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
     mQueue.doSend<ScissorRectSet>(mScissorRect);
 
     if(mAutoDepthStencil)
-        mQueue.doSend<SetFBAttachmentCmd>(this, mAutoDepthStencil->getFormat().getDepthStencilAttachment(),
-                                          GL_RENDERBUFFER, mAutoDepthStencil->getId(), 0);
-    mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER,
-                                             schain->getBackbuffer()->getId(), 0);
+        mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState),
+            mAutoDepthStencil->getFormat().getDepthStencilAttachment(),
+            GL_RENDERBUFFER, mAutoDepthStencil->getId(), 0
+        );
+    mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
+        GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, schain->getBackbuffer()->getId(), 0
+    );
 
     return D3D_OK;
 }
@@ -2409,8 +2394,9 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
 
         mQueue.lock();
         rtarget = mRenderTargets[index].exchange(rtarget);
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_COLOR_ATTACHMENT0+index,
-                                                 GL_RENDERBUFFER, 0, 0);
+        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
+            GL_COLOR_ATTACHMENT0+index, GL_RENDERBUFFER, 0, 0
+        );
         if(rtarget) rtarget->Release();
         return D3D_OK;
     }
@@ -2433,8 +2419,9 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
 
         mQueue.lock();
         rtarget = mRenderTargets[index].exchange(tex2dsurface);
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_COLOR_ATTACHMENT0+index,
-            GL_TEXTURE_2D, tex2d->getTextureId(), tex2dsurface->getLevel()
+        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
+            GL_COLOR_ATTACHMENT0+index, GL_TEXTURE_2D, tex2d->getTextureId(),
+            tex2dsurface->getLevel()
         );
     }
     else if(SUCCEEDED(rtarget->QueryInterface(IID_D3DGLRenderTarget, &pointer)))
@@ -2448,8 +2435,8 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
 
         mQueue.lock();
         rtarget = mRenderTargets[index].exchange(surface);
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_COLOR_ATTACHMENT0+index,
-            GL_RENDERBUFFER, surface->getId(), 0
+        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
+            GL_COLOR_ATTACHMENT0+index, GL_RENDERBUFFER, surface->getId(), 0
         );
     }
     else if(SUCCEEDED(rtarget->QueryInterface(IID_D3DGLCubeSurface, &pointer)))
@@ -2464,8 +2451,9 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
 
         mQueue.lock();
         rtarget = mRenderTargets[index].exchange(cubesurface);
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_COLOR_ATTACHMENT0+index,
-            cubesurface->getTarget(), cubetex->getTextureId(), 0
+        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
+            GL_COLOR_ATTACHMENT0+index, cubesurface->getTarget(), cubetex->getTextureId(),
+            0
         );
     }
     else
@@ -2508,8 +2496,9 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
             dword_to_float(mRenderState[D3DRS_SLOPESCALEDEPTHBIAS]),
             dword_to_float(mRenderState[D3DRS_DEPTHBIAS]) * (float)((1u<<mDepthBits) - 1u)
         );
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, GL_DEPTH_STENCIL_ATTACHMENT,
-                                                 GL_RENDERBUFFER, 0, 0);
+        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
+            GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0, 0
+        );
         if(depthstencil) depthstencil->Release();
 
         return D3D_OK;
@@ -2554,11 +2543,12 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
             // If the previous attachment was GL_DEPTH_STENCIL_ATTACHMENT, and
             // this is GL_DEPTH_ATTACHMENT, the previous attachment would
             // remain as the stencil buffer.
-            mQueue.doSend<SetFBAttachmentCmd>(this, GL_STENCIL_ATTACHMENT,
-                                              GL_RENDERBUFFER, 0, 0);
+            mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState),
+                GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0, 0
+            );
         }
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, attachment,
-            GL_TEXTURE_2D, tex2d->getTextureId(), tex2dsurface->getLevel()
+        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
+            attachment, GL_TEXTURE_2D, tex2d->getTextureId(), tex2dsurface->getLevel()
         );
     }
     else if(SUCCEEDED(depthstencil->QueryInterface(IID_D3DGLRenderTarget, &pointer)))
@@ -2584,10 +2574,11 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
             );
         }
         if(attachment == GL_DEPTH_ATTACHMENT)
-            mQueue.doSend<SetFBAttachmentCmd>(this, GL_STENCIL_ATTACHMENT,
-                                              GL_RENDERBUFFER, 0, 0);
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, attachment,
-            GL_RENDERBUFFER, surface->getId(), 0
+            mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState),
+                GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0, 0
+            );
+        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
+            attachment, GL_RENDERBUFFER, surface->getId(), 0
         );
     }
     else if(SUCCEEDED(depthstencil->QueryInterface(IID_D3DGLCubeSurface, &pointer)))
@@ -2614,10 +2605,12 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
             );
         }
         if(attachment == GL_DEPTH_ATTACHMENT)
-            mQueue.doSend<SetFBAttachmentCmd>(this, GL_STENCIL_ATTACHMENT,
-                                              GL_RENDERBUFFER, 0, 0);
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(this, attachment,
-            cubesurface->getTarget(), cubetex->getTextureId(), cubesurface->getLevel()
+            mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState),
+                GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0, 0
+            );
+        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
+            attachment, cubesurface->getTarget(), cubetex->getTextureId(),
+            cubesurface->getLevel()
         );
     }
     else
@@ -2693,7 +2686,7 @@ HRESULT D3DGLDevice::Clear(DWORD count, const D3DRECT *rects, DWORD flags, D3DCO
         main_rect.top = mViewport.Y;
         main_rect.right = main_rect.left + mViewport.Width;
         main_rect.bottom = main_rect.top + mViewport.Height;
-        mQueue.sendAndUnlock<ClearCmd>(this, mask, color, depth, stencil, main_rect);
+        mQueue.sendAndUnlock<ClearCmd>(make_ref(mGLState), mask, color, depth, stencil, main_rect);
     }
     else
     {
@@ -2939,7 +2932,7 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
         case D3DRS_CLIPPLANEENABLE:
             mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<ClipPlaneEnableCmd>(this, value);
+            mQueue.sendAndUnlock<ClipPlaneEnableCmd>(make_ref(mGLState), value);
             break;
 
         case D3DRS_STENCILWRITEMASK:
@@ -3107,7 +3100,7 @@ HRESULT D3DGLDevice::SetTexture(DWORD stage, IDirect3DBaseTexture9 *texture)
     {
         mQueue.lock();
         texture = mTextures[stage].exchange(texture);
-        mQueue.sendAndUnlock<SetTextureCmd>(this, stage, GL_TEXTURE_2D, 0);
+        mQueue.sendAndUnlock<SetTextureCmd>(make_ref(mGLState), stage, GL_TEXTURE_2D, 0);
         if(texture) texture->Release();
     }
     else
@@ -3137,7 +3130,7 @@ HRESULT D3DGLDevice::SetTexture(DWORD stage, IDirect3DBaseTexture9 *texture)
         mQueue.lock();
         // Texture being set already has an added reference
         texture = mTextures[stage].exchange(texture);
-        mQueue.sendAndUnlock<SetTextureCmd>(this, stage, type, binding);
+        mQueue.sendAndUnlock<SetTextureCmd>(make_ref(mGLState), stage, type, binding);
         if(texture) texture->Release();
     }
 
@@ -3395,7 +3388,7 @@ HRESULT D3DGLDevice::DrawPrimitive(D3DPRIMITIVETYPE type, UINT startvtx, UINT co
     else
     {
         GLenum mode = GetGLDrawMode(type, count);
-        mQueue.sendAndUnlock<DrawGLArraysCmd>(this, mode, count, 1/*num_instances*/);
+        mQueue.sendAndUnlock<DrawGLArraysCmd>(make_ref(mGLState), mode, count, 1/*num_instances*/);
     }
 
     return hr;
@@ -3432,7 +3425,9 @@ HRESULT D3DGLDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE type, INT startvtx, U
         GLenum mode = GetGLDrawMode(type, count);
         GLenum type = GetGLIndexType(idxbuffer->getFormat(), startidx);
         GLubyte *pointer = ((GLubyte*)nullptr) + startidx;
-        mQueue.sendAndUnlock<DrawGLElementsCmd>(this, mode, count, type, pointer, num_instances, minvtx);
+        mQueue.sendAndUnlock<DrawGLElementsCmd>(make_ref(mGLState),
+            mode, count, type, pointer, num_instances, minvtx
+        );
     }
     return hr;
 }
@@ -3466,7 +3461,7 @@ HRESULT D3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE type, UINT count, const vo
     if(FAILED(hr))
         mQueue.unlock();
     else
-        mQueue.sendAndUnlock<DrawGLArraysCmd>(this, mode, count, 1/*num_instances*/);
+        mQueue.sendAndUnlock<DrawGLArraysCmd>(make_ref(mGLState), mode, count, 1/*num_instances*/);
 
     mStreams[0].mBuffer = nullptr;
     mStreams[0].mStride = 0;
@@ -3532,7 +3527,7 @@ HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9 *decl)
             if(loc >= 0) attribs |= 1<<loc;
         }
         vtxdecl = mVertexDecl.exchange(vtxdecl);
-        mQueue.sendAndUnlock<SetVertexAttribArrayCmd>(this, attribs);
+        mQueue.sendAndUnlock<SetVertexAttribArrayCmd>(make_ref(mGLState), attribs);
     }
     else
     {
@@ -3607,17 +3602,21 @@ HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
                 if(loc >= 0) attribs |= 1<<loc;
             }
         }
-        mQueue.doSend<SetVertexAttribArrayCmd>(this, attribs);
+        mQueue.doSend<SetVertexAttribArrayCmd>(make_ref(mGLState), attribs);
         // TODO: The old shader's local constants should be reloaded with the
         // appropriate global values, and the new shader's local constants
         // should be filled with what the shader defined.
-        mQueue.sendAndUnlock<SetShaderProgramCmd>(this, GL_VERTEX_SHADER_BIT, vshader->getProgram());
+        mQueue.sendAndUnlock<SetShaderProgramCmd>(make_ref(mGLState),
+            GL_VERTEX_SHADER_BIT, vshader->getProgram()
+        );
     }
     else if(oldshader)
     {
         // FIXME: Set according to fixed-function emulation shader
-        mQueue.doSend<SetVertexAttribArrayCmd>(this, 0);
-        mQueue.sendAndUnlock<SetShaderProgramCmd>(this, GL_VERTEX_SHADER_BIT, 0u);
+        mQueue.doSend<SetVertexAttribArrayCmd>(make_ref(mGLState), 0);
+        mQueue.sendAndUnlock<SetShaderProgramCmd>(make_ref(mGLState),
+            GL_VERTEX_SHADER_BIT, 0u
+        );
     }
     else
         mQueue.unlock();
@@ -3866,10 +3865,14 @@ HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9 *shader)
         // TODO: The old shader's local constants should be reloaded with the
         // appropriate global values, and the new shader's local constants
         // should be filled with what the shader defined.
-        mQueue.sendAndUnlock<SetShaderProgramCmd>(this, GL_FRAGMENT_SHADER_BIT, pshader->getProgram());
+        mQueue.sendAndUnlock<SetShaderProgramCmd>(make_ref(mGLState),
+            GL_FRAGMENT_SHADER_BIT, pshader->getProgram()
+        );
     }
     else if(oldshader)
-        mQueue.sendAndUnlock<SetShaderProgramCmd>(this, GL_FRAGMENT_SHADER_BIT, 0u);
+        mQueue.sendAndUnlock<SetShaderProgramCmd>(make_ref(mGLState),
+            GL_FRAGMENT_SHADER_BIT, 0u
+        );
     else
         mQueue.unlock();
     if(oldshader) oldshader->Release();

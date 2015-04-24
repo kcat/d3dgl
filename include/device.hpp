@@ -48,6 +48,10 @@ struct GLStreamData {
 };
 
 struct GLState {
+    GLState() { }
+    GLState(const GLState&) = delete;
+    GLState& operator=(const GLState&) = delete;
+
     std::array<GLuint,MAX_COMBINED_SAMPLERS> samplers;
     GLuint pipeline;
 
@@ -156,15 +160,6 @@ public:
 
     void initGL(HDC dc, HGLRC glcontext);
     void deinitGL();
-    void clearGL(GLbitfield mask, GLuint color, GLfloat depth, GLuint stencil, const RECT &rect);
-    void setTextureGL(GLuint stage, GLenum type, GLuint binding);
-    void setClipPlanesGL(UINT planes);
-    void setFBAttachmentGL(GLenum attachment, GLenum target, GLuint id, GLint level);
-    void setVertexAttribArrayGL(UINT attribs);
-    void setShaderProgramGL(GLbitfield stages, GLuint program);
-    void setVtxDataGL(const GLStreamData *streams, GLuint numstreams);
-    void drawArraysGL(GLenum mode, GLint count, GLsizei numinstances);
-    void drawElementsGL(GLenum mode, GLint count, GLenum type, GLubyte *pointer, GLsizei numinstances, GLsizei basevtx);
     void blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect,
                            GLenum dst_target, GLuint dst_binding, GLint dst_level, const RECT &dst_rect,
                            GLenum filter);
