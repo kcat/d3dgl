@@ -1044,14 +1044,14 @@ static const char *get_GLSL_comparison_string_vector(Context *ctx)
 
 static void emit_GLSL_start(Context *ctx, const char *profilestr)
 {
-    if (!shader_is_vertex(ctx) && !shader_is_pixel(ctx))
+    if(!shader_is_vertex(ctx) && !shader_is_pixel(ctx))
     {
         failf(ctx, "Shader type %u unsupported in this profile.",
-              (uint) ctx->shader_type);
+              (uint)ctx->shader_type);
         return;
     }
 
-    if (strcmp(profilestr, MOJOSHADER_PROFILE_GLSL330) != 0)
+    if(strcmp(profilestr, MOJOSHADER_PROFILE_GLSL330) != 0)
     {
         failf(ctx, "Profile '%s' unsupported or unknown.", profilestr);
         return;
@@ -1062,25 +1062,21 @@ static void emit_GLSL_start(Context *ctx, const char *profilestr)
     output_line(ctx, "#extension GL_ARB_separate_shader_objects : enable");
     pop_output(ctx);
 
-    if (shader_is_vertex(ctx))
+    push_output(ctx, &ctx->globals);
+    if(shader_is_vertex(ctx))
     {
         // NOTE: POS_FIXUP to fix D3D/GL projection differences
-        push_output(ctx, &ctx->globals);
-        output_line(ctx, "layout(std140) uniform pos_fixup { vec4 POS_FIXUP; };\n");
+        output_line(ctx, "layout(std140) uniform pos_fixup { vec4 POS_FIXUP; };");
         output_line(ctx, "out gl_PerVertex {\n"
                          "\tvec4 gl_Position;\n"
                          "\tfloat gl_PointSize;\n"
                          "\tfloat gl_ClipDistance[8];\n"
                          "};");
         output_line(ctx, "layout(location=0) out vec4 vs_o[12];");
-        pop_output(ctx);
     }
     else if(shader_is_pixel(ctx))
-    {
-        push_output(ctx, &ctx->globals);
         output_line(ctx, "layout(location=0) in vec4 ps_v[10];");
-        pop_output(ctx);
-    }
+    pop_output(ctx);
 
     push_output(ctx, &ctx->mainline_intro);
     output_line(ctx, "void main()");
@@ -1089,7 +1085,7 @@ static void emit_GLSL_start(Context *ctx, const char *profilestr)
 
     set_output(ctx, &ctx->mainline);
     ctx->indent++;
-} // emit_GLSL_start
+}
 
 static void emit_GLSL_RET(Context *ctx);
 static void emit_GLSL_end(Context *ctx)
@@ -1097,12 +1093,12 @@ static void emit_GLSL_end(Context *ctx)
     // ps_1_* writes color to r0 instead oC0. We move it to the right place.
     // We don't have to worry about a RET opcode messing this up, since
     //  RET isn't available before ps_2_0.
-    if (shader_is_pixel(ctx) && !shader_version_atleast(ctx, 2, 0))
+    if(shader_is_pixel(ctx) && !shader_version_atleast(ctx, 2, 0))
     {
         const char *shstr = ctx->shader_type_str;
         set_used_register(ctx, REG_TYPE_COLOROUT, 0, 1);
         output_line(ctx, "%s_oC0 = %s_r0;", shstr, shstr);
-    } // if
+    }
     else if(shader_is_vertex(ctx))
     {
         // NOTE: Write the real vertex position output now
@@ -1112,9 +1108,9 @@ static void emit_GLSL_end(Context *ctx)
         output_line(ctx, "gl_Position.w = TMP_POS.w;");
     }
     // force a RET opcode if we're at the end of the stream without one.
-    if (ctx->previous_opcode != OPCODE_RET)
+    if(ctx->previous_opcode != OPCODE_RET)
         emit_GLSL_RET(ctx);
-} // emit_GLSL_end
+}
 
 static void emit_GLSL_phase(Context *ctx)
 {
@@ -1182,6 +1178,7 @@ static void emit_GLSL_finalize(Context *ctx)
         fail(ctx, "Relative addressing of input registers not supported.");
 
     push_output(ctx, &ctx->preflight);
+    output_blank_line(ctx);
     output_GLSL_uniform_array(ctx, REG_TYPE_CONST, ctx->uniform_float4_count);
     output_GLSL_uniform_array(ctx, REG_TYPE_CONSTINT, ctx->uniform_int4_count);
     output_GLSL_uniform_array(ctx, REG_TYPE_CONSTBOOL, ctx->uniform_bool_count);
