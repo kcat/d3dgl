@@ -26,7 +26,6 @@ public:
 
     bool init(const DWORD *data);
 
-    void deinitGL();
     void compileShaderGL(const MOJOSHADER_parseData *shader);
 
     GLuint getProgram() const { return mProgram; }

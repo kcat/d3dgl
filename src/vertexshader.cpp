@@ -17,29 +17,36 @@ void D3DGLVertexShader::compileShaderGL(const MOJOSHADER_parseData *shader)
     if(!mProgram)
     {
         FIXME("Failed to create shader program\n");
-        GLint logLen;
-        glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
-        if(logLen > 0)
-        {
-            std::vector<char> log(logLen+1);
-            glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
-            FIXME("Compile failure log:\n----\n%s\n----\n", log.data());
-        }
-        FIXME("Shader text:\n----\n%s\n----\n", shader->output);
-        checkGLError();
         return;
     }
 
     TRACE("Created vertex shader program 0x%x\n", mProgram);
 
     GLint logLen = 0;
+    GLint status = GL_FALSE;
+    glGetProgramiv(mProgram, GL_LINK_STATUS, &status);
+    if(status == GL_FALSE)
+    {
+        glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
+        std::vector<char> log(logLen+1);
+        glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
+        FIXME("Shader not linked:\n----\n%s\n----\nShader text:\n----\n%s\n----\n",
+              log.data(), shader->output);
+
+        glDeleteProgram(mProgram);
+        mProgram = 0;
+
+        checkGLError();
+        return;
+    }
+
     glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
     if(logLen > 4)
     {
         std::vector<char> log(logLen+1);
         glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
-        WARN("Compile warning log:\n----\n%s\n----\n", log.data());
-        WARN("Shader text:\n----\n%s\n----\n", shader->output);
+        WARN("Compile warning log:\n----\n%s\n----\nShader text:\n----\n%s\n----\n",
+             log.data(), shader->output);
     }
 
     GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "vs_vec4");
@@ -81,19 +88,15 @@ public:
     }
 };
 
-void D3DGLVertexShader::deinitGL()
-{
-    glDeleteProgram(mProgram);
-}
 class DeinitVShaderCmd : public Command {
-    D3DGLVertexShader *mTarget;
+    GLuint mProgram;
 
 public:
-    DeinitVShaderCmd(D3DGLVertexShader *target) : mTarget(target) { }
+    DeinitVShaderCmd(GLuint program) : mProgram(program) { }
 
     virtual ULONG execute()
     {
-        mTarget->deinitGL();
+        glDeleteProgram(mProgram);
         return sizeof(*this);
     }
 };
@@ -109,7 +112,9 @@ D3DGLVertexShader::D3DGLVertexShader(D3DGLDevice *parent)
 
 D3DGLVertexShader::~D3DGLVertexShader()
 {
-    mParent->getQueue().sendSync<DeinitVShaderCmd>(this);
+    if(mProgram)
+        mParent->getQueue().send<DeinitVShaderCmd>(mProgram);
+    mProgram = 0;
     mParent->Release();
 }
 
@@ -143,7 +148,7 @@ bool D3DGLVertexShader::init(const DWORD *data)
     mParent->getQueue().sendSync<CompileVShaderCmd>(this, shader);
     MOJOSHADER_freeParseData(shader);
 
-    return true;
+    return mProgram != 0;
 }
 
 

@@ -17,29 +17,36 @@ void D3DGLPixelShader::compileShaderGL(const MOJOSHADER_parseData *shader)
     if(!mProgram)
     {
         FIXME("Failed to create shader program\n");
-        GLint logLen;
-        glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
-        if(logLen > 0)
-        {
-            std::vector<char> log(logLen+1);
-            glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
-            FIXME("Compile failure log:\n----\n%s\n----\n", log.data());
-        }
-        FIXME("Shader text:\n----\n%s\n----\n", shader->output);
-        checkGLError();
         return;
     }
 
     TRACE("Created fragment shader program 0x%x\n", mProgram);
 
     GLint logLen = 0;
+    GLint status = GL_FALSE;
+    glGetProgramiv(mProgram, GL_LINK_STATUS, &status);
+    if(status == GL_FALSE)
+    {
+        glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
+        std::vector<char> log(logLen+1);
+        glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
+        FIXME("Shader not linked:\n----\n%s\n----\nShader text:\n----\n%s\n----\n",
+              log.data(), shader->output);
+
+        glDeleteProgram(mProgram);
+        mProgram = 0;
+
+        checkGLError();
+        return;
+    }
+
     glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
     if(logLen > 4)
     {
         std::vector<char> log(logLen+1);
         glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
-        WARN("Compile warning log:\n----\n%s\n----\n", log.data());
-        WARN("Shader text:\n----\n%s\n----\n", shader->output);
+        WARN("Compile warning log:\n----\n%s\n----\nShader text:\n----\n%s\n----\n",
+             log.data(), shader->output);
     }
 
     GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "ps_vec4");
@@ -71,19 +78,15 @@ public:
     }
 };
 
-void D3DGLPixelShader::deinitGL()
-{
-    glDeleteProgram(mProgram);
-}
 class DeinitPShaderCmd : public Command {
-    D3DGLPixelShader *mTarget;
+    GLuint mProgram;
 
 public:
-    DeinitPShaderCmd(D3DGLPixelShader *target) : mTarget(target) { }
+    DeinitPShaderCmd(GLuint program) : mProgram(program) { }
 
     virtual ULONG execute()
     {
-        mTarget->deinitGL();
+        glDeleteProgram(mProgram);
         return sizeof(*this);
     }
 };
@@ -99,7 +102,9 @@ D3DGLPixelShader::D3DGLPixelShader(D3DGLDevice *parent)
 
 D3DGLPixelShader::~D3DGLPixelShader()
 {
-    mParent->getQueue().sendSync<DeinitPShaderCmd>(this);
+    if(mProgram)
+        mParent->getQueue().send<DeinitPShaderCmd>(mProgram);
+    mProgram = 0;
     mParent->Release();
 }
 
@@ -133,7 +138,7 @@ bool D3DGLPixelShader::init(const DWORD *data)
     mParent->getQueue().sendSync<CompilePShaderCmd>(this, shader);
     MOJOSHADER_freeParseData(shader);
 
-    return true;
+    return mProgram != 0;
 }
 
 
