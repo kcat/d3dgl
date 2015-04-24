@@ -2,6 +2,7 @@
 #include "adapter.hpp"
 
 #include "glew.h"
+#include "wglew.h"
 #include "trace.hpp"
 #include "glformat.hpp"
 #include "d3dgl.hpp"
@@ -1244,32 +1245,42 @@ bool D3DAdapter::init()
 
     TRACE("Got device name \"%ls\"\n", mDeviceName.c_str());
 
-    HWND hWnd; HDC hDc; HGLRC hGlrc;
-    if(!CreateFakeContext(GetModuleHandleW(nullptr), hWnd, hDc, hGlrc))
+    HWND hWnd; HDC hDc;
+    if(!CreateFakeWindow(GetModuleHandleW(nullptr), hWnd, hDc))
         return false;
 
+    std::vector<std::array<int,2>> glattrs;
+    glattrs.reserve(2);
+    glattrs.push_back({WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB});
+    glattrs.push_back({0, 0});
+    HGLRC hGlrc = wglCreateContextAttribsARB(hDc, nullptr, &glattrs[0][0]);
+    if(!hGlrc)
+    {
+        ERR("Failed to create WGL context\n");
+        ReleaseDC(hWnd, hDc);
+        DestroyWindow(hWnd);
+        return false;
+    }
+
     bool retval = false;
-    wglMakeCurrent(hDc, hGlrc);
-
-    if(!GLEW_VERSION_3_3)
+    if(!wglMakeCurrent(hDc, hGlrc))
+        ERR("Failed to make context current!\n");
+    else if(!GLEW_VERSION_3_3)
+        ERR("Required GL 3.3 not supported!\n");
+    else if(!GLEW_EXT_direct_state_access)
+        ERR("Required GL_EXT_direct_state_access not supported!\n");
+    else if(!GLEW_ARB_separate_shader_objects)
+        ERR("Required GL_ARB_separate_shader_objects not supported!\n");
+    else
     {
-        ERR("Required GL 3.3 not supported!");
-        goto done;
-    }
-    if(!GLEW_EXT_direct_state_access)
-    {
-        ERR("Required GL_EXT_direct_state_access not supported!");
-        goto done;
+        init_limits();
+        init_caps();
+        init_ids();
+        init_usage();
+        retval = true;
     }
 
-    init_limits();
-    init_caps();
-    init_ids();
-    init_usage();
-
-    retval = true;
-done:
-    wglMakeCurrent(hDc, nullptr);
+    wglMakeCurrent(nullptr, nullptr);
     wglDeleteContext(hGlrc);
     ReleaseDC(hWnd, hDc);
     DestroyWindow(hWnd);

@@ -10,6 +10,7 @@
 #include <cstdio>
 
 #include "glew.h"
+#include "wglew.h"
 #include "trace.hpp"
 #include "d3dgl.hpp"
 #include "private_iids.hpp"
@@ -42,12 +43,9 @@ void log_printf(FILE *file, const char *fmt, ...)
 
 static const wchar_t WndClassName[] = L"D3DGLWndClass";
 
-bool CreateFakeContext(HINSTANCE hInstance, HWND &hWnd, HDC &dc, HGLRC &glrc)
+bool CreateFakeWindow(HINSTANCE hInstance, HWND &hWnd, HDC &dc)
 {
-    hWnd = nullptr;
     dc   = nullptr;
-    glrc = nullptr;
-
     hWnd = CreateWindowExW(0, WndClassName, L"D3DGL Fake Window", WS_OVERLAPPEDWINDOW,
                            0, 0, 640, 480, nullptr, nullptr, hInstance, nullptr);
     if(!hWnd)
@@ -68,8 +66,8 @@ bool CreateFakeContext(HINSTANCE hInstance, HWND &hWnd, HDC &dc, HGLRC &glrc)
         0,
         0,
         0, 0, 0, 0,
-        24,                       //Number of bits for the depthbuffer
-        8,                        //Number of bits for the stencilbuffer
+        0,                        //Number of bits for the depthbuffer
+        0,                        //Number of bits for the stencilbuffer
         0,                        //Number of Aux buffers in the framebuffer.
         PFD_MAIN_PLANE,
         0,
@@ -77,15 +75,6 @@ bool CreateFakeContext(HINSTANCE hInstance, HWND &hWnd, HDC &dc, HGLRC &glrc)
     };
     int pfid = ChoosePixelFormat(dc, &pfd);
     SetPixelFormat(dc, pfid, &pfd);
-
-    glrc = wglCreateContext(dc);
-    if(!glrc)
-    {
-        ERR("Failed to create WGL context");
-        ReleaseDC(hWnd, dc);
-        DestroyWindow(hWnd);
-        return false;
-    }
 
     return true;
 }
@@ -166,22 +155,52 @@ static bool init_d3dgl(void)
     wc.style         = CS_OWNDC;
     if(!RegisterClassW(&wc))
     {
-        ERR("Failed to register fake GL window class");
+        ERR("Failed to register fake GL window class\n");
         return false;
     }
 
-    HWND hWnd;
-    HDC dc;
-    HGLRC glrc;
-    if(!CreateFakeContext(hInstance, hWnd, dc, glrc))
+    HWND hWnd; HDC dc;
+    if(!CreateFakeWindow(hInstance, hWnd, dc))
         return false;
 
+    HGLRC glrc = wglCreateContext(dc);
+    if(!glrc)
+    {
+        ERR("Failed to create WGL context\n");
+        ReleaseDC(hWnd, dc);
+        DestroyWindow(hWnd);
+        return false;
+    }
     wglMakeCurrent(dc, glrc);
 
     GLenum err = glewInit();
 
     wglMakeCurrent(dc, nullptr);
     wglDeleteContext(glrc);
+
+    if(err == GLEW_OK)
+    {
+        std::vector<std::array<int,2>> glattrs;
+        glattrs.reserve(2);
+        glattrs.push_back({WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB});
+        glattrs.push_back({0, 0});
+        glrc = wglCreateContextAttribsARB(dc, nullptr, &glattrs[0][0]);
+        if(!glrc)
+        {
+            ERR("Failed to recreate WGL context\n");
+            ReleaseDC(hWnd, dc);
+            DestroyWindow(hWnd);
+            return false;
+        }
+
+        wglMakeCurrent(dc, glrc);
+
+        /* Reinit GLEW with a core context. */
+        err = glewInit();
+
+        wglMakeCurrent(dc, nullptr);
+        wglDeleteContext(glrc);
+    }
 
     ReleaseDC(hWnd, dc);
     DestroyWindow(hWnd);

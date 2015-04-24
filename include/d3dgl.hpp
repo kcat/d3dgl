@@ -16,7 +16,7 @@
 #define MAX_COMBINED_SAMPLERS       (MAX_FRAGMENT_SAMPLERS + MAX_VERTEX_SAMPLERS)
 
 
-bool CreateFakeContext(HINSTANCE hInstance, HWND &hWnd, HDC &dc, HGLRC &glrc);
+bool CreateFakeWindow(HINSTANCE hInstance, HWND &hWnd, HDC &dc);
 
 
 class D3DAdapter;

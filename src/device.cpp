@@ -1260,14 +1260,6 @@ void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
         std::terminate();
     }
 
-    /* Re-init GLEW since we're in a real (core) context now. */
-    if(GLenum err = glewInit())
-    {
-        /* Problem: glewInit failed, something is seriously wrong. */
-        ERR("GLEW error: %s\n", glewGetErrorString(err));
-        std::terminate();
-    }
-
     if((GLEW_VERSION_4_3 || GLEW_KHR_debug) && GLDebugLevel > NONE_)
     {
         TRACE("Installing debug handler\n");
