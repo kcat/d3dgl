@@ -113,7 +113,6 @@ typedef struct Context {
     int centroid_allowed;
     int have_relative_input_registers;
     int have_relative_const_registers;
-    int have_multi_color_outputs;
     int determined_constants_arrays;
     int predicated;
     int uses_pointsize;
@@ -121,7 +120,6 @@ typedef struct Context {
     int glsl_generated_lit_helper;
     int glsl_generated_texldd_setup;
     int glsl_generated_texm3x3spec_helper;
-    int glsl_wrote_texregs;
     int reset_texmpad;
     int texm3x2pad_dst0;
     int texm3x2pad_src0;
@@ -389,9 +387,6 @@ static inline RegisterList *set_used_register(Context *ctx, const RegisterType r
                                               const int regnum, const int written)
 {
     RegisterList *reg = NULL;
-    if(regtype == REG_TYPE_COLOROUT && regnum > 0)
-        ctx->have_multi_color_outputs = 1;
-
     reg = reglist_insert(&ctx->used_registers, regtype, regnum);
     if(reg && written) reg->written = 1;
     return reg;
@@ -1046,20 +1041,6 @@ static const char *get_GLSL_comparison_string_vector(Context *ctx)
     return comps[ctx->instruction_controls];
 } // get_GLSL_comparison_string_vector
 
-static void ensure_GLSL_texregs(Context *ctx)
-{
-    if(ctx->glsl_wrote_texregs)
-        return;
-
-    push_output(ctx, &ctx->preflight);
-    // D3D shaders allow using TEXCOORD varyings above what GLSL supplies with
-    // its built-ins. So to work around this, declare an extra 8 varyings to
-    // use when it addresses more than the built-in 8.
-    output_line(ctx, "varying vec4 TexCoord[8];");
-    pop_output(ctx);
-    ctx->glsl_wrote_texregs = 1;
-} // ensure_GLSL_texregs
-
 
 static void emit_GLSL_start(Context *ctx, const char *profilestr)
 {
@@ -1070,24 +1051,34 @@ static void emit_GLSL_start(Context *ctx, const char *profilestr)
         return;
     }
 
-    if (strcmp(profilestr, MOJOSHADER_PROFILE_GLSL120) != 0)
+    if (strcmp(profilestr, MOJOSHADER_PROFILE_GLSL330) != 0)
     {
         failf(ctx, "Profile '%s' unsupported or unknown.", profilestr);
         return;
     }
 
     push_output(ctx, &ctx->preflight);
-    // Require UBOs to attach the D3D constants' uniform arrays, and set a projection matrix fixup
-    output_line(ctx, "#version 120");
-    output_line(ctx, "#extension GL_ARB_uniform_buffer_object : enable");
+    output_line(ctx, "#version 330");
+    output_line(ctx, "#extension GL_ARB_separate_shader_objects : enable");
     pop_output(ctx);
 
     if (shader_is_vertex(ctx))
     {
-        // NOTE: TMP_OUT to replace gl_Position, and POS_FIXUP to fix D3D/GL projection differences
+        // NOTE: POS_FIXUP to fix D3D/GL projection differences
         push_output(ctx, &ctx->globals);
-        output_line(ctx, "layout(std140) uniform pos_fixup { vec4 POS_FIXUP; };");
-        output_line(ctx, "vec4 TMP_OUT;");
+        output_line(ctx, "layout(std140) uniform pos_fixup { vec4 POS_FIXUP; };\n");
+        output_line(ctx, "out gl_PerVertex {\n"
+                         "\tvec4 gl_Position;\n"
+                         "\tfloat gl_PointSize;\n"
+                         "\tfloat gl_ClipDistance[8];\n"
+                         "};");
+        output_line(ctx, "layout(location=0) out vec4 vs_o[12];");
+        pop_output(ctx);
+    }
+    else if(shader_is_pixel(ctx))
+    {
+        push_output(ctx, &ctx->globals);
+        output_line(ctx, "layout(location=0) in vec4 ps_v[10];");
         pop_output(ctx);
     }
 
@@ -1115,10 +1106,10 @@ static void emit_GLSL_end(Context *ctx)
     else if(shader_is_vertex(ctx))
     {
         // NOTE: Write the real vertex position output now
-        output_line(ctx, "gl_ClipVertex = TMP_OUT;");
-        output_line(ctx, "gl_Position = vec4(TMP_OUT.xy*vec2(1.0,-1.0) + POS_FIXUP.xy, "
-                                            "TMP_OUT.z*2.0 - TMP_OUT.w, "
-                                            "TMP_OUT.w);");
+        //output_line(ctx, "gl_ClipVertex = TMP_POS;");
+        output_line(ctx, "gl_Position.xy = TMP_POS.xy*vec2(1.0,-1.0) + POS_FIXUP.xy;");
+        output_line(ctx, "gl_Position.z = TMP_POS.z*2.0 - TMP_POS.w;");
+        output_line(ctx, "gl_Position.w = TMP_POS.w;");
     }
     // force a RET opcode if we're at the end of the stream without one.
     if (ctx->previous_opcode != OPCODE_RET)
@@ -1214,17 +1205,7 @@ static void emit_GLSL_global(Context *ctx, RegisterType regtype, int regnum)
                 //  they work like temps, initialize with tex coords, and the
                 //  ps_1_1 TEX opcode expects to overwrite it.
                 if (!shader_version_atleast(ctx, 1, 4))
-                {
-                    if(regnum < 8)
-                        output_line(ctx, "vec4 %s = gl_TexCoord[%d];",
-                                    varname, regnum);
-                    else
-                    {
-                        ensure_GLSL_texregs(ctx);
-                        output_line(ctx, "vec4 %s = TexCoord[%d];",
-                                    varname, regnum-8);
-                    }
-                }
+                    output_line(ctx, "vec4 %s = ps_v[%d];", varname, regnum);
             }
             break;
         case REG_TYPE_PREDICATE:
@@ -1290,19 +1271,12 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                                 int flags)
 {
     // !!! FIXME: this function doesn't deal with write masks at all yet!
-    const char *usage_str = NULL;
-    const char *arrayleft = "";
-    const char *arrayright = "";
-    char index_str[16] = { '\0' };
     char var[64];
     (void)wmask;
 
-    get_GLSL_varname_in_buf(ctx, regtype, regnum, var, sizeof(var));
-
     //assert((flags & MOD_PP) == 0);  // !!! FIXME: is PP allowed?
 
-    if (index != 0)  // !!! FIXME: a lot of these MUST be zero.
-        snprintf(index_str, sizeof (index_str), "%u", (uint) index);
+    get_GLSL_varname_in_buf(ctx, regtype, regnum, var, sizeof(var));
 
     if (shader_is_vertex(ctx))
     {
@@ -1347,73 +1321,49 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
         // items, glVertexPointer() can't do GL_UNSIGNED_BYTE, many other
         // issues), we set up all inputs as generic vertex attributes, so we
         // can pass data in just about any form, and ignore the built-in GLSL
-        // attributes like gl_SecondaryColor. Output needs to use the the
-        // built-ins, though, but we don't have to worry about the GL entry
-        // point limitations there.
+        // attributes like gl_SecondaryColor.
 
+        push_output(ctx, &ctx->globals);
         if (regtype == REG_TYPE_INPUT)
-        {
-            push_output(ctx, &ctx->globals);
-            output_line(ctx, "attribute vec4 %s;", var);
-            pop_output(ctx);
-        }
+            output_line(ctx, "in vec4 %s;", var);
         else if (regtype == REG_TYPE_OUTPUT)
         {
             switch (usage)
             {
                 case MOJOSHADER_USAGE_POSITION:
-                    usage_str = "TMP_OUT"; // NOTE: Replaced gl_Position for fixup
+                    // NOTE: Write to a temp for later fixup
+                    output_line(ctx, "vec4 TMP_POS;");
+                    output_line(ctx, "#define %s TMP_POS", var);
                     break;
                 case MOJOSHADER_USAGE_POINTSIZE:
-                    usage_str = "gl_PointSize";
-                    break;
-                case MOJOSHADER_USAGE_COLOR:
-                    index_str[0] = '\0';  // no explicit number.
-                    if(index == 0)
-                        usage_str = "gl_FrontColor";
-                    else if(index == 1)
-                        usage_str = "gl_FrontSecondaryColor";
-                    else
-                        failf(ctx, "Unhandled vertex output color index: %d\n", index);
+                    output_line(ctx, "#define %s gl_PointSize", var);
                     break;
                 case MOJOSHADER_USAGE_FOG:
-                    usage_str = "gl_FogFragCoord";
+                    output_line(ctx, "float FogFragCoord; /* FIXME: unused */");
+                    output_line(ctx, "#define %s FogFragCoord", var);
                     break;
+                // For these, we can declare outputs from vertex and inputs to
+                // pixel shaders using a layout location index corresponding to
+                // the register number. For vs<3.0, TEXCOORD 0...7 and COLOR 8+9
                 case MOJOSHADER_USAGE_TEXCOORD:
-                    if(index < 8)
-                    {
-                        snprintf(index_str, sizeof (index_str), "%u", (uint) index);
-                        usage_str = "gl_TexCoord";
-                    }
-                    else
-                    {
-                        ensure_GLSL_texregs(ctx);
-                        snprintf(index_str, sizeof (index_str), "%u", (uint) index-8);
-                        usage_str = "TexCoord";
-                    }
-                    arrayleft = "[";
-                    arrayright = "]";
+                    output_line(ctx, "#define %s vs_o[%u]", var, (uint)index);
+                    break;
+                case MOJOSHADER_USAGE_COLOR:
+                    if(index < 0 || index > 1)
+                        failf(ctx, "Unhandled vertex output color index: %d\n", index);
+                    output_line(ctx, "#define %s vs_o[%u]", var, 8u+index);
                     break;
                 default:
                     // !!! FIXME: we need to deal with some more built-in varyings here.
                     failf(ctx, "Unhandled vertex output register usage: 0x%x\n", usage);
                     break;
             }
-
-            if(usage_str)
-            {
-                // !!! FIXME: the #define is a little hacky, but it means we don't
-                // !!! FIXME:  have to track these separately if this works.
-                push_output(ctx, &ctx->globals);
-                output_line(ctx, "#define %s %s%s%s%s", var, usage_str,
-                            arrayleft, index_str, arrayright);
-                pop_output(ctx);
-            }
         }
         else
         {
             fail(ctx, "unknown vertex shader attribute register");
         }
+        pop_output(ctx);
     }
     else if (shader_is_pixel(ctx))
     {
@@ -1425,20 +1375,11 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
             return;
         }
 
+        push_output(ctx, &ctx->globals);
         if (regtype == REG_TYPE_COLOROUT)
-        {
-            if (!ctx->have_multi_color_outputs)
-                usage_str = "gl_FragColor";  // maybe faster?
-            else
-            {
-                snprintf(index_str, sizeof (index_str), "%u", (uint) regnum);
-                usage_str = "gl_FragData";
-                arrayleft = "[";
-                arrayright = "]";
-            }
-        }
+            output_line(ctx, "layout(location=%u) out vec4 %s;", (uint)regnum, var);
         else if (regtype == REG_TYPE_DEPTHOUT)
-            usage_str = "gl_FragDepth";
+            output_line(ctx, "#define %s gl_FragDepth", var);
         else if(regtype == REG_TYPE_TEXTURE || regtype == REG_TYPE_INPUT)
         {
             // !!! FIXME: can you actualy have a texture register with COLOR usage?
@@ -1447,31 +1388,13 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                 // ps_1_1 does a different hack for this attribute.
                 //  Refer to emit_GLSL_global()'s REG_TYPE_TEXTURE code.
                 if (shader_version_atleast(ctx, 1, 4))
-                {
-                    if(index < 8)
-                    {
-                        snprintf(index_str, sizeof (index_str), "%u", (uint) index);
-                        usage_str = "gl_TexCoord";
-                    }
-                    else
-                    {
-                        ensure_GLSL_texregs(ctx);
-                        snprintf(index_str, sizeof (index_str), "%u", (uint) index-8);
-                        usage_str = "TexCoord";
-                    }
-                    arrayleft = "[";
-                    arrayright = "]";
-                }
+                    output_line(ctx, "#define %s ps_v[%u]", var, (uint)index);
             }
             else if (usage == MOJOSHADER_USAGE_COLOR)
             {
-                index_str[0] = '\0';  // no explicit number.
-                if(index == 0)
-                    usage_str = "gl_Color";
-                else if(index == 1)
-                    usage_str = "gl_SecondaryColor";
-                else
+                if(index < 0 || index > 1)
                     fail(ctx, "unsupported color index");
+                output_line(ctx, "#define %s ps_v[%u]", var, 8u+index);
             }
             else
             {
@@ -1482,19 +1405,11 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
         {
             const MiscTypeType mt = (MiscTypeType) regnum;
             if (mt == MISCTYPE_TYPE_FACE)
-            {
-                push_output(ctx, &ctx->globals);
                 output_line(ctx, "float %s = gl_FrontFacing ? 1.0 : -1.0;", var);
-                pop_output(ctx);
-            }
             else if (mt == MISCTYPE_TYPE_POSITION)
             {
-                // vpos in D3D9 is a 2-component vector that gives integer X/Y
-                // pixel coordinates. gl_FragCoord may offset the coordinates
-                // by about 0.5. So, floor it.
-                push_output(ctx, &ctx->globals);
-                output_line(ctx, "vec2 %s = floor(gl_FragCoord.xy);", var);
-                pop_output(ctx);
+                output_line(ctx, "layout(pixel_center_integer) in vec4 gl_FragCoord;");
+                output_line(ctx, "#define %s gl_FragCoord", var);
             }
             else
             {
@@ -1505,14 +1420,7 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
         {
             fail(ctx, "unknown pixel shader attribute register");
         }
-
-        if (usage_str != NULL)
-        {
-            push_output(ctx, &ctx->globals);
-            output_line(ctx, "#define %s %s%s%s%s", var, usage_str,
-                        arrayleft, index_str, arrayright);
-            pop_output(ctx);
-        }
+        pop_output(ctx);
     }
     else
     {
@@ -1990,7 +1898,7 @@ static void emit_GLSL_REP(Context *ctx)
     //  at parse time, but if they are pulling a value from a uniform, do
     //  we clamp here?
     // !!! FIXME: swizzle is legal here, right?
-    char src0[64]; make_GLSL_srcarg_string_x(ctx, 0, src0, sizeof (src0));
+    char src0[64]; make_GLSL_srcarg_string_x(ctx, 0, src0, sizeof(src0));
     const uint rep = (uint) ctx->reps;
     output_line(ctx, "for (int rep%u = 0; rep%u < %s; rep%u++) {",
                 rep, rep, src0, rep);
@@ -2097,7 +2005,7 @@ static void emit_GLSL_TEXKILL(Context *ctx)
 
 static void glsl_texld(Context *ctx, const int texldd)
 {
-    if (!shader_version_atleast(ctx, 1, 4))
+    if(!shader_version_atleast(ctx, 1, 4))
     {
         DestArgInfo *info = &ctx->dest_arg;
         char dst[64];
@@ -2115,28 +2023,16 @@ static void glsl_texld(Context *ctx, const int texldd)
         get_GLSL_varname_in_buf(ctx, REG_TYPE_SAMPLER, info->regnum,
                                 sampler, sizeof (sampler));
 
-        if (ttype == TEXTURE_TYPE_2D)
-        {
+        if(ttype == TEXTURE_TYPE_2D)
             make_GLSL_destarg_assign(ctx, code, sizeof (code),
-                                     "texture2D(%s, %s.xy)",
+                                     "texture(%s, %s.xy)",
                                      sampler, dst);
-        }
-        else if (ttype == TEXTURE_TYPE_CUBE)
-        {
+        else if(ttype == TEXTURE_TYPE_VOLUME || ttype == TEXTURE_TYPE_CUBE)
             make_GLSL_destarg_assign(ctx, code, sizeof (code),
-                                     "textureCube(%s, %s.xyz)",
+                                     "texture(%s, %s.xyz)",
                                      sampler, dst);
-        }
-        else if (ttype == TEXTURE_TYPE_VOLUME)
-        {
-            make_GLSL_destarg_assign(ctx, code, sizeof (code),
-                                     "texture3D(%s, %s.xyz)",
-                                     sampler, dst);
-        }
         else
-        {
             fail(ctx, "unexpected texture type");
-        }
         output_line(ctx, "%s", code);
     }
     else if (!shader_version_atleast(ctx, 2, 0))
@@ -2148,71 +2044,60 @@ static void glsl_texld(Context *ctx, const int texldd)
     else
     {
         const SourceArgInfo *samp_arg = &ctx->source_args[1];
-        RegisterList *sreg = reglist_find(&ctx->samplers, REG_TYPE_SAMPLER,
-                                          samp_arg->regnum);
+        RegisterList *sreg = reglist_find(&ctx->samplers, REG_TYPE_SAMPLER, samp_arg->regnum);
         const char *funcname = NULL;
         char src0[64] = { '\0' };
-        char src1[64]; get_GLSL_srcarg_varname(ctx, 1, src1, sizeof (src1)); // !!! FIXME: SRC_MOD?
+        char src1[64]; get_GLSL_srcarg_varname(ctx, 1, src1, sizeof(src1)); // !!! FIXME: SRC_MOD?
         char src2[64] = { '\0' };
         char src3[64] = { '\0' };
 
-        if (sreg == NULL)
+        if(sreg == NULL)
         {
             fail(ctx, "TEXLD using undeclared sampler");
             return;
         }
 
-        if (texldd)
+        if(texldd)
         {
-            make_GLSL_srcarg_string_vec2(ctx, 2, src2, sizeof (src2));
-            make_GLSL_srcarg_string_vec2(ctx, 3, src3, sizeof (src3));
+            make_GLSL_srcarg_string_vec2(ctx, 2, src2, sizeof(src2));
+            make_GLSL_srcarg_string_vec2(ctx, 3, src3, sizeof(src3));
         }
 
         // !!! FIXME: can TEXLDD set instruction_controls?
         // !!! FIXME: does the d3d bias value map directly to GLSL?
         const char *biassep = "";
         char bias[64] = { '\0' };
-        if (ctx->instruction_controls == CONTROL_TEXLDB)
+        if(ctx->instruction_controls == CONTROL_TEXLDB)
         {
             biassep = ", ";
-            make_GLSL_srcarg_string_w(ctx, 0, bias, sizeof (bias));
+            make_GLSL_srcarg_string_w(ctx, 0, bias, sizeof(bias));
         }
 
-        switch ((const TextureType) sreg->index)
+        if (ctx->instruction_controls == CONTROL_TEXLDP)
         {
+            if(sreg->index == TEXTURE_TYPE_CUBE)
+                fail(ctx, "TEXLDP on a cubemap");  // !!! FIXME: is this legal?
+            funcname = "textureProj";
+            make_GLSL_srcarg_string_full(ctx, 0, src0, sizeof (src0));
+        }
+        else
+        {
+            // texld/texldb
+            funcname = "texture";
+            switch((const TextureType)sreg->index)
+            {
             case TEXTURE_TYPE_2D:
-                if (ctx->instruction_controls == CONTROL_TEXLDP)
-                {
-                    funcname = "texture2DProj";
-                    make_GLSL_srcarg_string_full(ctx, 0, src0, sizeof (src0));
-                }
-                else  // texld/texldb
-                {
-                    funcname = "texture2D";
-                    make_GLSL_srcarg_string_vec2(ctx, 0, src0, sizeof (src0));
-                }
-                break;
-            case TEXTURE_TYPE_CUBE:
-                if (ctx->instruction_controls == CONTROL_TEXLDP)
-                    fail(ctx, "TEXLDP on a cubemap");  // !!! FIXME: is this legal?
-                funcname = "textureCube";
-                make_GLSL_srcarg_string_vec3(ctx, 0, src0, sizeof (src0));
+                make_GLSL_srcarg_string_vec2(ctx, 0, src0, sizeof (src0));
                 break;
             case TEXTURE_TYPE_VOLUME:
-                if (ctx->instruction_controls == CONTROL_TEXLDP)
-                {
-                    funcname = "texture3DProj";
-                    make_GLSL_srcarg_string_full(ctx, 0, src0, sizeof (src0));
-                }
-                else  // texld/texldb
-                {
-                    funcname = "texture3D";
-                    make_GLSL_srcarg_string_vec3(ctx, 0, src0, sizeof (src0));
-                }
+            case TEXTURE_TYPE_CUBE:
+                make_GLSL_srcarg_string_vec3(ctx, 0, src0, sizeof (src0));
                 break;
             default:
+                make_GLSL_srcarg_string_full(ctx, 0, src0, sizeof (src0));
                 fail(ctx, "unknown texture type");
-                return;
+                break;
+            }
         }
 
         assert(!isscalar(ctx, ctx->shader_type, samp_arg->regtype, samp_arg->regnum));
@@ -2220,43 +2105,39 @@ static void glsl_texld(Context *ctx, const int texldd)
         make_GLSL_swizzle_string(swiz_str, samp_arg->swizzle, ctx->dest_arg.writemask);
 
         char code[128];
-        if (texldd)
-        {
+        if(texldd)
             make_GLSL_destarg_assign(ctx, code, sizeof (code),
                                      "%sGrad(%s, %s, %s, %s)%s", funcname,
                                      src1, src0, src2, src3, swiz_str);
-        }
         else
-        {
             make_GLSL_destarg_assign(ctx, code, sizeof (code),
                                      "%s(%s, %s%s%s)%s", funcname,
                                      src1, src0, biassep, bias, swiz_str);
-        } // else
 
         output_line(ctx, "%s", code);
-    } // else
-} // glsl_texld
+    }
+}
 
 static void emit_GLSL_TEXLD(Context *ctx)
 {
     glsl_texld(ctx, 0);
-} // emit_GLSL_TEXLD
-    
+}
+
 
 static void emit_GLSL_TEXBEM(Context *ctx)
 {
     DestArgInfo *info = &ctx->dest_arg;
-    char dst[64]; get_GLSL_destarg_varname(ctx, dst, sizeof (dst));
-    char src[64]; get_GLSL_srcarg_varname(ctx, 0, src, sizeof (src));
+    char dst[64]; get_GLSL_destarg_varname(ctx, dst, sizeof(dst));
+    char src[64]; get_GLSL_srcarg_varname(ctx, 0, src, sizeof(src));
     char sampler[64];
     char code[512];
 
     // !!! FIXME: this code counts on the register not having swizzles, etc.
     get_GLSL_varname_in_buf(ctx, REG_TYPE_SAMPLER, info->regnum,
-                            sampler, sizeof (sampler));
+                            sampler, sizeof(sampler));
 
-    make_GLSL_destarg_assign(ctx, code, sizeof (code),
-        "texture2D(%s, vec2(%s.x + (%s_texbem.x * %s.x) + (%s_texbem.z * %s.y),"
+    make_GLSL_destarg_assign(ctx, code, sizeof(code),
+        "texture(%s, vec2(%s.x + (%s_texbem.x * %s.x) + (%s_texbem.z * %s.y),"
         " %s.y + (%s_texbem.y * %s.x) + (%s_texbem.w * %s.y)))",
         sampler,
         dst, sampler, src, sampler, src,
@@ -2270,22 +2151,23 @@ static void emit_GLSL_TEXBEML(Context *ctx)
 {
     // !!! FIXME: this code counts on the register not having swizzles, etc.
     DestArgInfo *info = &ctx->dest_arg;
-    char dst[64]; get_GLSL_destarg_varname(ctx, dst, sizeof (dst));
-    char src[64]; get_GLSL_srcarg_varname(ctx, 0, src, sizeof (src));
+    char dst[64]; get_GLSL_destarg_varname(ctx, dst, sizeof(dst));
+    char src[64]; get_GLSL_srcarg_varname(ctx, 0, src, sizeof(src));
     char sampler[64];
     char code[512];
 
     get_GLSL_varname_in_buf(ctx, REG_TYPE_SAMPLER, info->regnum,
-                            sampler, sizeof (sampler));
+                            sampler, sizeof(sampler));
 
     make_GLSL_destarg_assign(ctx, code, sizeof (code),
-        "(texture2D(%s, vec2(%s.x + (%s_texbem.x * %s.x) + (%s_texbem.z * %s.y),"
+        "(texture(%s, vec2(%s.x + (%s_texbem.x * %s.x) + (%s_texbem.z * %s.y),"
         " %s.y + (%s_texbem.y * %s.x) + (%s_texbem.w * %s.y)))) *"
         " ((%s.z * %s_texbeml.x) + %s_texbem.y)",
         sampler,
         dst, sampler, src, sampler, src,
         dst, sampler, src, sampler, src,
-        src, sampler, sampler);
+        src, sampler, sampler
+    );
 
     output_line(ctx, "%s", code);
 } // emit_GLSL_TEXBEML
@@ -2314,19 +2196,16 @@ static void emit_GLSL_TEXM3X2TEX(Context *ctx)
     char code[512];
 
     // !!! FIXME: this code counts on the register not having swizzles, etc.
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_SAMPLER, info->regnum,
-                            sampler, sizeof (sampler));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x2pad_src0,
-                            src0, sizeof (src0));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x2pad_dst0,
-                            src1, sizeof (src1));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum,
-                            src2, sizeof (src2));
-    get_GLSL_destarg_varname(ctx, dst, sizeof (dst));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_SAMPLER, info->regnum, sampler, sizeof(sampler));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x2pad_src0, src0, sizeof(src0));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x2pad_dst0, src1, sizeof(src1));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum,  src2, sizeof(src2));
+    get_GLSL_destarg_varname(ctx, dst, sizeof(dst));
 
-    make_GLSL_destarg_assign(ctx, code, sizeof (code),
-        "texture2D(%s, vec2(dot(%s.xyz, %s.xyz), dot(%s.xyz, %s.xyz)))",
-        sampler, src0, src1, src2, dst);
+    make_GLSL_destarg_assign(ctx, code, sizeof(code),
+        "texture(%s, vec2(dot(%s.xyz, %s.xyz), dot(%s.xyz, %s.xyz)))",
+        sampler, src0, src1, src2, dst
+    );
 
     output_line(ctx, "%s", code);
 } // emit_GLSL_TEXM3X2TEX
@@ -2353,32 +2232,21 @@ static void emit_GLSL_TEXM3X3TEX(Context *ctx)
     char code[512];
 
     // !!! FIXME: this code counts on the register not having swizzles, etc.
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_SAMPLER, info->regnum,
-                            sampler, sizeof (sampler));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_SAMPLER, info->regnum, sampler, sizeof(sampler));
 
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst0,
-                            src0, sizeof (src0));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src0,
-                            src1, sizeof (src1));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst1,
-                            src2, sizeof (src2));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src1,
-                            src3, sizeof (src3));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum,
-                            src4, sizeof (src4));
-    get_GLSL_destarg_varname(ctx, dst, sizeof (dst));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst0, src0, sizeof(src0));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src0, src1, sizeof(src1));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst1, src2, sizeof(src2));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src1, src3, sizeof(src3));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum, src4, sizeof(src4));
+    get_GLSL_destarg_varname(ctx, dst, sizeof(dst));
 
-    RegisterList *sreg = reglist_find(&ctx->samplers, REG_TYPE_SAMPLER,
-                                      info->regnum);
-    const TextureType ttype = (TextureType) (sreg ? sreg->index : 0);
-    const char *ttypestr = (ttype == TEXTURE_TYPE_CUBE) ? "Cube" : "3D";
-
-    make_GLSL_destarg_assign(ctx, code, sizeof (code),
-        "texture%s(%s,"
+    make_GLSL_destarg_assign(ctx, code, sizeof(code),
+        "texture(%s,"
             " vec3(dot(%s.xyz, %s.xyz),"
             " dot(%s.xyz, %s.xyz),"
             " dot(%s.xyz, %s.xyz)))",
-        ttypestr, sampler, src0, src1, src2, src3, dst, src4);
+        sampler, src0, src1, src2, src3, dst, src4);
 
     output_line(ctx, "%s", code);
 } // emit_GLSL_TEXM3X3TEX
@@ -2387,14 +2255,13 @@ static void emit_GLSL_TEXM3X3SPEC_helper(Context *ctx)
 {
     if (ctx->glsl_generated_texm3x3spec_helper)
         return;
-
     ctx->glsl_generated_texm3x3spec_helper = 1;
 
     push_output(ctx, &ctx->helpers);
-    output_line(ctx, "vec3 TEXM3X3SPEC_reflection(const vec3 normal, const vec3 eyeray)");
-    output_line(ctx, "{"); ctx->indent++;
-    output_line(ctx,   "return (2.0 * ((normal * eyeray) / (normal * normal)) * normal) - eyeray;"); ctx->indent--;
-    output_line(ctx, "}");
+    output_line(ctx, "vec3 TEXM3X3SPEC_reflection(const vec3 normal, const vec3 eyeray)"
+                     "{"
+                     "\treturn (2.0 * ((normal * eyeray) / (normal * normal)) * normal) - eyeray;"
+                     "}");
     output_blank_line(ctx);
     pop_output(ctx);
 } // emit_GLSL_TEXM3X3SPEC_helper
@@ -2418,30 +2285,18 @@ static void emit_GLSL_TEXM3X3SPEC(Context *ctx)
     emit_GLSL_TEXM3X3SPEC_helper(ctx);
 
     // !!! FIXME: this code counts on the register not having swizzles, etc.
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_SAMPLER, info->regnum,
-                            sampler, sizeof (sampler));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_SAMPLER, info->regnum, sampler, sizeof(sampler));
 
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst0,
-                            src0, sizeof (src0));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src0,
-                            src1, sizeof (src1));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst1,
-                            src2, sizeof (src2));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src1,
-                            src3, sizeof (src3));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum,
-                            src4, sizeof (src4));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[1].regnum,
-                            src5, sizeof (src5));
-    get_GLSL_destarg_varname(ctx, dst, sizeof (dst));
-
-    RegisterList *sreg = reglist_find(&ctx->samplers, REG_TYPE_SAMPLER,
-                                      info->regnum);
-    const TextureType ttype = (TextureType) (sreg ? sreg->index : 0);
-    const char *ttypestr = (ttype == TEXTURE_TYPE_CUBE) ? "Cube" : "3D";
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst0, src0, sizeof(src0));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src0, src1, sizeof(src1));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst1, src2, sizeof(src2));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src1, src3, sizeof(src3));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum, src4, sizeof(src4));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[1].regnum, src5, sizeof(src5));
+    get_GLSL_destarg_varname(ctx, dst, sizeof(dst));
 
     make_GLSL_destarg_assign(ctx, code, sizeof (code),
-        "texture%s(%s, "
+        "texture(%s, "
             "TEXM3X3SPEC_reflection("
                 "vec3("
                     "dot(%s.xyz, %s.xyz), "
@@ -2451,7 +2306,7 @@ static void emit_GLSL_TEXM3X3SPEC(Context *ctx)
                 "%s.xyz,"
             ")"
         ")",
-        ttypestr, sampler, src0, src1, src2, src3, dst, src4, src5);
+        sampler, src0, src1, src2, src3, dst, src4, src5);
 
     output_line(ctx, "%s", code);
 } // emit_GLSL_TEXM3X3SPEC
@@ -2474,28 +2329,17 @@ static void emit_GLSL_TEXM3X3VSPEC(Context *ctx)
     emit_GLSL_TEXM3X3SPEC_helper(ctx);
 
     // !!! FIXME: this code counts on the register not having swizzles, etc.
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_SAMPLER, info->regnum,
-                            sampler, sizeof (sampler));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_SAMPLER, info->regnum, sampler, sizeof(sampler));
 
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst0,
-                            src0, sizeof (src0));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src0,
-                            src1, sizeof (src1));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst1,
-                            src2, sizeof (src2));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src1,
-                            src3, sizeof (src3));
-    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum,
-                            src4, sizeof (src4));
-    get_GLSL_destarg_varname(ctx, dst, sizeof (dst));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst0, src0, sizeof(src0));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src0, src1, sizeof(src1));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_dst1, src2, sizeof(src2));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->texm3x3pad_src1, src3, sizeof(src3));
+    get_GLSL_varname_in_buf(ctx, REG_TYPE_TEXTURE, ctx->source_args[0].regnum, src4, sizeof(src4));
+    get_GLSL_destarg_varname(ctx, dst, sizeof(dst));
 
-    RegisterList *sreg = reglist_find(&ctx->samplers, REG_TYPE_SAMPLER,
-                                      info->regnum);
-    const TextureType ttype = (TextureType) (sreg ? sreg->index : 0);
-    const char *ttypestr = (ttype == TEXTURE_TYPE_CUBE) ? "Cube" : "3D";
-
-    make_GLSL_destarg_assign(ctx, code, sizeof (code),
-        "texture%s(%s, "
+    make_GLSL_destarg_assign(ctx, code, sizeof(code),
+        "texture(%s, "
             "TEXM3X3SPEC_reflection("
                 "vec3("
                     "dot(%s.xyz, %s.xyz), "
@@ -2505,7 +2349,7 @@ static void emit_GLSL_TEXM3X3VSPEC(Context *ctx)
                 "vec3(%s.w, %s.w, %s.w)"
             ")"
         ")",
-        ttypestr, sampler, src0, src1, src2, src3, dst, src4, src0, src2, dst);
+        sampler, src0, src1, src2, src3, dst, src4, src0, src2, dst);
 
     output_line(ctx, "%s", code);
 } // emit_GLSL_TEXM3X3VSPEC
@@ -2666,32 +2510,6 @@ static void emit_GLSL_DSY(Context *ctx)
 
 static void emit_GLSL_TEXLDD(Context *ctx)
 {
-    // !!! FIXME:
-    // GLSL 1.30 introduced textureGrad() for this, but it looks like the
-    //  functions are overloaded instead of texture2DGrad() (etc).
-
-    // GL_shader_texture_lod and GL_EXT_gpu_shader4 added texture2DGrad*(),
-    //  so we'll use them if available. Failing that, we'll just fallback
-    //  to a regular texture2D call and hope the mipmap it chooses is close
-    //  enough.
-    if (!ctx->glsl_generated_texldd_setup)
-    {
-        ctx->glsl_generated_texldd_setup = 1;
-        push_output(ctx, &ctx->preflight);
-        output_line(ctx, "#if GL_ARB_shader_texture_lod");
-        output_line(ctx, "#extension GL_ARB_shader_texture_lod : enable");
-        output_line(ctx, "#define texture2DGrad texture2DGradARB");
-        output_line(ctx, "#define texture2DProjGrad texture2DProjARB");
-        output_line(ctx, "#elif GL_EXT_gpu_shader4");
-        output_line(ctx, "#extension GL_EXT_gpu_shader4 : enable");
-        output_line(ctx, "#else");
-        output_line(ctx, "#define texture2DGrad(a,b,c,d) texture2D(a,b)");
-        output_line(ctx, "#define texture2DProjGrad(a,b,c,d) texture2DProj(a,b)");
-        output_line(ctx, "#endif");
-        output_blank_line(ctx);
-        pop_output(ctx);
-    }
-
     glsl_texld(ctx, 1);
 } // emit_GLSL_TEXLDD
 
@@ -2770,6 +2588,7 @@ static const Profile profiles[] =
 // This is for profiles that extend other profiles...
 static const struct { const char *from; const char *to; } profileMap[] =
 {
+    { MOJOSHADER_PROFILE_GLSL330, MOJOSHADER_PROFILE_GLSL },
     { MOJOSHADER_PROFILE_GLSL120, MOJOSHADER_PROFILE_GLSL },
 };
 
@@ -3594,9 +3413,6 @@ static void state_DCL(Context *ctx)
     const int mods = arg->result_mod;
 
     // parse_args_DCL() does a lot of state checking before we get here.
-
-    // !!! FIXME: apparently vs_3_0 can use sampler registers now.
-    // !!! FIXME:  (but only s0 through s3, not all 16 of them.)
 
     if (ctx->instruction_count != 0)
         fail(ctx, "DCL token must come before any instructions");
@@ -5299,6 +5115,7 @@ int MOJOSHADER_maxShaderModel(const char *profile)
     #define PROFILE_SHADER_MODEL(p,v) if (strcmp(profile, p) == 0) return v;
     PROFILE_SHADER_MODEL(MOJOSHADER_PROFILE_GLSL, 3);
     PROFILE_SHADER_MODEL(MOJOSHADER_PROFILE_GLSL120, 3);
+    PROFILE_SHADER_MODEL(MOJOSHADER_PROFILE_GLSL330, 3);
     #undef PROFILE_SHADER_MODEL
     return -1;  // unknown profile?
 }

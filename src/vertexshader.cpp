@@ -25,6 +25,7 @@ void D3DGLVertexShader::compileShaderGL(const MOJOSHADER_parseData *shader)
             glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
             FIXME("Compile failure log:\n----\n%s\n----\n", log.data());
         }
+        FIXME("Shader text:\n----\n%s\n----\n", shader->output);
         checkGLError();
         return;
     }
@@ -38,6 +39,7 @@ void D3DGLVertexShader::compileShaderGL(const MOJOSHADER_parseData *shader)
         std::vector<char> log(logLen+1);
         glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
         WARN("Compile warning log:\n----\n%s\n----\n", log.data());
+        WARN("Shader text:\n----\n%s\n----\n", shader->output);
     }
 
     GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "vs_vec4");
@@ -123,7 +125,7 @@ bool D3DGLVertexShader::init(const DWORD *data)
           (((*data>>16)==0xfffe) ? "vertex" : ((*data>>16)==0xffff) ? "pixel" : "unknown"),
           (*data>>8)&0xff, *data&0xff, MOJOSHADER_PROFILE_GLSL120);
 
-    const MOJOSHADER_parseData *shader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL120,
+    const MOJOSHADER_parseData *shader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL330,
         reinterpret_cast<const unsigned char*>(data), 0, nullptr, 0, nullptr, 0
     );
     if(shader->error_count > 0)
