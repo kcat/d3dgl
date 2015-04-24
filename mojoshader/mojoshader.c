@@ -1072,7 +1072,7 @@ static void emit_GLSL_start(Context *ctx, const char *profilestr)
                          "\tfloat gl_PointSize;\n"
                          "\tfloat gl_ClipDistance[8];\n"
                          "};");
-        output_line(ctx, "layout(location=0) out vec4 vs_o[12];");
+        output_line(ctx, "layout(location=0) out vec4 vs_o[10];");
     }
     else if(shader_is_pixel(ctx))
         output_line(ctx, "layout(location=0) in vec4 ps_v[10];");
