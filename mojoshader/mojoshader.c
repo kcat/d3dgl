@@ -1101,11 +1101,13 @@ static void emit_GLSL_end(Context *ctx)
     }
     else if(shader_is_vertex(ctx))
     {
-        // NOTE: Write the real vertex position output now
-        //output_line(ctx, "gl_ClipVertex = TMP_POS;");
-        output_line(ctx, "gl_Position.xy = TMP_POS.xy*vec2(1.0,-1.0) + POS_FIXUP.xy;");
-        output_line(ctx, "gl_Position.z = TMP_POS.z*2.0 - TMP_POS.w;");
-        output_line(ctx, "gl_Position.w = TMP_POS.w;");
+        // FIXME: Write clip distances
+        //output_line(ctx, "for(int i = 0;i < ClipPlane.length();++i)\n"
+        //                 "\tgl_ClipDistance[i] = dot(gl_Position, ClipPlane[i]);");
+        // NOTE: Fixup the vertex position (offset X, flip+offset Y, scale+offset Z)
+        output_line(ctx, "gl_Position.xy = gl_Position.xy*vec2(1.0,-1.0) + POS_FIXUP.xy*gl_Position.ww;");
+        output_line(ctx, "gl_Position.z = gl_Position.z*2.0 - gl_Position.w;");
+        output_line(ctx, "gl_Position.w = gl_Position.w;");
     }
     // force a RET opcode if we're at the end of the stream without one.
     if(ctx->previous_opcode != OPCODE_RET)
@@ -1328,9 +1330,7 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
             switch (usage)
             {
                 case MOJOSHADER_USAGE_POSITION:
-                    // NOTE: Write to a temp for later fixup
-                    output_line(ctx, "vec4 TMP_POS;");
-                    output_line(ctx, "#define %s TMP_POS", var);
+                    output_line(ctx, "#define %s gl_Position", var);
                     break;
                 case MOJOSHADER_USAGE_POINTSIZE:
                     output_line(ctx, "#define %s gl_PointSize", var);
