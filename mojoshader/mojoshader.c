@@ -2003,7 +2003,7 @@ static void emit_GLSL_TEXKILL(Context *ctx)
     output_line(ctx, "if (any(lessThan(%s.xyz, vec3(0.0)))) discard;", dst);
 } // emit_GLSL_TEXKILL
 
-static void glsl_texld(Context *ctx, const int texldd)
+static void glsl_texld(Context *ctx, const int texldd, const int texldl)
 {
     if(!shader_version_atleast(ctx, 1, 4))
     {
@@ -2012,7 +2012,7 @@ static void glsl_texld(Context *ctx, const int texldd)
         char sampler[64];
         char code[128] = {0};
 
-        assert(!texldd);
+        assert(!texldd && !texldl);
 
         RegisterList *sreg;
         sreg = reglist_find(&ctx->samplers, REG_TYPE_SAMPLER, info->regnum);
@@ -2063,11 +2063,11 @@ static void glsl_texld(Context *ctx, const int texldd)
             make_GLSL_srcarg_string_vec2(ctx, 3, src3, sizeof(src3));
         }
 
-        // !!! FIXME: can TEXLDD set instruction_controls?
+        // !!! FIXME: can TEXLDD or TEXLDL set instruction_controls?
         // !!! FIXME: does the d3d bias value map directly to GLSL?
         const char *biassep = "";
         char bias[64] = { '\0' };
-        if(ctx->instruction_controls == CONTROL_TEXLDB)
+        if(ctx->instruction_controls == CONTROL_TEXLDB || texldl)
         {
             biassep = ", ";
             make_GLSL_srcarg_string_w(ctx, 0, bias, sizeof(bias));
@@ -2109,6 +2109,10 @@ static void glsl_texld(Context *ctx, const int texldd)
             make_GLSL_destarg_assign(ctx, code, sizeof (code),
                                      "%sGrad(%s, %s, %s, %s)%s", funcname,
                                      src1, src0, src2, src3, swiz_str);
+        else if(texldl)
+            make_GLSL_destarg_assign(ctx, code, sizeof (code),
+                                     "%sLod(%s, %s%s%s)%s", funcname,
+                                     src1, src0, biassep, bias, swiz_str);
         else
             make_GLSL_destarg_assign(ctx, code, sizeof (code),
                                      "%s(%s, %s%s%s)%s", funcname,
@@ -2120,7 +2124,7 @@ static void glsl_texld(Context *ctx, const int texldd)
 
 static void emit_GLSL_TEXLD(Context *ctx)
 {
-    glsl_texld(ctx, 0);
+    glsl_texld(ctx, 0, 0);
 }
 
 
@@ -2510,7 +2514,7 @@ static void emit_GLSL_DSY(Context *ctx)
 
 static void emit_GLSL_TEXLDD(Context *ctx)
 {
-    glsl_texld(ctx, 1);
+    glsl_texld(ctx, 1, 0);
 } // emit_GLSL_TEXLDD
 
 static void emit_GLSL_SETP(Context *ctx)
@@ -2539,11 +2543,7 @@ static void emit_GLSL_SETP(Context *ctx)
 
 static void emit_GLSL_TEXLDL(Context *ctx)
 {
-    // !!! FIXME: The spec says we can't use GLSL's texture*Lod() built-ins
-    // !!! FIXME:  from fragment shaders for some inexplicable reason.
-    // !!! FIXME:  For now, you'll just have to suffer with the potentially
-    // !!! FIXME:  wrong mipmap until I can figure something out.
-    emit_GLSL_TEXLD(ctx);
+    glsl_texld(ctx, 0, 1);
 } // emit_GLSL_TEXLDL
 
 static void emit_GLSL_BREAKP(Context *ctx)
