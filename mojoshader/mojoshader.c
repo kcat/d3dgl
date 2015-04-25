@@ -1958,22 +1958,20 @@ static void emit_GLSL_BREAKC(Context *ctx)
 static void emit_GLSL_MOVA(Context *ctx)
 {
     const int vecsize = vecsize_from_writemask(ctx->dest_arg.writemask);
-    char src0[64]; make_GLSL_srcarg_string_masked(ctx, 0, src0, sizeof (src0));
+    char src0[64]; make_GLSL_srcarg_string_masked(ctx, 0, src0, sizeof(src0));
     char code[128];
 
-    if (vecsize == 1)
+    if(vecsize == 1)
     {
-        make_GLSL_destarg_assign(ctx, code, sizeof (code),
-                                 "int(floor(abs(%s) + 0.5) * sign(%s))",
-                                 src0, src0);
-    } // if
-
+        make_GLSL_destarg_assign(ctx, code, sizeof(code),
+                                 "int(round(%s))", src0);
+    }
     else
     {
-        make_GLSL_destarg_assign(ctx, code, sizeof (code),
-                            "ivec%d(floor(abs(%s) + vec%d(0.5)) * sign(%s))",
-                            vecsize, src0, vecsize, src0);
-    } // else
+        make_GLSL_destarg_assign(ctx, code, sizeof(code),
+                                 "ivec%d(round(%s))",
+                                 vecsize, src0);
+    }
 
     output_line(ctx, "%s", code);
 } // emit_GLSL_MOVA
