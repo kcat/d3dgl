@@ -72,7 +72,7 @@ void D3DGLTexture::initGL()
         checkGLError();
     }
 
-    if(mDesc.Pool != D3DPOOL_DEFAULT || (mDesc.Usage&D3DUSAGE_DYNAMIC))
+    if(mDesc.Pool != D3DPOOL_DEFAULT)
         mSysMem.assign(total_size, 0);
 
     mUpdateInProgress = 0;
@@ -645,11 +645,14 @@ HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *re
         return D3DERR_INVALIDCALL;
     }
 
-    if(mParent->mDesc.Pool == D3DPOOL_DEFAULT && !(mParent->mDesc.Usage&D3DUSAGE_DYNAMIC))
+    if(mParent->mDesc.Pool == D3DPOOL_DEFAULT)
     {
-        WARN("Cannot lock non-dynamic textures in default pool\n");
+        FIXME("Trying to lock texture in default pool\n");
         return D3DERR_INVALIDCALL;
     }
+
+    DWORD unknown_flags = flags & ~(D3DLOCK_DISCARD|D3DLOCK_READONLY|D3DLOCK_NO_DIRTY_UPDATE);
+    if(unknown_flags) FIXME("Unknown lock flags: 0x%lx\n", unknown_flags);
 
     UINT w = std::max(1u, mParent->mDesc.Width>>mLevel);
     UINT h = std::max(1u, mParent->mDesc.Height>>mLevel);
