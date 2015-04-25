@@ -761,9 +761,9 @@ public:
 };
 
 template<size_t MAXCOUNT>
-class SetBufferValues : public Command {
+class SetBufferValue4fv : public Command {
     GLuint mBuffer;
-    GLintptr mStart;
+    GLintptr mOffset;
     GLsizeiptr mSize;
     union {
         char mData[MAXCOUNT*4*4];
@@ -771,10 +771,9 @@ class SetBufferValues : public Command {
     };
 
 public:
-    SetBufferValues(GLuint buffer, const float *data, GLintptr start, GLsizeiptr count)
-      : mBuffer(buffer)
+    SetBufferValue4fv(GLuint buffer, GLintptr offset, const float *data, GLsizeiptr count=MAXCOUNT)
+      : mBuffer(buffer), mOffset(offset)
     {
-        mStart = start * 4 * 4;
         mSize = count * 4 * 4;
         for(GLsizeiptr i = 0;i < count;++i)
         {
@@ -787,11 +786,12 @@ public:
 
     virtual ULONG execute()
     {
-        glNamedBufferSubDataEXT(mBuffer, mStart, mSize, mData);
+        glNamedBufferSubDataEXT(mBuffer, mOffset, mSize, mData);
         checkGLError();
         return sizeof(*this);
     }
 };
+typedef SetBufferValue4fv<1> SetBufferValue4f;
 
 class ElementArraySet : public Command {
     GLuint mBufferId;
@@ -1605,7 +1605,7 @@ void D3DGLDevice::resetProjectionFixup(UINT width, UINT height)
     // shader is also responsible for flipping Y and fixing Z depth.
     float trans[4] = { 0.99f/width, 0.99f/height, 0.0f, 0.0f };
 
-    mQueue.doSend<SetBufferValues<1>>(mGLState.pos_fixup_uniform_buffer, trans, 0, 1);
+    mQueue.doSend<SetBufferValue4f>(mGLState.pos_fixup_uniform_buffer, 0, trans);
 }
 
 
@@ -3649,18 +3649,30 @@ HRESULT D3DGLDevice::SetVertexShaderConstantF(UINT start, const float *values, U
     {
     set_more:
         if(count == 1)
-            mQueue.sendAndUnlock<SetBufferValues<1>>(mGLState.vs_uniform_bufferf, values, start, 1);
+            mQueue.sendAndUnlock<SetBufferValue4f>(mGLState.vs_uniform_bufferf,
+                start*sizeof(Vector4f), values
+            );
         else if(count <= 4)
-            mQueue.sendAndUnlock<SetBufferValues<4>>(mGLState.vs_uniform_bufferf, values, start, count);
+            mQueue.sendAndUnlock<SetBufferValue4fv<4>>(mGLState.vs_uniform_bufferf,
+                start*sizeof(Vector4f), values, count
+            );
         else if(count <= 32)
-            mQueue.sendAndUnlock<SetBufferValues<32>>(mGLState.vs_uniform_bufferf, values, start, count);
+            mQueue.sendAndUnlock<SetBufferValue4fv<32>>(mGLState.vs_uniform_bufferf,
+                start*sizeof(Vector4f), values, count
+            );
         else if(count <= 64)
-            mQueue.sendAndUnlock<SetBufferValues<64>>(mGLState.vs_uniform_bufferf, values, start, count);
+            mQueue.sendAndUnlock<SetBufferValue4fv<64>>(mGLState.vs_uniform_bufferf,
+                start*sizeof(Vector4f), values, count
+            );
         else if(count <= 128)
-            mQueue.sendAndUnlock<SetBufferValues<128>>(mGLState.vs_uniform_bufferf, values, start, count);
+            mQueue.sendAndUnlock<SetBufferValue4fv<128>>(mGLState.vs_uniform_bufferf,
+                start*sizeof(Vector4f), values, count
+            );
         else
         {
-            mQueue.doSend<SetBufferValues<128>>(mGLState.vs_uniform_bufferf, values, start, 128);
+            mQueue.doSend<SetBufferValue4fv<128>>(mGLState.vs_uniform_bufferf,
+                start*sizeof(Vector4f), values
+            );
             values += 128*4;
             start += 128;
             count -= 128;
@@ -3904,18 +3916,30 @@ HRESULT D3DGLDevice::SetPixelShaderConstantF(UINT start, const float *values, UI
     {
     set_more:
         if(count == 1)
-            mQueue.sendAndUnlock<SetBufferValues<1>>(mGLState.ps_uniform_bufferf, values, start, 1);
+            mQueue.sendAndUnlock<SetBufferValue4f>(mGLState.ps_uniform_bufferf,
+                start*sizeof(Vector4f), values
+            );
         else if(count <= 4)
-            mQueue.sendAndUnlock<SetBufferValues<4>>(mGLState.ps_uniform_bufferf, values, start, count);
+            mQueue.sendAndUnlock<SetBufferValue4fv<4>>(mGLState.ps_uniform_bufferf,
+                start*sizeof(Vector4f), values, count
+            );
         else if(count <= 32)
-            mQueue.sendAndUnlock<SetBufferValues<32>>(mGLState.ps_uniform_bufferf, values, start, count);
+            mQueue.sendAndUnlock<SetBufferValue4fv<32>>(mGLState.ps_uniform_bufferf,
+                start*sizeof(Vector4f), values, count
+            );
         else if(count <= 64)
-            mQueue.sendAndUnlock<SetBufferValues<64>>(mGLState.ps_uniform_bufferf, values, start, count);
+            mQueue.sendAndUnlock<SetBufferValue4fv<64>>(mGLState.ps_uniform_bufferf,
+                start*sizeof(Vector4f), values, count
+            );
         else if(count <= 128)
-            mQueue.sendAndUnlock<SetBufferValues<128>>(mGLState.ps_uniform_bufferf, values, start, count);
+            mQueue.sendAndUnlock<SetBufferValue4fv<128>>(mGLState.ps_uniform_bufferf,
+                start*sizeof(Vector4f), values, count
+            );
         else
         {
-            mQueue.doSend<SetBufferValues<128>>(mGLState.ps_uniform_bufferf, values, start, 128);
+            mQueue.doSend<SetBufferValue4fv<128>>(mGLState.ps_uniform_bufferf,
+                start*sizeof(Vector4f), values
+            );
             values += 128*4;
             start += 128;
             count -= 128;
