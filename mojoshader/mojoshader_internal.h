@@ -350,6 +350,30 @@ void MOJOSHADER_print_debug_token(const char *subsystem, const char *token,
                                   const unsigned int tokenlen,
                                   const Token tokenval);
 
+static inline const char *MOJOSHADER_usage_to_string(MOJOSHADER_usage usage)
+{
+    switch(usage)
+    {
+        case MOJOSHADER_USAGE_UNKNOWN: break;
+        case MOJOSHADER_USAGE_POSITION: return "position";
+        case MOJOSHADER_USAGE_BLENDWEIGHT: return "blend weight";
+        case MOJOSHADER_USAGE_BLENDINDICES: return "blend indices";
+        case MOJOSHADER_USAGE_NORMAL: return "normal";
+        case MOJOSHADER_USAGE_POINTSIZE: return "point size";
+        case MOJOSHADER_USAGE_TEXCOORD: return "texcoord";
+        case MOJOSHADER_USAGE_TANGENT: return "tangent";
+        case MOJOSHADER_USAGE_BINORMAL: return "binormal";
+        case MOJOSHADER_USAGE_TESSFACTOR: return "tessfactor";
+        case MOJOSHADER_USAGE_POSITIONT: return "positionT";
+        case MOJOSHADER_USAGE_COLOR: return "color";
+        case MOJOSHADER_USAGE_FOG: return "fog";
+        case MOJOSHADER_USAGE_DEPTH: return "depth";
+        case MOJOSHADER_USAGE_SAMPLE: return "sample";
+        case MOJOSHADER_USAGE_TOTAL: return "!!TOTAL!!";
+    }
+    return "!!UNKNOWN!!";
+}
+
 #endif  // _INCLUDE_MOJOSHADER_INTERNAL_H_
 
 

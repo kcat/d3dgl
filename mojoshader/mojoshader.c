@@ -1322,7 +1322,7 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
 
         push_output(ctx, &ctx->globals);
         if (regtype == REG_TYPE_INPUT)
-            output_line(ctx, "in vec4 %s;", var);
+            output_line(ctx, "in vec4 %s; /* usage %s, index %i */", var, MOJOSHADER_usage_to_string(usage), index);
         else if (regtype == REG_TYPE_OUTPUT)
         {
             switch (usage)
