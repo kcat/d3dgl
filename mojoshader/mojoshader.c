@@ -1067,6 +1067,9 @@ static void emit_GLSL_start(Context *ctx, const char *profilestr)
     {
         // NOTE: POS_FIXUP to fix D3D/GL projection differences
         output_line(ctx, "layout(std140) uniform pos_fixup { vec4 POS_FIXUP; };");
+        output_line(ctx, "layout(std140) uniform vertex_state {\n"
+                         "\tvec4 ClipPlane[8];\n"
+                         "};");
         output_line(ctx, "out gl_PerVertex {\n"
                          "\tvec4 gl_Position;\n"
                          "\tfloat gl_PointSize;\n"
@@ -1101,9 +1104,11 @@ static void emit_GLSL_end(Context *ctx)
     }
     else if(shader_is_vertex(ctx))
     {
-        // FIXME: Write clip distances
-        //output_line(ctx, "for(int i = 0;i < ClipPlane.length();++i)\n"
-        //                 "\tgl_ClipDistance[i] = dot(gl_Position, ClipPlane[i]);");
+        output_blank_line(ctx);
+        output_line(ctx, "for(int i = 0;i < ClipPlane.length();++i)");
+        ctx->indent++;
+            output_line(ctx, "gl_ClipDistance[i] = dot(gl_Position, ClipPlane[i]);");
+        ctx->indent--;
         // NOTE: Fixup the vertex position (offset X, flip+offset Y, scale+offset Z)
         output_line(ctx, "gl_Position.xy = gl_Position.xy*vec2(1.0,-1.0) + POS_FIXUP.xy*gl_Position.ww;");
         output_line(ctx, "gl_Position.z = gl_Position.z*2.0 - gl_Position.w;");

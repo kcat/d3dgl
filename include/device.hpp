@@ -24,7 +24,8 @@ class D3DGLVertexDeclaration;
 #define PSF_BINDING_IDX 3
 #define PSI_BINDING_IDX 4
 #define PSB_BINDING_IDX 5
-#define POSFIXUP_BINDING_IDX 6
+#define VTXSTATE_BINDING_IDX 6
+#define POSFIXUP_BINDING_IDX 7
 
 union Vector4f {
     float value[4];
@@ -55,7 +56,8 @@ struct GLState {
     GLState()
       : samplers{0}, pipeline(0)
       , main_framebuffer(0), copy_framebuffers{0,0} , current_framebuffer{0,0}
-      , vs_uniform_bufferf(0), ps_uniform_bufferf(0), pos_fixup_uniform_buffer(0)
+      , vs_uniform_bufferf(0), ps_uniform_bufferf(0)
+      , vtx_state_uniform_buffer(0), pos_fixup_uniform_buffer(0)
       , active_texture_stage(0)
       , attrib_array_enabled(0)
       , clip_plane_enabled(0)
@@ -72,6 +74,7 @@ struct GLState {
 
     GLuint vs_uniform_bufferf;
     GLuint ps_uniform_bufferf;
+    GLuint vtx_state_uniform_buffer;
     GLuint pos_fixup_uniform_buffer;
 
     GLenum active_texture_stage;
@@ -79,6 +82,17 @@ struct GLState {
     UINT attrib_array_enabled; // Bitmask, 1<<attrib
 
     UINT clip_plane_enabled; // Bitmask, 1<<plane_index
+};
+
+// NOTE: This MUST match the uniform block layout for vertex_state in mojoshader.c!
+struct GLVertexState {
+    Vector4f ClipPlane[8];
+
+    GLVertexState()
+    {
+        for(Vector4f &plane : ClipPlane)
+            plane.x = plane.y = plane.z = plane.w = 0.0f;
+    }
 };
 
 class D3DGLDevice : public IDirect3DDevice9 {
@@ -90,6 +104,8 @@ class D3DGLDevice : public IDirect3DDevice9 {
 
     HGLRC mGLContext;
     GLState mGLState;
+
+    GLVertexState mGLVtxState;
 
     CommandQueue mQueue;
 

@@ -52,6 +52,9 @@ void D3DGLVertexShader::compileShaderGL(const MOJOSHADER_parseData *shader)
     GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "vs_vec4");
     if(v4f_idx != GL_INVALID_INDEX)
         glUniformBlockBinding(mProgram, v4f_idx, VSF_BINDING_IDX);
+    GLuint vtx_state_idx = glGetUniformBlockIndex(mProgram, "vertex_state");
+    if(vtx_state_idx != GL_INVALID_INDEX)
+        glUniformBlockBinding(mProgram, vtx_state_idx, VTXSTATE_BINDING_IDX);
     GLuint pos_fixup_idx = glGetUniformBlockIndex(mProgram, "pos_fixup");
     if(pos_fixup_idx != GL_INVALID_INDEX)
         glUniformBlockBinding(mProgram, pos_fixup_idx, POSFIXUP_BINDING_IDX);

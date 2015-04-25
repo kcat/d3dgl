@@ -742,24 +742,6 @@ public:
     }
 };
 
-class ClipPlaneSet : public Command {
-    GLint mPlaneIdx;
-    GLdouble mPlane[4];
-
-public:
-    ClipPlaneSet(GLint planeidx, const Vector4f &plane)
-      : mPlaneIdx(planeidx)
-      , mPlane{plane.x, plane.y, plane.z, plane.w}
-    { }
-
-    virtual ULONG execute()
-    {
-        glClipPlane(GL_CLIP_PLANE0+mPlaneIdx, mPlane);
-        checkGLError();
-        return sizeof(*this);
-    }
-};
-
 template<size_t MAXCOUNT>
 class SetBufferValue4fv : public Command {
     GLuint mBuffer;
@@ -852,9 +834,9 @@ public:
             for(UINT i = 0;old_planes || mPlanes;++i)
             {
                 if((mPlanes&1) && !(old_planes&1))
-                    glEnable(GL_CLIP_PLANE0+i);
+                    glEnable(GL_CLIP_DISTANCE0+i);
                 else if(!(mPlanes&1) && (old_planes&1))
-                    glDisable(GL_CLIP_PLANE0+i);
+                    glDisable(GL_CLIP_DISTANCE0+i);
 
                 old_planes >>= 1;
                 mPlanes >>= 1;
@@ -1281,20 +1263,24 @@ void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
 
     {
         float zero[256*4] = {0.0f};
-        // Binding index 0 = VS floats, 1 = VS ints, 2 = VS bools
+        // VS floats
         glGenBuffers(1, &mGLState.vs_uniform_bufferf);
         glBindBuffer(GL_UNIFORM_BUFFER, mGLState.vs_uniform_bufferf);
         glBufferData(GL_UNIFORM_BUFFER, 256*sizeof(Vector4f), zero, GL_STREAM_DRAW);
         glBindBufferBase(GL_UNIFORM_BUFFER, VSF_BINDING_IDX, mGLState.vs_uniform_bufferf);
-        // Binding index 3 = PS floats, 4 = PS ints, 5 = PS bools
+        // PS floats
         glGenBuffers(1, &mGLState.ps_uniform_bufferf);
         glBindBuffer(GL_UNIFORM_BUFFER, mGLState.ps_uniform_bufferf);
         glBufferData(GL_UNIFORM_BUFFER, 256*sizeof(Vector4f), zero, GL_STREAM_DRAW);
         glBindBufferBase(GL_UNIFORM_BUFFER, PSF_BINDING_IDX, mGLState.ps_uniform_bufferf);
-        // Binding index 6 = projection fixup matrix
+        // Vertex state
+        glGenBuffers(1, &mGLState.vtx_state_uniform_buffer);
+        glBindBuffer(GL_UNIFORM_BUFFER, mGLState.vtx_state_uniform_buffer);
+        glBufferData(GL_UNIFORM_BUFFER, sizeof(mGLVtxState), &mGLVtxState, GL_STREAM_DRAW);
+        glBindBufferBase(GL_UNIFORM_BUFFER, VTXSTATE_BINDING_IDX, mGLState.vtx_state_uniform_buffer);
+        // Projection fixup
         glGenBuffers(1, &mGLState.pos_fixup_uniform_buffer);
         glBindBuffer(GL_UNIFORM_BUFFER, mGLState.pos_fixup_uniform_buffer);
-        // Maybe STATIC_DRAW? Many things could cause this to change unnecessarily, though.
         glBufferData(GL_UNIFORM_BUFFER, sizeof(Vector4f), zero, GL_STREAM_DRAW);
         glBindBufferBase(GL_UNIFORM_BUFFER, POSFIXUP_BINDING_IDX, mGLState.pos_fixup_uniform_buffer);
     }
@@ -2789,7 +2775,9 @@ HRESULT D3DGLDevice::SetClipPlane(DWORD index, const float *plane)
     memcpy(mClipPlane[index].ptr(), plane, sizeof(mClipPlane[index]));
     // FIXME: Clip plane needs to be set using the view matrix when no vertex
     // shader is set.
-    mQueue.sendAndUnlock<ClipPlaneSet>(index, mClipPlane[index]);
+    mQueue.sendAndUnlock<SetBufferValue4f>(mGLState.vtx_state_uniform_buffer,
+        offsetof(GLVertexState, ClipPlane[index]), mClipPlane[index].ptr()
+    );
 
     return D3D_OK;
 }
