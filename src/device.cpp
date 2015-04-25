@@ -1180,7 +1180,8 @@ public:
     virtual ULONG execute()
     {
         mTarget->blitFramebufferGL(mSrcTarget, mSrcBinding, mSrcLevel, mSrcRect,
-                                   mDstTarget, mDstBinding, mDstLevel, mDstRect, mFilter);
+                                   mDstTarget, mDstBinding, mDstLevel, mDstRect,
+                                   mFilter);
         return sizeof(*this);
     }
 };
@@ -1306,13 +1307,7 @@ void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
     mGLState.attrib_array_enabled = 0;
 
     {
-        std::array<GLenum,D3D_MAX_SIMULTANEOUS_RENDERTARGETS> buffers{
-            GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3
-        };
         glBindFramebuffer(GL_FRAMEBUFFER, mGLState.main_framebuffer);
-        glReadBuffer(GL_COLOR_ATTACHMENT0);
-        glDrawBuffers(std::min(buffers.size(), mAdapter.getLimits().buffers),
-                      buffers.data());
         mGLState.current_framebuffer[0] = mGLState.main_framebuffer;
         mGLState.current_framebuffer[1] = mGLState.main_framebuffer;
     }
