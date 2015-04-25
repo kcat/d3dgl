@@ -48,9 +48,18 @@ struct GLStreamData {
 };
 
 struct GLState {
-    GLState() { }
+    /* Non-copyable */
     GLState(const GLState&) = delete;
     GLState& operator=(const GLState&) = delete;
+
+    GLState()
+      : samplers{0}, pipeline(0)
+      , main_framebuffer(0), copy_framebuffers{0,0} , current_framebuffer{0,0}
+      , vs_uniform_bufferf(0), ps_uniform_bufferf(0), pos_fixup_uniform_buffer(0)
+      , active_texture_stage(0)
+      , attrib_array_enabled(0)
+      , clip_plane_enabled(0)
+    { }
 
     std::array<GLuint,MAX_COMBINED_SAMPLERS> samplers;
     GLuint pipeline;
