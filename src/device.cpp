@@ -821,18 +821,13 @@ public:
 
     virtual ULONG execute()
     {
-        if(mStage != mGLState.active_stage)
+        if(mStage != mGLState.active_texture_stage)
         {
-            mGLState.active_stage = mStage;
+            mGLState.active_texture_stage = mStage;
             glActiveTexture(GL_TEXTURE0 + mStage);
         }
 
-        if(mType != mGLState.sampler_type[mStage] || mBinding != mGLState.sampler_binding[mStage])
-        {
-            mGLState.sampler_type[mStage] = mType;
-            mGLState.sampler_binding[mStage] = mBinding;
-            glBindTexture(mType, mBinding);
-        }
+        glBindTexture(mType, mBinding);
         checkGLError();
 
         return sizeof(*this);
@@ -1305,12 +1300,8 @@ void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
     checkGLError();
 
-    for(size_t i = 0;i < mGLState.sampler_type.size();++i)
-        mGLState.sampler_type[i] = GL_NONE;
-    for(size_t i = 0;i < mGLState.sampler_binding.size();++i)
-        mGLState.sampler_binding[i] = 0;
     glActiveTexture(GL_TEXTURE0);
-    mGLState.active_stage = 0;
+    mGLState.active_texture_stage = 0;
 
     mGLState.attrib_array_enabled = 0;
 

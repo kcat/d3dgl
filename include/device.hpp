@@ -65,9 +65,7 @@ struct GLState {
     GLuint ps_uniform_bufferf;
     GLuint pos_fixup_uniform_buffer;
 
-    GLenum active_stage;
-    std::array<GLenum,MAX_COMBINED_SAMPLERS> sampler_type;
-    std::array<GLuint,MAX_COMBINED_SAMPLERS> sampler_binding;
+    GLenum active_texture_stage;
 
     UINT attrib_array_enabled; // Bitmask, 1<<attrib
 
