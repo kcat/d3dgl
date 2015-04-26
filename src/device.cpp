@@ -3079,6 +3079,7 @@ HRESULT D3DGLDevice::SetTexture(DWORD stage, IDirect3DBaseTexture9 *texture)
     {
         GLenum type = GL_TEXTURE_2D;
         GLuint binding = 0;
+        int texflags = GLFormatInfo::Normal;
         union {
             void *pointer;
             D3DGLTexture *tex2d;
@@ -3088,11 +3089,13 @@ HRESULT D3DGLDevice::SetTexture(DWORD stage, IDirect3DBaseTexture9 *texture)
         {
             type = GL_TEXTURE_2D;
             binding = tex2d->getTextureId();
+            texflags = tex2d->getFormat().flags;
         }
         else if(SUCCEEDED(texture->QueryInterface(IID_D3DGLCubeTexture, &pointer)))
         {
             type = GL_TEXTURE_CUBE_MAP;
             binding = cubetex->getTextureId();
+            texflags = cubetex->getFormat().flags;
         }
         else
         {
@@ -3102,6 +3105,14 @@ HRESULT D3DGLDevice::SetTexture(DWORD stage, IDirect3DBaseTexture9 *texture)
         mQueue.lock();
         // Texture being set already has an added reference
         texture = mTextures[stage].exchange(texture);
+        if(!(texflags&GLFormatInfo::ShadowTexture))
+            mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[stage],
+                GL_TEXTURE_COMPARE_MODE, GL_NONE
+            );
+        else
+            mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[stage],
+                GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE
+            );
         mQueue.sendAndUnlock<SetTextureCmd>(make_ref(mGLState), stage, type, binding);
         if(texture) texture->Release();
     }

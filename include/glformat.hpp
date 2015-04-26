@@ -17,6 +17,12 @@ struct GLFormatInfo {
     GLenum type;
     int bytesperpixel; /* For compressed formats, bytes per block */
     GLbitfield buffermask;
+    GLbitfield flags;
+
+    enum FlagBits {
+        Normal = 0,
+        ShadowTexture = 1<<0 /* Expects depth comparison enabled on the sampler */
+    };
 
     GLenum getDepthStencilAttachment() const;
     GLuint getDepthBits() const;
