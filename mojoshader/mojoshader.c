@@ -747,10 +747,17 @@ static const char *make_GLSL_destarg_assign(Context *ctx, char *buf,
         return buf;  // no writemask? It's a no-op.
     }
 
+    int force_saturate = 0;
+    if(shader_is_vertex(ctx) && !shader_version_atleast(ctx, 3, 0))
+    {
+        // pre-vs3 output color registers. These clamp to 0...1.
+        force_saturate = (arg->regtype == REG_TYPE_ATTROUT);
+    }
+
     char clampbuf[32] = { '\0' };
     const char *clampleft = "";
     const char *clampright = "";
-    if (arg->result_mod & MOD_SATURATE)
+    if((arg->result_mod & MOD_SATURATE) || force_saturate)
     {
         const int vecsize = vecsize_from_writemask(arg->writemask);
         clampleft = "clamp(";
@@ -1074,10 +1081,14 @@ static void emit_GLSL_start(Context *ctx, const char *profilestr)
                          "\tfloat gl_PointSize;\n"
                          "\tfloat gl_ClipDistance[8];\n"
                          "};");
-        output_line(ctx, "layout(location=0) out vec4 vs_o[10];");
+        output_line(ctx, "layout(location=0) out vec4 vs_output[10];");
+        output_blank_line(ctx);
     }
     else if(shader_is_pixel(ctx))
-        output_line(ctx, "layout(location=0) in vec4 ps_v[10];");
+    {
+        output_line(ctx, "layout(location=0) in vec4 ps_input[10];");
+        output_blank_line(ctx);
+    }
     pop_output(ctx);
 
     push_output(ctx, &ctx->mainline_intro);
@@ -1208,7 +1219,7 @@ static void emit_GLSL_global(Context *ctx, RegisterType regtype, int regnum)
                 //  they work like temps, initialize with tex coords, and the
                 //  ps_1_1 TEX opcode expects to overwrite it.
                 if (!shader_version_atleast(ctx, 1, 4))
-                    output_line(ctx, "vec4 %s = ps_v[%d];", varname, regnum);
+                    output_line(ctx, "vec4 %s = ps_input[%d];", varname, regnum);
             }
             break;
         case REG_TYPE_PREDICATE:
@@ -1360,12 +1371,12 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                 // pixel shaders using a layout location index corresponding to
                 // the register number. For vs<3.0, TEXCOORD 0...7 and COLOR 8+9
                 case MOJOSHADER_USAGE_TEXCOORD:
-                    output_line(ctx, "#define %s vs_o[%u]", var, (uint)index);
+                    output_line(ctx, "#define %s vs_output[%u]", var, (uint)index);
                     break;
                 case MOJOSHADER_USAGE_COLOR:
                     if(index < 0 || index > 1)
                         failf(ctx, "Unhandled vertex output color index: %d\n", index);
-                    output_line(ctx, "#define %s vs_o[%u]", var, 8u+index);
+                    output_line(ctx, "#define %s vs_output[%u]", var, 8u+index);
                     break;
                 default:
                     // !!! FIXME: we need to deal with some more built-in varyings here.
@@ -1402,13 +1413,13 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                 // ps_1_1 does a different hack for this attribute.
                 //  Refer to emit_GLSL_global()'s REG_TYPE_TEXTURE code.
                 if (shader_version_atleast(ctx, 1, 4))
-                    output_line(ctx, "#define %s ps_v[%u]", var, (uint)index);
+                    output_line(ctx, "#define %s ps_input[%u]", var, (uint)index);
             }
             else if (usage == MOJOSHADER_USAGE_COLOR)
             {
                 if(index < 0 || index > 1)
                     fail(ctx, "unsupported color index");
-                output_line(ctx, "#define %s ps_v[%u]", var, 8u+index);
+                output_line(ctx, "#define %s ps_input[%u]", var, 8u+index);
             }
             else
             {
