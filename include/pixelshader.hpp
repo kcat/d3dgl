@@ -33,12 +33,12 @@ public:
     GLuint getProgram() const { return mProgram; }
 
     /*** IUnknown methods ***/
-    virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj);
-    virtual ULONG WINAPI AddRef();
-    virtual ULONG WINAPI Release();
+    virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;
+    virtual ULONG WINAPI AddRef() final;
+    virtual ULONG WINAPI Release() final;
     /*** IDirect3DPixelShader9 methods ***/
-    virtual HRESULT WINAPI GetDevice(IDirect3DDevice9 **device);
-    virtual HRESULT WINAPI GetFunction(void *data, UINT *size);
+    virtual HRESULT WINAPI GetDevice(IDirect3DDevice9 **device) final;
+    virtual HRESULT WINAPI GetFunction(void *data, UINT *size) final;
 };
 
 
