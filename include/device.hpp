@@ -44,7 +44,6 @@ struct GLStreamData {
     GLenum mNormalize;
     GLsizei mStride;
     GLint mTarget;
-    GLsizei mIndex;
     GLuint mDivisor;
 };
 

@@ -910,25 +910,6 @@ public:
     }
 };
 
-class SetShaderProgramCmd : public Command {
-    GLState &mGLState;
-    GLbitfield mStages;
-    GLuint mProgram;
-
-public:
-    SetShaderProgramCmd(GLState &glstate, GLbitfield stages, GLuint program)
-      : mGLState(glstate), mStages(stages), mProgram(program)
-    { }
-
-    virtual ULONG execute()
-    {
-        glUseProgramStages(mGLState.pipeline, mStages, mProgram);
-        checkGLError();
-
-        return sizeof(*this);
-    }
-};
-
 
 class ClearCmd : public Command {
     GLState &mGLState;
@@ -1506,6 +1487,25 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
 
 HRESULT D3DGLDevice::sendVtxData(INT startvtx, const StreamSource *sources, UINT num_sources)
 {
+    D3DGLVertexShader *vshader = mVertexShader;
+    // Wait for the vertex shader to finish updating (it's building a usage map
+    // that's needed to get GL attribute indices for usage:index pairs). Since
+    // the queue is unlocked while sleeping (to ensure the background thread
+    // doesn't get stuck trying to wake up), watch for the vertex shader
+    // changing.
+    while(vshader && vshader->getPendingUpdates() > 0)
+    {
+        mQueue.unlock();
+        Sleep(1);
+        mQueue.lock();
+        vshader = mVertexShader;
+    }
+    if(!vshader)
+    {
+        FIXME("Cannot draw without a vertex shader\n");
+        return D3D_OK;
+    }
+
     D3DGLVertexDeclaration *vtxdecl = mVertexDecl;
     if(!vtxdecl)
     {
@@ -1513,16 +1513,10 @@ HRESULT D3DGLDevice::sendVtxData(INT startvtx, const StreamSource *sources, UINT
         return D3DERR_INVALIDCALL;
     }
 
-    D3DGLVertexShader *vshader = mVertexShader;
-    if(!vshader)
-    {
-        FIXME("Cannot draw without a vertex shader\n");
-        return D3D_OK;
-    }
-
     std::array<GLStreamData,16> streams;
     GLuint cur = 0;
 
+    UINT attribs = 0;
     for(const D3DGLVERTEXELEMENT &elem : vtxdecl->getVtxElements())
     {
         if(cur >= streams.size())
@@ -1558,9 +1552,11 @@ HRESULT D3DGLDevice::sendVtxData(INT startvtx, const StreamSource *sources, UINT
                   elem.Usage, elem.UsageIndex, vshader);
             continue;
         }
+        attribs |= 1<<streams[cur].mTarget;
         ++cur;
     }
 
+    mQueue.doSend<SetVertexAttribArrayCmd>(make_ref(mGLState), attribs);
     mQueue.doSend<SetVtxDataCmd>(streams.data(), cur);
 
     return D3D_OK;
@@ -3378,18 +3374,18 @@ HRESULT D3DGLDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE type, INT startvtx, U
         return D3DERR_INVALIDCALL;
     }
 
-    mQueue.lock();
-    D3DGLBufferObject *idxbuffer = mIndexBuffer;
-    if(!idxbuffer)
-    {
-        WARN("No index buffer set\n");
-        mQueue.unlock();
-        return D3DERR_INVALIDCALL;
-    }
+    D3DGLBufferObject *idxbuffer;
 
+    mQueue.lock();
     HRESULT hr = sendVtxData(startvtx, mStreams.data(), mStreams.size());
     if(FAILED(hr))
         mQueue.unlock();
+    else if(!(idxbuffer=mIndexBuffer))
+    {
+        WARN("No index buffer set\n");
+        mQueue.unlock();
+        hr = D3DERR_INVALIDCALL;
+    }
     else
     {
         GLsizei num_instances = 1;
@@ -3424,21 +3420,26 @@ HRESULT D3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE type, UINT count, const vo
     mPrimitiveUserData->resetBufferData(reinterpret_cast<const GLubyte*>(vtxData),
                                         vtxStride*count);
 
-    if(mStreams[0].mBuffer)
-        mStreams[0].mBuffer->Release();
-    mStreams[0].mBuffer = mPrimitiveUserData;
-    mStreams[0].mOffset = 0;
-    mStreams[0].mStride = vtxStride;
-
     mQueue.lock();
-    HRESULT hr = sendVtxData(0, &mStreams[0], 1);
+    StreamSource stream;
+    stream.mBuffer = mPrimitiveUserData;
+    stream.mOffset = 0;
+    stream.mStride = vtxStride;
+    stream.mFreq = mStreams[0].mFreq;
+
+    HRESULT hr = sendVtxData(0, &stream, 1);
     if(FAILED(hr))
         mQueue.unlock();
     else
-        mQueue.sendAndUnlock<DrawGLArraysCmd>(make_ref(mGLState), mode, count, 1/*num_instances*/);
+    {
+        if(mStreams[0].mBuffer)
+            mStreams[0].mBuffer->Release();
+        mStreams[0].mBuffer = nullptr;
+        mStreams[0].mOffset = 0;
+        mStreams[0].mStride = 0;
 
-    mStreams[0].mBuffer = nullptr;
-    mStreams[0].mStride = 0;
+        mQueue.sendAndUnlock<DrawGLArraysCmd>(make_ref(mGLState), mode, count, 1/*num_instances*/);
+    }
 
     return hr;
 }
@@ -3489,23 +3490,11 @@ HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9 *decl)
     if(!vtxdecl)
     {
         vtxdecl = mVertexDecl.exchange(vtxdecl);
-        // FIXME: Set according to FVF
+        // FIXME: Set according to FVF?
         mQueue.unlock();
-    }
-    else if(D3DGLVertexShader *vshader = mVertexShader)
-    {
-        UINT attribs = 0;
-        for(const D3DGLVERTEXELEMENT &elem : vtxdecl->getVtxElements())
-        {
-            GLint loc = vshader->getLocation(elem.Usage, elem.UsageIndex);
-            if(loc >= 0) attribs |= 1<<loc;
-        }
-        vtxdecl = mVertexDecl.exchange(vtxdecl);
-        mQueue.sendAndUnlock<SetVertexAttribArrayCmd>(make_ref(mGLState), attribs);
     }
     else
     {
-        // FIXME: Set according to fixed-function emulation shader
         vtxdecl = mVertexDecl.exchange(vtxdecl);
         mQueue.unlock();
     }
@@ -3567,30 +3556,22 @@ HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
     D3DGLVertexShader *oldshader = mVertexShader.exchange(vshader);
     if(vshader)
     {
-        UINT attribs = 0;
-        if(D3DGLVertexDeclaration *vtxdecl = mVertexDecl)
-        {
-            for(const D3DGLVERTEXELEMENT &elem : vtxdecl->getVtxElements())
-            {
-                GLint loc = vshader->getLocation(elem.Usage, elem.UsageIndex);
-                if(loc >= 0) attribs |= 1<<loc;
-            }
-        }
-        mQueue.doSend<SetVertexAttribArrayCmd>(make_ref(mGLState), attribs);
         // TODO: The old shader's local constants should be reloaded with the
         // appropriate global values, and the new shader's local constants
         // should be filled with what the shader defined.
-        mQueue.sendAndUnlock<SetShaderProgramCmd>(make_ref(mGLState),
-            GL_VERTEX_SHADER_BIT, vshader->getProgram()
-        );
+
+        if(GLuint program = vshader->getProgram())
+            mQueue.sendAndUnlock<SetVShaderCmd>(mGLState.pipeline, program);
+        else
+        {
+            vshader->addPendingUpdate();
+            mQueue.sendAndUnlock<CompileAndSetVShaderCmd>(vshader, mGLState.pipeline);
+        }
     }
     else if(oldshader)
     {
         // FIXME: Set according to fixed-function emulation shader
-        mQueue.doSend<SetVertexAttribArrayCmd>(make_ref(mGLState), 0);
-        mQueue.sendAndUnlock<SetShaderProgramCmd>(make_ref(mGLState),
-            GL_VERTEX_SHADER_BIT, 0u
-        );
+        mQueue.unlock();
     }
     else
         mQueue.unlock();
@@ -3851,14 +3832,17 @@ HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9 *shader)
         // TODO: The old shader's local constants should be reloaded with the
         // appropriate global values, and the new shader's local constants
         // should be filled with what the shader defined.
-        mQueue.sendAndUnlock<SetShaderProgramCmd>(make_ref(mGLState),
-            GL_FRAGMENT_SHADER_BIT, pshader->getProgram()
-        );
+
+        if(GLuint program = pshader->getProgram())
+            mQueue.sendAndUnlock<SetPShaderCmd>(mGLState.pipeline, program);
+        else
+        {
+            pshader->addPendingUpdate();
+            mQueue.sendAndUnlock<CompileAndSetPShaderCmd>(pshader, mGLState.pipeline);
+        }
     }
     else if(oldshader)
-        mQueue.sendAndUnlock<SetShaderProgramCmd>(make_ref(mGLState),
-            GL_FRAGMENT_SHADER_BIT, 0u
-        );
+        mQueue.unlock();
     else
         mQueue.unlock();
     if(oldshader) oldshader->Release();

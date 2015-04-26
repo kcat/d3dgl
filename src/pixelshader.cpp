@@ -9,74 +9,93 @@
 #include "private_iids.hpp"
 
 
-void D3DGLPixelShader::compileShaderGL(const MOJOSHADER_parseData *shader)
+GLuint D3DGLPixelShader::compileShaderGL()
 {
-    mProgram = glCreateShaderProgramv(GL_FRAGMENT_SHADER, 1, &shader->output);
-    checkGLError();
+    const MOJOSHADER_parseData *shader = nullptr;
+    GLuint program = mProgram;
+    if(program) goto done;
 
-    if(!mProgram)
+    shader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL330,
+        reinterpret_cast<const unsigned char*>(mCode.data()),
+        mCode.size() * sizeof(decltype(mCode)::value_type),
+        nullptr, 0, nullptr, 0
+    );
+    if(shader->error_count > 0)
     {
-        FIXME("Failed to create shader program\n");
-        return;
+        std::stringstream sstr;
+        for(int i = 0;i < shader->error_count;++i)
+            sstr<< shader->errors[i].error_position<<":"<<shader->errors[i].error <<std::endl;
+        ERR("Failed to parse shader:\n----\n%s\n----\n", sstr.str().c_str());
+        goto done;
     }
+    if(mCode.size() != (std::size_t)shader->token_count)
+        ERR("Token count mismatch (previous: %u, now: %d)\n",
+            mCode.size(), shader->token_count);
+    TRACE("Parsed shader:\n----\n%s\n----\n", shader->output);
 
-    TRACE("Created fragment shader program 0x%x\n", mProgram);
-
-    GLint logLen = 0;
-    GLint status = GL_FALSE;
-    glGetProgramiv(mProgram, GL_LINK_STATUS, &status);
-    if(status == GL_FALSE)
     {
-        glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
-        std::vector<char> log(logLen+1);
-        glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
-        FIXME("Shader not linked:\n----\n%s\n----\nShader text:\n----\n%s\n----\n",
-              log.data(), shader->output);
-
-        glDeleteProgram(mProgram);
-        mProgram = 0;
-
+        program = glCreateShaderProgramv(GL_FRAGMENT_SHADER, 1, &shader->output);
         checkGLError();
-        return;
+        if(!program)
+        {
+            FIXME("Failed to create shader program\n");
+            goto done;
+        }
+
+        GLint logLen = 0;
+        GLint status = GL_FALSE;
+        glGetProgramiv(program, GL_LINK_STATUS, &status);
+        if(status == GL_FALSE)
+        {
+            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLen);
+            std::vector<char> log(logLen+1);
+            glGetProgramInfoLog(program, logLen, &logLen, log.data());
+            FIXME("Shader not linked:\n----\n%s\n----\nShader text:\n----\n%s\n----\n",
+                  log.data(), shader->output);
+
+            glDeleteProgram(program);
+            program = 0;
+            checkGLError();
+
+            goto done;
+        }
+
+        mProgram = program;
+        TRACE("Created fragment shader program 0x%x\n", program);
+
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLen);
+        if(logLen > 4)
+        {
+            std::vector<char> log(logLen+1);
+            glGetProgramInfoLog(program, logLen, &logLen, log.data());
+            WARN("Compile warning log:\n----\n%s\n----\nShader text:\n----\n%s\n----\n",
+                 log.data(), shader->output);
+        }
     }
 
-    glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
-    if(logLen > 4)
     {
-        std::vector<char> log(logLen+1);
-        glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
-        WARN("Compile warning log:\n----\n%s\n----\nShader text:\n----\n%s\n----\n",
-             log.data(), shader->output);
+        GLuint v4f_idx = glGetUniformBlockIndex(program, "ps_vec4");
+        if(v4f_idx != GL_INVALID_INDEX)
+            glUniformBlockBinding(program, v4f_idx, PSF_BINDING_IDX);
     }
-
-    GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "ps_vec4");
-    if(v4f_idx != GL_INVALID_INDEX)
-        glUniformBlockBinding(mProgram, v4f_idx, PSF_BINDING_IDX);
 
     for(int i = 0;i < shader->sampler_count;++i)
     {
-        GLint loc = glGetUniformLocation(mProgram, shader->samplers[i].name);
-        TRACE("Got sampler %s:%d at location %d\n", shader->samplers[i].name, shader->samplers[i].index, loc);
-        glProgramUniform1i(mProgram, loc, shader->samplers[i].index);
+        GLint loc = glGetUniformLocation(program, shader->samplers[i].name);
+        TRACE("Got sampler %s:%d at location %d\n", shader->samplers[i].name,
+            shader->samplers[i].index, loc);
+        glProgramUniform1i(program, loc, shader->samplers[i].index);
     }
 
     checkGLError();
+
+done:
+    MOJOSHADER_freeParseData(shader);
+
+    --mPendingUpdates;
+    return program;
 }
-class CompilePShaderCmd : public Command {
-    D3DGLPixelShader *mTarget;
-    const MOJOSHADER_parseData *mShader;
 
-public:
-    CompilePShaderCmd(D3DGLPixelShader *target, const MOJOSHADER_parseData *shader)
-      : mTarget(target), mShader(shader)
-    { }
-
-    virtual ULONG execute()
-    {
-        mTarget->compileShaderGL(mShader);
-        return sizeof(*this);
-    }
-};
 
 class DeinitPShaderCmd : public Command {
     GLuint mProgram;
@@ -95,6 +114,7 @@ public:
 D3DGLPixelShader::D3DGLPixelShader(D3DGLDevice *parent)
   : mRefCount(0)
   , mParent(parent)
+  , mPendingUpdates(0)
   , mProgram(0)
 {
     mParent->AddRef();
@@ -102,9 +122,11 @@ D3DGLPixelShader::D3DGLPixelShader(D3DGLDevice *parent)
 
 D3DGLPixelShader::~D3DGLPixelShader()
 {
-    if(mProgram)
-        mParent->getQueue().send<DeinitPShaderCmd>(mProgram);
-    mProgram = 0;
+    if(mPendingUpdates > 0)
+        Sleep(1);
+
+    if(GLuint program = mProgram.exchange(0))
+        mParent->getQueue().send<DeinitPShaderCmd>(program);
     mParent->Release();
 }
 
@@ -136,11 +158,9 @@ bool D3DGLPixelShader::init(const DWORD *data)
     mCode.insert(mCode.end(), data, data+shader->token_count);
 
     TRACE("Parsed shader:\n----\n%s\n----\n", shader->output);
-
-    mParent->getQueue().sendSync<CompilePShaderCmd>(this, shader);
     MOJOSHADER_freeParseData(shader);
 
-    return mProgram != 0;
+    return true;
 }
 
 

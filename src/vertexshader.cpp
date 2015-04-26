@@ -9,87 +9,105 @@
 #include "private_iids.hpp"
 
 
-void D3DGLVertexShader::compileShaderGL(const MOJOSHADER_parseData *shader)
+GLuint D3DGLVertexShader::compileShaderGL()
 {
-    mProgram = glCreateShaderProgramv(GL_VERTEX_SHADER, 1, &shader->output);
-    checkGLError();
+    const MOJOSHADER_parseData *shader = nullptr;
+    GLuint program = mProgram;
+    if(program) goto done;
 
-    if(!mProgram)
+    shader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL330,
+        reinterpret_cast<const unsigned char*>(mCode.data()),
+        mCode.size() * sizeof(decltype(mCode)::value_type),
+        nullptr, 0, nullptr, 0
+    );
+    if(shader->error_count > 0)
     {
-        FIXME("Failed to create shader program\n");
-        return;
+        std::stringstream sstr;
+        for(int i = 0;i < shader->error_count;++i)
+            sstr<< shader->errors[i].error_position<<":"<<shader->errors[i].error <<std::endl;
+        ERR("Failed to parse shader:\n----\n%s\n----\n", sstr.str().c_str());
+        goto done;
     }
+    if(mCode.size() != (std::size_t)shader->token_count)
+        ERR("Token count mismatch (previous: %u, now: %d)\n",
+            mCode.size(), shader->token_count);
+    TRACE("Parsed shader:\n----\n%s\n----\n", shader->output);
 
-    TRACE("Created vertex shader program 0x%x\n", mProgram);
 
-    GLint logLen = 0;
-    GLint status = GL_FALSE;
-    glGetProgramiv(mProgram, GL_LINK_STATUS, &status);
-    if(status == GL_FALSE)
     {
-        glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
-        std::vector<char> log(logLen+1);
-        glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
-        FIXME("Shader not linked:\n----\n%s\n----\nShader text:\n----\n%s\n----\n",
-              log.data(), shader->output);
-
-        glDeleteProgram(mProgram);
-        mProgram = 0;
-
+        program = glCreateShaderProgramv(GL_VERTEX_SHADER, 1, &shader->output);
         checkGLError();
-        return;
+        if(!program)
+        {
+            FIXME("Failed to create shader program\n");
+            goto done;
+        }
+
+        GLint logLen = 0;
+        GLint status = GL_FALSE;
+        glGetProgramiv(program, GL_LINK_STATUS, &status);
+        if(status == GL_FALSE)
+        {
+            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLen);
+            std::vector<char> log(logLen+1);
+            glGetProgramInfoLog(program, logLen, &logLen, log.data());
+            FIXME("Shader not linked:\n----\n%s\n----\nShader text:\n----\n%s\n----\n",
+                  log.data(), shader->output);
+
+            glDeleteProgram(program);
+            program = 0;
+            checkGLError();
+
+            goto done;
+        }
+
+        mProgram = program;
+        TRACE("Created vertex shader program 0x%x\n", program);
+
+        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLen);
+        if(logLen > 4)
+        {
+            std::vector<char> log(logLen+1);
+            glGetProgramInfoLog(program, logLen, &logLen, log.data());
+            WARN("Compile warning log:\n----\n%s\n----\nShader text:\n----\n%s\n----\n",
+                 log.data(), shader->output);
+        }
     }
 
-    glGetProgramiv(mProgram, GL_INFO_LOG_LENGTH, &logLen);
-    if(logLen > 4)
     {
-        std::vector<char> log(logLen+1);
-        glGetProgramInfoLog(mProgram, logLen, &logLen, log.data());
-        WARN("Compile warning log:\n----\n%s\n----\nShader text:\n----\n%s\n----\n",
-             log.data(), shader->output);
+        GLuint v4f_idx = glGetUniformBlockIndex(program, "vs_vec4");
+        if(v4f_idx != GL_INVALID_INDEX)
+            glUniformBlockBinding(program, v4f_idx, VSF_BINDING_IDX);
+        GLuint vtx_state_idx = glGetUniformBlockIndex(program, "vertex_state");
+        if(vtx_state_idx != GL_INVALID_INDEX)
+            glUniformBlockBinding(program, vtx_state_idx, VTXSTATE_BINDING_IDX);
+        GLuint pos_fixup_idx = glGetUniformBlockIndex(program, "pos_fixup");
+        if(pos_fixup_idx != GL_INVALID_INDEX)
+            glUniformBlockBinding(program, pos_fixup_idx, POSFIXUP_BINDING_IDX);
     }
-
-    GLuint v4f_idx = glGetUniformBlockIndex(mProgram, "vs_vec4");
-    if(v4f_idx != GL_INVALID_INDEX)
-        glUniformBlockBinding(mProgram, v4f_idx, VSF_BINDING_IDX);
-    GLuint vtx_state_idx = glGetUniformBlockIndex(mProgram, "vertex_state");
-    if(vtx_state_idx != GL_INVALID_INDEX)
-        glUniformBlockBinding(mProgram, vtx_state_idx, VTXSTATE_BINDING_IDX);
-    GLuint pos_fixup_idx = glGetUniformBlockIndex(mProgram, "pos_fixup");
-    if(pos_fixup_idx != GL_INVALID_INDEX)
-        glUniformBlockBinding(mProgram, pos_fixup_idx, POSFIXUP_BINDING_IDX);
 
     for(int i = 0;i < shader->attribute_count;++i)
     {
-        GLint loc = glGetAttribLocation(mProgram, shader->attributes[i].name);
+        GLint loc = glGetAttribLocation(program, shader->attributes[i].name);
         TRACE("Got attribute %s at location %d\n", shader->attributes[i].name, loc);
         mUsageMap[(shader->attributes[i].usage<<8) | shader->attributes[i].index] = loc;
     }
 
     for(int i = 0;i < shader->sampler_count;++i)
     {
-        GLint loc = glGetUniformLocation(mProgram, shader->samplers[i].name);
+        GLint loc = glGetUniformLocation(program, shader->samplers[i].name);
         TRACE("Got sampler %s:%d at location %d\n", shader->samplers[i].name, shader->samplers[i].index, loc);
-        glProgramUniform1i(mProgram, loc, shader->samplers[i].index+MAX_FRAGMENT_SAMPLERS);
+        glProgramUniform1i(program, loc, shader->samplers[i].index+MAX_FRAGMENT_SAMPLERS);
     }
 
     checkGLError();
+
+done:
+    MOJOSHADER_freeParseData(shader);
+
+    --mPendingUpdates;
+    return program;
 }
-class CompileVShaderCmd : public Command {
-    D3DGLVertexShader *mTarget;
-    const MOJOSHADER_parseData *mShader;
-
-public:
-    CompileVShaderCmd(D3DGLVertexShader *target, const MOJOSHADER_parseData *shader)
-      : mTarget(target), mShader(shader)
-    { }
-
-    virtual ULONG execute()
-    {
-        mTarget->compileShaderGL(mShader);
-        return sizeof(*this);
-    }
-};
 
 class DeinitVShaderCmd : public Command {
     GLuint mProgram;
@@ -108,6 +126,7 @@ public:
 D3DGLVertexShader::D3DGLVertexShader(D3DGLDevice *parent)
   : mRefCount(0)
   , mParent(parent)
+  , mPendingUpdates(0)
   , mProgram(0)
 {
     mParent->AddRef();
@@ -115,9 +134,11 @@ D3DGLVertexShader::D3DGLVertexShader(D3DGLDevice *parent)
 
 D3DGLVertexShader::~D3DGLVertexShader()
 {
-    if(mProgram)
-        mParent->getQueue().send<DeinitVShaderCmd>(mProgram);
-    mProgram = 0;
+    if(mPendingUpdates > 0)
+        Sleep(1);
+
+    if(GLuint program = mProgram.exchange(0))
+        mParent->getQueue().send<DeinitVShaderCmd>(program);
     mParent->Release();
 }
 
@@ -149,11 +170,9 @@ bool D3DGLVertexShader::init(const DWORD *data)
     mCode.insert(mCode.end(), data, data+shader->token_count);
 
     TRACE("Parsed shader:\n----\n%s\n----\n", shader->output);
-
-    mParent->getQueue().sendSync<CompileVShaderCmd>(this, shader);
     MOJOSHADER_freeParseData(shader);
 
-    return mProgram != 0;
+    return true;
 }
 
 
