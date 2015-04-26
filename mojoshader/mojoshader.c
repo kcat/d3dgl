@@ -4244,32 +4244,32 @@ static int parse_version_token(Context *ctx, const char *profilestr)
     ctx->version_token = token;
 
     // 0xFFFF == pixel shader, 0xFFFE == vertex shader
-    if (shadertype == 0xFFFF)
+    if(shadertype == 0xFFFF)
     {
         ctx->shader_type = MOJOSHADER_TYPE_PIXEL;
         ctx->shader_type_str = "ps";
-    } // if
-    else if (shadertype == 0xFFFE)
+    }
+    else if(shadertype == 0xFFFE)
     {
         ctx->shader_type = MOJOSHADER_TYPE_VERTEX;
         ctx->shader_type_str = "vs";
-    } // else if
-    else  // geometry shader? Bogus data?
+    }
+    else // geometry shader? Bogus data?
     {
-        fail(ctx, "Unsupported shader type or not a shader at all");
+        failf(ctx, "Unsupported shader type, 0x%x (%u.%u)", shadertype, major, minor);
         return -1;
-    } // else
+    }
 
     ctx->major_ver = major;
     ctx->minor_ver = minor;
 
-    if (!shader_version_supported(major, minor))
+    if(!shader_version_supported(major, minor))
     {
         failf(ctx, "Shader Model %u.%u is currently unsupported.",
-                (uint) major, (uint) minor);
-    } // if
+              (uint)major, (uint)minor);
+    }
 
-    if (!isfail(ctx))
+    if(!isfail(ctx))
         ctx->profile->start_emitter(ctx, profilestr);
 
     return 1;  // ate one token.
@@ -4790,6 +4790,7 @@ static MOJOSHADER_parseData *build_parsedata(Context *ctx)
         retval->output = output;
         retval->output_len = (int) output_len;
         retval->instruction_count = ctx->instruction_count;
+        retval->token_count = ctx->tokens - ctx->orig_tokens;
         retval->shader_type = ctx->shader_type;
         retval->major_ver = (int) ctx->major_ver;
         retval->minor_ver = (int) ctx->minor_ver;

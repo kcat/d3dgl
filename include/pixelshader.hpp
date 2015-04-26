@@ -18,7 +18,7 @@ class D3DGLPixelShader : public IDirect3DPixelShader9 {
 
     GLuint mProgram;
 
-    std::vector<BYTE> mCode;
+    std::vector<DWORD> mCode;
 
 public:
     D3DGLPixelShader(D3DGLDevice *parent);

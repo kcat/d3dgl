@@ -118,7 +118,7 @@ bool D3DGLPixelShader::init(const DWORD *data)
 
     TRACE("Parsing %s shader %lu.%lu using profile %s\n",
           (((*data>>16)==0xfffe) ? "vertex" : ((*data>>16)==0xffff) ? "pixel" : "unknown"),
-          (*data>>8)&0xff, *data&0xff, MOJOSHADER_PROFILE_GLSL120);
+          (*data>>8)&0xff, *data&0xff, MOJOSHADER_PROFILE_GLSL330);
 
     const MOJOSHADER_parseData *shader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL330,
         reinterpret_cast<const unsigned char*>(data), 0, nullptr, 0, nullptr, 0
@@ -132,6 +132,8 @@ bool D3DGLPixelShader::init(const DWORD *data)
         MOJOSHADER_freeParseData(shader);
         return false;
     }
+    // Save the tokens used
+    mCode.insert(mCode.end(), data, data+shader->token_count);
 
     TRACE("Parsed shader:\n----\n%s\n----\n", shader->output);
 
@@ -183,8 +185,8 @@ HRESULT D3DGLPixelShader::GetFunction(void *data, UINT *size)
 {
     TRACE("iface %p, data %p, size %p\n", this, data, size);
 
-    *size = mCode.size();
+    *size = mCode.size() * sizeof(decltype(mCode)::value_type);
     if(data)
-        memcpy(data, mCode.data(), mCode.size());
+        memcpy(data, mCode.data(), mCode.size() * sizeof(decltype(mCode)::value_type));
     return D3D_OK;
 }

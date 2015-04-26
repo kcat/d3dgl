@@ -320,6 +320,12 @@ typedef struct MOJOSHADER_parseData
     int instruction_count;
 
     /*
+     * Count of source tokens used. This is the number of DWORDs consumed from
+     *  the tokenbuf (i.e. byte_len = token_count*4).
+     */
+    int token_count;
+
+    /*
      * The type of shader we parsed. Will be MOJOSHADER_TYPE_UNKNOWN on error.
      */
     MOJOSHADER_shaderType shader_type;

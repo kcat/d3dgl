@@ -19,7 +19,7 @@ class D3DGLVertexShader : public IDirect3DVertexShader9 {
 
     GLuint mProgram;
 
-    std::vector<BYTE> mCode;
+    std::vector<DWORD> mCode;
 
     std::map<USHORT,GLint> mUsageMap;
 
