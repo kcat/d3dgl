@@ -1509,6 +1509,7 @@ HRESULT D3DGLDevice::sendVtxData(INT startvtx, const StreamSource *sources, UINT
         return D3D_OK;
     }
 
+    vshader->checkShadowSamplers(mShadowSamplers);
     if(D3DGLPixelShader *pshader = mPixelShader)
         pshader->checkShadowSamplers(mShadowSamplers);
 
@@ -3582,6 +3583,13 @@ HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
     }
 
     mQueue.lock();
+    // Wait for pending updates to finish, in case we need to rebuild with new parameters.
+    while(vshader && vshader->getPendingUpdates() > 0)
+    {
+        mQueue.unlock();
+        Sleep(1);
+        mQueue.lock();
+    }
     D3DGLVertexShader *oldshader = mVertexShader.exchange(vshader);
     if(vshader)
     {

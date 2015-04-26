@@ -9,16 +9,20 @@
 #include "private_iids.hpp"
 
 
-GLuint D3DGLVertexShader::compileShaderGL()
+GLuint D3DGLVertexShader::compileShaderGL(UINT shadowsamplers)
 {
     const MOJOSHADER_parseData *shader = nullptr;
-    GLuint program = mProgram;
-    if(program) goto done;
+    GLuint program = mProgram.exchange(0);
+    if(program)
+    {
+        glDeleteProgram(program);
+        program = 0;
+    }
 
     shader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL330,
         reinterpret_cast<const unsigned char*>(mCode.data()),
         mCode.size() * sizeof(decltype(mCode)::value_type),
-        nullptr, 0, nullptr, 0, 0
+        nullptr, 0, nullptr, 0, shadowsamplers
     );
     if(shader->error_count > 0)
     {
@@ -170,9 +174,24 @@ bool D3DGLVertexShader::init(const DWORD *data)
     mCode.insert(mCode.end(), data, data+shader->token_count);
 
     TRACE("Parsed shader:\n----\n%s\n----\n", shader->output);
+
+    for(int i = 0;i < shader->sampler_count;++i)
+        mSamplerMask |= 1<<(shader->samplers[i].index+MAX_FRAGMENT_SAMPLERS);
+
     MOJOSHADER_freeParseData(shader);
 
     return true;
+}
+
+void D3DGLVertexShader::checkShadowSamplers(UINT mask)
+{
+    if(mShadowSamplers == (mask&mSamplerMask))
+        return;
+
+    WARN("Rebuilding vertex shader %p because of shadow mismatch: %u / %u\n", this, mShadowSamplers, (mask&mSamplerMask));
+    mShadowSamplers = (mask&mSamplerMask);
+    addPendingUpdate();
+    mParent->getQueue().doSend<CompileAndSetVShaderCmd>(this, mParent->getShaderPipeline(), mShadowSamplers);
 }
 
 
