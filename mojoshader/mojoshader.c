@@ -2035,7 +2035,7 @@ static void glsl_texld(Context *ctx, const int texldd, const int texldl)
             fail(ctx, "unexpected texture type");
         output_line(ctx, "%s", code);
     }
-    else if (!shader_version_atleast(ctx, 2, 0))
+    else if(!shader_version_atleast(ctx, 2, 0))
     {
         // ps_1_4 is different, too!
         fail(ctx, "TEXLD == Shader Model 1.4 unimplemented.");  // !!! FIXME
@@ -2056,6 +2056,7 @@ static void glsl_texld(Context *ctx, const int texldd, const int texldl)
             fail(ctx, "TEXLD using undeclared sampler");
             return;
         }
+        assert(!isscalar(ctx, ctx->shader_type, samp_arg->regtype, samp_arg->regnum));
 
         if(texldd)
         {
@@ -2073,48 +2074,50 @@ static void glsl_texld(Context *ctx, const int texldd, const int texldl)
             make_GLSL_srcarg_string_w(ctx, 0, bias, sizeof(bias));
         }
 
-        if (ctx->instruction_controls == CONTROL_TEXLDP)
+        int mask = 0;
+        if(ctx->instruction_controls == CONTROL_TEXLDP)
         {
             if(sreg->index == TEXTURE_TYPE_CUBE)
                 fail(ctx, "TEXLDP on a cubemap");  // !!! FIXME: is this legal?
             funcname = "textureProj";
-            make_GLSL_srcarg_string_full(ctx, 0, src0, sizeof (src0));
+            // PS2.0+ always uses the 4th component for projection
+            mask = (1<<3);
         }
         else
         {
-            // texld/texldb
+            // texld/texldb/texldl
             funcname = "texture";
-            switch((const TextureType)sreg->index)
-            {
-            case TEXTURE_TYPE_2D:
-                make_GLSL_srcarg_string_vec2(ctx, 0, src0, sizeof (src0));
-                break;
-            case TEXTURE_TYPE_VOLUME:
-            case TEXTURE_TYPE_CUBE:
-                make_GLSL_srcarg_string_vec3(ctx, 0, src0, sizeof (src0));
-                break;
-            default:
-                make_GLSL_srcarg_string_full(ctx, 0, src0, sizeof (src0));
-                fail(ctx, "unknown texture type");
-                break;
-            }
         }
 
-        assert(!isscalar(ctx, ctx->shader_type, samp_arg->regtype, samp_arg->regnum));
+        switch((const TextureType)sreg->index)
+        {
+        case TEXTURE_TYPE_2D:
+            mask |= (1<<0) | (1<<1);
+            break;
+        case TEXTURE_TYPE_VOLUME:
+        case TEXTURE_TYPE_CUBE:
+            mask |= (1<<0) | (1<<1) | (1<<2);
+            break;
+        default:
+            fail(ctx, "unknown texture type");
+            break;
+        }
+        make_GLSL_srcarg_string(ctx, 0, mask, src0, sizeof(src0));
+
         char swiz_str[6] = { '\0' };
         make_GLSL_swizzle_string(swiz_str, samp_arg->swizzle, ctx->dest_arg.writemask);
 
         char code[128];
         if(texldd)
-            make_GLSL_destarg_assign(ctx, code, sizeof (code),
+            make_GLSL_destarg_assign(ctx, code, sizeof(code),
                                      "%sGrad(%s, %s, %s, %s)%s", funcname,
                                      src1, src0, src2, src3, swiz_str);
         else if(texldl)
-            make_GLSL_destarg_assign(ctx, code, sizeof (code),
+            make_GLSL_destarg_assign(ctx, code, sizeof(code),
                                      "%sLod(%s, %s%s%s)%s", funcname,
                                      src1, src0, biassep, bias, swiz_str);
         else
-            make_GLSL_destarg_assign(ctx, code, sizeof (code),
+            make_GLSL_destarg_assign(ctx, code, sizeof(code),
                                      "%s(%s, %s%s%s)%s", funcname,
                                      src1, src0, biassep, bias, swiz_str);
 
