@@ -132,6 +132,8 @@ D3DGLVertexShader::D3DGLVertexShader(D3DGLDevice *parent)
   , mParent(parent)
   , mPendingUpdates(0)
   , mProgram(0)
+  , mSamplerMask(0)
+  , mShadowSamplers(0)
 {
     mParent->AddRef();
 }
