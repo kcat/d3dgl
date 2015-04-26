@@ -329,18 +329,6 @@ typedef struct MOJOSHADER_parseData
     int minor_ver;
 
     /*
-     * The number of elements pointed to by (uniforms).
-     */
-    int uniform_count;
-
-    /*
-     * (uniform_count) elements of data that specify Uniforms to be set for
-     *  this shader. See discussion on MOJOSHADER_uniform for details.
-     * This can be NULL on error or if (uniform_count) is zero.
-     */
-    MOJOSHADER_uniform *uniforms;
-
-    /*
      * The number of elements pointed to by (constants).
      */
     int constant_count;

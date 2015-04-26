@@ -4525,61 +4525,6 @@ static inline const char *alloc_varname(Context *ctx, const RegisterList *reg)
 }
 
 
-// !!! FIXME: this code is sort of hard to follow:
-// !!! FIXME: It's just a mess.  :/
-static MOJOSHADER_uniform *build_uniforms(Context *ctx)
-{
-    const size_t len = sizeof (MOJOSHADER_uniform) * ctx->uniform_count;
-    MOJOSHADER_uniform *retval = malloc(len);
-
-    MOJOSHADER_uniform *wptr = retval;
-    memset(wptr, 0, len);
-
-    int written = 0;
-    RegisterList *item = ctx->uniforms.next;
-    MOJOSHADER_uniformType type = MOJOSHADER_UNIFORM_FLOAT;
-    while (written < ctx->uniform_count)
-    {
-        // !!! FIXME: does this fail if written > ctx->uniform_count?
-        if (item == NULL)
-        {
-            fail(ctx, "BUG: mismatched uniform list and count");
-            break;
-        }
-
-        int index = item->regnum;
-        switch (item->regtype)
-        {
-            case REG_TYPE_CONST:
-                type = MOJOSHADER_UNIFORM_FLOAT;
-                break;
-
-            case REG_TYPE_CONSTINT:
-                type = MOJOSHADER_UNIFORM_INT;
-                break;
-
-            case REG_TYPE_CONSTBOOL:
-                type = MOJOSHADER_UNIFORM_BOOL;
-                break;
-
-            default:
-                fail(ctx, "unknown uniform datatype");
-                break;
-        }
-
-        wptr->type = type;
-        wptr->index = index;
-        wptr->array_count = 0;
-        wptr->name = alloc_varname(ctx, item);
-        wptr++;
-        written++;
-
-        item = item->next;
-    }
-
-    return retval;
-}
-
 static MOJOSHADER_constant *build_constants(Context *ctx)
 {
     const size_t len = sizeof(MOJOSHADER_constant) * ctx->constant_count;
@@ -4753,7 +4698,6 @@ static MOJOSHADER_parseData *build_parsedata(Context *ctx)
 {
     char *output = NULL;
     MOJOSHADER_constant *constants = NULL;
-    MOJOSHADER_uniform *uniforms = NULL;
     MOJOSHADER_attribute *attributes = NULL;
     MOJOSHADER_attribute *outputs = NULL;
     MOJOSHADER_sampler *samplers = NULL;
@@ -4768,7 +4712,6 @@ static MOJOSHADER_parseData *build_parsedata(Context *ctx)
 
     if(!isfail(ctx)) output = build_output(ctx, &output_len);
     if(!isfail(ctx)) constants = build_constants(ctx);
-    if(!isfail(ctx)) uniforms = build_uniforms(ctx);
     if(!isfail(ctx)) attributes = build_attributes(ctx, &attribute_count);
     if(!isfail(ctx)) outputs = build_outputs(ctx, &output_count);
     if(!isfail(ctx)) samplers = build_samplers(ctx);
@@ -4783,13 +4726,6 @@ static MOJOSHADER_parseData *build_parsedata(Context *ctx)
 
         free(output);
         free(constants);
-
-        if (uniforms != NULL)
-        {
-            for (i = 0; i < ctx->uniform_count; i++)
-                free((void*)uniforms[i].name);
-            free(uniforms);
-        }
 
         if (attributes != NULL)
         {
@@ -4822,8 +4758,6 @@ static MOJOSHADER_parseData *build_parsedata(Context *ctx)
         retval->shader_type = ctx->shader_type;
         retval->major_ver = (int) ctx->major_ver;
         retval->minor_ver = (int) ctx->minor_ver;
-        retval->uniform_count = ctx->uniform_count;
-        retval->uniforms = uniforms;
         retval->constant_count = ctx->constant_count;
         retval->constants = constants;
         retval->sampler_count = ctx->sampler_count;
@@ -5088,10 +5022,6 @@ void MOJOSHADER_freeParseData(const MOJOSHADER_parseData *_data)
         free((void*)data->errors[i].filename);
     }
     free((void*)data->errors);
-
-    for(i = 0; i < data->uniform_count; i++)
-        free((void*)data->uniforms[i].name);
-    free((void*)data->uniforms);
 
     for(i = 0; i < data->attribute_count; i++)
         free((void*)data->attributes[i].name);
