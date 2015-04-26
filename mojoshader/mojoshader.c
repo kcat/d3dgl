@@ -62,8 +62,6 @@ typedef struct Context {
     const uint32 *tokens;
     uint32 tokencount;
     int know_shader_size;
-    const MOJOSHADER_swizzle *swizzles;
-    unsigned int swizzles_count;
     const MOJOSHADER_samplerMap *samplermap;
     unsigned int samplermap_count;
     unsigned int shadow_samplers;
@@ -2830,35 +2828,6 @@ static void determine_constants_arrays(Context *ctx)
 }
 
 
-static int adjust_swizzle(const Context *ctx, const RegisterType regtype,
-                          const int regnum, const int swizzle)
-{
-    if (regtype != REG_TYPE_INPUT)  // !!! FIXME: maybe lift this later?
-        return swizzle;
-    else if (ctx->swizzles_count == 0)
-        return swizzle;
-
-    const RegisterList *reg = reglist_find(&ctx->attributes, regtype, regnum);
-    if (reg == NULL)
-        return swizzle;
-
-    size_t i;
-    for (i = 0; i < ctx->swizzles_count; i++)
-    {
-        const MOJOSHADER_swizzle *swiz = &ctx->swizzles[i];
-        if ((swiz->usage == reg->usage) && (swiz->index == reg->index))
-        {
-            return ( (((int)(swiz->swizzles[((swizzle >> 0) & 0x3)])) << 0) |
-                     (((int)(swiz->swizzles[((swizzle >> 2) & 0x3)])) << 2) |
-                     (((int)(swiz->swizzles[((swizzle >> 4) & 0x3)])) << 4) |
-                     (((int)(swiz->swizzles[((swizzle >> 6) & 0x3)])) << 6) );
-        } // if
-    } // for
-
-    return swizzle;
-} // adjust_swizzle
-
-
 static int parse_source_token(Context *ctx, SourceArgInfo *info)
 {
     int retval = 1;
@@ -2898,7 +2867,7 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
         info->regnum += 6144;
     }
 
-    info->swizzle = adjust_swizzle(ctx, info->regtype, info->regnum, swizzle);
+    info->swizzle = swizzle;
     info->swizzle_x = ((info->swizzle >> 0) & 0x3);
     info->swizzle_y = ((info->swizzle >> 2) & 0x3);
     info->swizzle_z = ((info->swizzle >> 4) & 0x3);
@@ -4458,8 +4427,6 @@ static int find_profile_id(const char *profile)
 static Context *build_context(const char *profile,
                               const unsigned char *tokenbuf,
                               const unsigned int bufsize,
-                              const MOJOSHADER_swizzle *swiz,
-                              const unsigned int swizcount,
                               const MOJOSHADER_samplerMap *smap,
                               const unsigned int smapcount,
                               const unsigned int shadowsamp)
@@ -4471,8 +4438,6 @@ static Context *build_context(const char *profile,
     ctx->orig_tokens = (const uint32 *) tokenbuf;
     ctx->know_shader_size = (bufsize != 0);
     ctx->tokencount = ctx->know_shader_size ? (bufsize / sizeof (uint32)) : 0xFFFFFFFF;
-    ctx->swizzles = swiz;
-    ctx->swizzles_count = swizcount;
     ctx->samplermap = smap;
     ctx->samplermap_count = smapcount;
     ctx->shadow_samplers = shadowsamp;
@@ -4792,7 +4757,6 @@ static MOJOSHADER_parseData *build_parsedata(Context *ctx)
     MOJOSHADER_attribute *attributes = NULL;
     MOJOSHADER_attribute *outputs = NULL;
     MOJOSHADER_sampler *samplers = NULL;
-    MOJOSHADER_swizzle *swizzles = NULL;
     MOJOSHADER_error *errors = NULL;
     MOJOSHADER_parseData *retval = NULL;
     size_t output_len = 0;
@@ -4812,16 +4776,6 @@ static MOJOSHADER_parseData *build_parsedata(Context *ctx)
     const int error_count = errorlist_count(ctx->errors);
     errors = errorlist_flatten(ctx->errors);
 
-    if (!isfail(ctx))
-    {
-        if(ctx->swizzles_count > 0)
-        {
-            const int len = ctx->swizzles_count * sizeof (MOJOSHADER_swizzle);
-            swizzles = malloc(len);
-            memcpy(swizzles, ctx->swizzles, len);
-        }
-    }
-
     // check again, in case build_output, etc, ran out of memory.
     if (isfail(ctx))
     {
@@ -4829,7 +4783,6 @@ static MOJOSHADER_parseData *build_parsedata(Context *ctx)
 
         free(output);
         free(constants);
-        free(swizzles);
 
         if (uniforms != NULL)
         {
@@ -4879,8 +4832,6 @@ static MOJOSHADER_parseData *build_parsedata(Context *ctx)
         retval->attributes = attributes;
         retval->output_count = output_count;
         retval->outputs = outputs;
-        retval->swizzle_count = ctx->swizzles_count;
-        retval->swizzles = swizzles;
     }
 
     retval->error_count = error_count;
@@ -5021,21 +4972,6 @@ static void process_definitions(Context *ctx)
 }
 
 
-static void verify_swizzles(Context *ctx)
-{
-    size_t i;
-    const char *failmsg = "invalid swizzle";
-    for (i = 0; i < ctx->swizzles_count; i++)
-    {
-        const MOJOSHADER_swizzle *swiz = &ctx->swizzles[i];
-        if (swiz->swizzles[0] > 3) { fail(ctx, failmsg); return; }
-        if (swiz->swizzles[1] > 3) { fail(ctx, failmsg); return; }
-        if (swiz->swizzles[2] > 3) { fail(ctx, failmsg); return; }
-        if (swiz->swizzles[3] > 3) { fail(ctx, failmsg); return; }
-    }
-}
-
-
 // API entry point...
 
 // !!! FIXME:
@@ -5046,8 +4982,6 @@ static void verify_swizzles(Context *ctx)
 const MOJOSHADER_parseData *MOJOSHADER_parse(const char *profile,
                                              const unsigned char *tokenbuf,
                                              const unsigned int bufsize,
-                                             const MOJOSHADER_swizzle *swiz,
-                                             const unsigned int swizcount,
                                              const MOJOSHADER_samplerMap *smap,
                                              const unsigned int smapcount,
                                              const unsigned int shadowsamp)
@@ -5057,15 +4991,13 @@ const MOJOSHADER_parseData *MOJOSHADER_parse(const char *profile,
     int rc = 0;
     int failed = 0;
 
-    ctx = build_context(profile, tokenbuf, bufsize, swiz, swizcount, smap, smapcount, shadowsamp);
+    ctx = build_context(profile, tokenbuf, bufsize, smap, smapcount, shadowsamp);
     if(isfail(ctx))
     {
         retval = build_parsedata(ctx);
         destroy_context(ctx);
         return retval;
     }
-
-    verify_swizzles(ctx);
 
     // Version token always comes first.
     ctx->current_position = 0;
@@ -5149,7 +5081,6 @@ void MOJOSHADER_freeParseData(const MOJOSHADER_parseData *_data)
 
     free((void*)data->output);
     free((void*)data->constants);
-    free((void*)data->swizzles);
 
     for(i = 0; i < data->error_count; i++)
     {

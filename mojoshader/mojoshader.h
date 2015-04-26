@@ -220,19 +220,6 @@ typedef struct MOJOSHADER_attribute
     const char *name;
 } MOJOSHADER_attribute;
 
-/*
- * Use this if you want to specify newly-parsed code to swizzle incoming
- *  data. This can be useful if you know, at parse time, that a shader
- *  will be processing data on COLOR0 that should be RGBA, but you'll
- *  be passing it a vertex array full of ARGB instead.
- */
-typedef struct MOJOSHADER_swizzle
-{
-    MOJOSHADER_usage usage;
-    unsigned int index;
-    unsigned char swizzles[4];  /* {0,1,2,3} == .xyzw, {2,2,2,2} == .zzzz */
-} MOJOSHADER_swizzle;
-
 
 /*
  * These are used with MOJOSHADER_error as special case positions.
@@ -405,20 +392,6 @@ typedef struct MOJOSHADER_parseData
      * This can be NULL on error or if (output_count) is zero.
      */
     MOJOSHADER_attribute *outputs;
-
-    /*
-     * The number of elements pointed to by (swizzles).
-     */
-    int swizzle_count;
-
-    /* !!! FIXME: this should probably be "input" and not "attribute" */
-    /*
-     * (swizzle_count) elements of data that specify swizzles the shader will
-     *  apply to incoming attributes. This is a copy of what was passed to
-     *  MOJOSHADER_parseData().
-     * This can be NULL on error or if (swizzle_count) is zero.
-     */
-    MOJOSHADER_swizzle *swizzles;
 } MOJOSHADER_parseData;
 
 
@@ -487,25 +460,12 @@ int MOJOSHADER_maxShaderModel(const char *profile);
  *  Note that MojoShader may be built without support for all listed
  *  profiles (in which case using one here will return with an error).
  *
- * As parsing requires some memory to be allocated, you may provide a custom
- *  allocator to this function, which will be used to allocate/free memory.
- *  They function just like malloc() and free(). We do not use realloc().
- *  If you don't care, pass NULL in for the allocator functions. If your
- *  allocator needs instance-specific data, you may supply it with the
- *  (d) parameter. This pointer is passed as-is to your (m) and (f) functions.
- *
  * This function returns a MOJOSHADER_parseData.
  *
  * This function will never return NULL, even if the system is completely
  *  out of memory upon entry (in which case, this function returns a static
  *  MOJOSHADER_parseData object, which is still safe to pass to
  *  MOJOSHADER_freeParseData()).
- *
- * You can tell the generated program to swizzle certain inputs. If you know
- *  that COLOR0 should be RGBA but you're passing in ARGB, you can specify
- *  a swizzle of { MOJOSHADER_USAGE_COLOR, 0, {1,2,3,0} } to (swiz). If the
- *  input register in the code would produce reg.ywzx, that swizzle would
- *  change it to reg.wzxy ... (swiz) can be NULL.
  *
  * You can force the shader to expect samplers of certain types. Generally
  *  you don't need this, as Shader Model 2 and later always specify what they
@@ -532,8 +492,6 @@ int MOJOSHADER_maxShaderModel(const char *profile);
 const MOJOSHADER_parseData *MOJOSHADER_parse(const char *profile,
                                              const unsigned char *tokenbuf,
                                              const unsigned int bufsize,
-                                             const MOJOSHADER_swizzle *swiz,
-                                             const unsigned int swizcount,
                                              const MOJOSHADER_samplerMap *smap,
                                              const unsigned int smapcount,
                                              const unsigned int shadowsamp);

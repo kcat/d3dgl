@@ -22,7 +22,7 @@ GLuint D3DGLPixelShader::compileShaderGL(UINT shadowmask)
     shader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL330,
         reinterpret_cast<const unsigned char*>(mCode.data()),
         mCode.size() * sizeof(decltype(mCode)::value_type),
-        nullptr, 0, nullptr, 0, shadowmask
+        nullptr, 0, shadowmask
     );
     if(shader->error_count > 0)
     {
@@ -149,7 +149,7 @@ bool D3DGLPixelShader::init(const DWORD *data)
           (*data>>8)&0xff, *data&0xff, MOJOSHADER_PROFILE_GLSL330);
 
     const MOJOSHADER_parseData *shader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL330,
-        reinterpret_cast<const unsigned char*>(data), 0, nullptr, 0, nullptr, 0, 0
+        reinterpret_cast<const unsigned char*>(data), 0, nullptr, 0, 0
     );
     if(shader->error_count > 0)
     {
