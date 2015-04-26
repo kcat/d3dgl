@@ -116,6 +116,7 @@ D3DGLPixelShader::D3DGLPixelShader(D3DGLDevice *parent)
   , mParent(parent)
   , mPendingUpdates(0)
   , mProgram(0)
+  , mSamplerMask(0)
 {
     mParent->AddRef();
 }
@@ -158,6 +159,10 @@ bool D3DGLPixelShader::init(const DWORD *data)
     mCode.insert(mCode.end(), data, data+shader->token_count);
 
     TRACE("Parsed shader:\n----\n%s\n----\n", shader->output);
+
+    for(int i = 0;i < shader->sampler_count;++i)
+        mSamplerMask |= 1<<shader->samplers[i].index;
+
     MOJOSHADER_freeParseData(shader);
 
     return true;

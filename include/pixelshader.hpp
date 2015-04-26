@@ -18,6 +18,7 @@ class D3DGLPixelShader : public IDirect3DPixelShader9 {
 
     std::atomic<ULONG> mPendingUpdates;
     std::atomic<GLuint> mProgram;
+    UINT mSamplerMask; // Bitmask of used samplers
 
     std::vector<DWORD> mCode;
 
@@ -30,6 +31,7 @@ public:
     GLuint compileShaderGL();
 
     void addPendingUpdate() { ++mPendingUpdates; }
+    ULONG getPendingUpdates() { return mPendingUpdates; }
     GLuint getProgram() const { return mProgram; }
 
     /*** IUnknown methods ***/
