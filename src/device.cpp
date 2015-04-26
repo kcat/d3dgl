@@ -1243,21 +1243,23 @@ void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
     checkGLError();
 
     {
+        GLVertexState vtxState;
+
         float zero[256*4] = {0.0f};
         // VS floats
         glGenBuffers(1, &mGLState.vs_uniform_bufferf);
         glBindBuffer(GL_UNIFORM_BUFFER, mGLState.vs_uniform_bufferf);
-        glBufferData(GL_UNIFORM_BUFFER, 256*sizeof(Vector4f), zero, GL_STREAM_DRAW);
+        glBufferData(GL_UNIFORM_BUFFER, mVSConstantsF.size()*sizeof(Vector4f), zero, GL_STREAM_DRAW);
         glBindBufferBase(GL_UNIFORM_BUFFER, VSF_BINDING_IDX, mGLState.vs_uniform_bufferf);
         // PS floats
         glGenBuffers(1, &mGLState.ps_uniform_bufferf);
         glBindBuffer(GL_UNIFORM_BUFFER, mGLState.ps_uniform_bufferf);
-        glBufferData(GL_UNIFORM_BUFFER, 256*sizeof(Vector4f), zero, GL_STREAM_DRAW);
+        glBufferData(GL_UNIFORM_BUFFER, mPSConstantsF.size()*sizeof(Vector4f), zero, GL_STREAM_DRAW);
         glBindBufferBase(GL_UNIFORM_BUFFER, PSF_BINDING_IDX, mGLState.ps_uniform_bufferf);
         // Vertex state
         glGenBuffers(1, &mGLState.vtx_state_uniform_buffer);
         glBindBuffer(GL_UNIFORM_BUFFER, mGLState.vtx_state_uniform_buffer);
-        glBufferData(GL_UNIFORM_BUFFER, sizeof(mGLVtxState), &mGLVtxState, GL_STREAM_DRAW);
+        glBufferData(GL_UNIFORM_BUFFER, sizeof(vtxState), &vtxState, GL_STREAM_DRAW);
         glBindBufferBase(GL_UNIFORM_BUFFER, VTXSTATE_BINDING_IDX, mGLState.vtx_state_uniform_buffer);
         // Projection fixup
         glGenBuffers(1, &mGLState.pos_fixup_uniform_buffer);

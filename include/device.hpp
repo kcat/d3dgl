@@ -104,8 +104,6 @@ class D3DGLDevice : public IDirect3DDevice9 {
     HGLRC mGLContext;
     GLState mGLState;
 
-    GLVertexState mGLVtxState;
-
     CommandQueue mQueue;
 
     const HWND mWindow;
