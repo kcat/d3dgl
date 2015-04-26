@@ -152,6 +152,9 @@ class D3DGLDevice : public IDirect3DDevice9 {
     ConditionWaiter mSwapWaiter;
     UINT mDepthBits;
 
+    /* Bitmask of sampler stages that have a shadow texture format */
+    UINT mShadowSamplers;
+
     // Sends buffer values to update proj_fixup_uniform_buffer. Caller is
     // responsible for holding the mQueue lock.
     void resetProjectionFixup(UINT width, UINT height);
@@ -177,6 +180,8 @@ public:
     const D3DAdapter &getAdapter() const { return mAdapter; }
     CommandQueue &getQueue() { return mQueue; }
     ConditionWaiter &getSwapWaiter() { return mSwapWaiter; }
+
+    GLuint getShaderPipeline() const { return mGLState.pipeline; }
 
     void initGL(HDC dc, HGLRC glcontext);
     void deinitGL();

@@ -535,7 +535,8 @@ const MOJOSHADER_parseData *MOJOSHADER_parse(const char *profile,
                                              const MOJOSHADER_swizzle *swiz,
                                              const unsigned int swizcount,
                                              const MOJOSHADER_samplerMap *smap,
-                                             const unsigned int smapcount);
+                                             const unsigned int smapcount,
+                                             const unsigned int shadowsamp);
 
 /*
  * Call this to dispose of parsing results when you are done with them.

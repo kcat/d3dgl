@@ -1350,6 +1350,7 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mIndexBuffer(nullptr)
   , mPrimitiveUserData(nullptr)
   , mDepthBits(0)
+  , mShadowSamplers(0)
 {
     for(auto &rt : mRenderTargets) rt = nullptr;
     for(auto &tex : mTextures) tex = nullptr;
@@ -1507,6 +1508,9 @@ HRESULT D3DGLDevice::sendVtxData(INT startvtx, const StreamSource *sources, UINT
         FIXME("Cannot draw without a vertex shader\n");
         return D3D_OK;
     }
+
+    if(D3DGLPixelShader *pshader = mPixelShader)
+        pshader->checkShadowSamplers(mShadowSamplers);
 
     D3DGLVertexDeclaration *vtxdecl = mVertexDecl;
     if(!vtxdecl)
@@ -3074,48 +3078,60 @@ HRESULT D3DGLDevice::SetTexture(DWORD stage, IDirect3DBaseTexture9 *texture)
         texture = mTextures[stage].exchange(texture);
         mQueue.sendAndUnlock<SetTextureCmd>(make_ref(mGLState), stage, GL_TEXTURE_2D, 0);
         if(texture) texture->Release();
+        return D3D_OK;
+    }
+
+    GLenum type = GL_TEXTURE_2D;
+    GLuint binding = 0;
+    int texflags = GLFormatInfo::Normal;
+    union {
+        void *pointer;
+        D3DGLTexture *tex2d;
+        D3DGLCubeTexture *cubetex;
+    };
+    if(SUCCEEDED(texture->QueryInterface(IID_D3DGLTexture, &pointer)))
+    {
+        type = GL_TEXTURE_2D;
+        binding = tex2d->getTextureId();
+        texflags = tex2d->getFormat().flags;
+    }
+    else if(SUCCEEDED(texture->QueryInterface(IID_D3DGLCubeTexture, &pointer)))
+    {
+        type = GL_TEXTURE_CUBE_MAP;
+        binding = cubetex->getTextureId();
+        texflags = cubetex->getFormat().flags;
     }
     else
     {
-        GLenum type = GL_TEXTURE_2D;
-        GLuint binding = 0;
-        int texflags = GLFormatInfo::Normal;
-        union {
-            void *pointer;
-            D3DGLTexture *tex2d;
-            D3DGLCubeTexture *cubetex;
-        };
-        if(SUCCEEDED(texture->QueryInterface(IID_D3DGLTexture, &pointer)))
+        ERR("Unhandled texture type from iface %p\n", texture);
+        texture->AddRef();
+    }
+
+    mQueue.lock();
+    // Texture being set already has an added reference
+    texture = mTextures[stage].exchange(texture);
+    if(!(texflags&GLFormatInfo::ShadowTexture))
+    {
+        if((mShadowSamplers&(1<<stage)))
         {
-            type = GL_TEXTURE_2D;
-            binding = tex2d->getTextureId();
-            texflags = tex2d->getFormat().flags;
-        }
-        else if(SUCCEEDED(texture->QueryInterface(IID_D3DGLCubeTexture, &pointer)))
-        {
-            type = GL_TEXTURE_CUBE_MAP;
-            binding = cubetex->getTextureId();
-            texflags = cubetex->getFormat().flags;
-        }
-        else
-        {
-            ERR("Unhandled texture type from iface %p\n", texture);
-            texture->AddRef();
-        }
-        mQueue.lock();
-        // Texture being set already has an added reference
-        texture = mTextures[stage].exchange(texture);
-        if(!(texflags&GLFormatInfo::ShadowTexture))
+            mShadowSamplers &= ~(1<<stage);
             mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[stage],
                 GL_TEXTURE_COMPARE_MODE, GL_NONE
             );
-        else
+        }
+    }
+    else
+    {
+        if(!(mShadowSamplers&(1<<stage)))
+        {
+            mShadowSamplers |= (1<<stage);
             mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[stage],
                 GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE
             );
-        mQueue.sendAndUnlock<SetTextureCmd>(make_ref(mGLState), stage, type, binding);
-        if(texture) texture->Release();
+        }
     }
+    mQueue.sendAndUnlock<SetTextureCmd>(make_ref(mGLState), stage, type, binding);
+    if(texture) texture->Release();
 
     return D3D_OK;
 }
@@ -3839,6 +3855,13 @@ HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9 *shader)
     }
 
     mQueue.lock();
+    // Wait for pending updates to finish, in case we need to rebuild with new parameters.
+    while(pshader && pshader->getPendingUpdates() > 0)
+    {
+        mQueue.unlock();
+        Sleep(1);
+        mQueue.lock();
+    }
     D3DGLPixelShader *oldshader = mPixelShader.exchange(pshader);
     if(pshader)
     {

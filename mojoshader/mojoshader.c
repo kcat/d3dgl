@@ -66,6 +66,7 @@ typedef struct Context {
     unsigned int swizzles_count;
     const MOJOSHADER_samplerMap *samplermap;
     unsigned int samplermap_count;
+    unsigned int shadow_samplers;
     Buffer *output;
     Buffer *preflight;
     Buffer *globals;
@@ -834,7 +835,7 @@ static const char *make_GLSL_destarg_assign(Context *ctx, char *buf,
 static char *make_GLSL_swizzle_string(char *swiz_str, const int swizzle, const int writemask)
 {
     size_t i = 0;
-    if ( (!no_swizzle(swizzle)) || (!writemask_xyzw(writemask)) )
+    if(!no_swizzle(swizzle) || !writemask_xyzw(writemask))
     {
         const int writemask0 = (writemask >> 0) & 0x1;
         const int writemask1 = (writemask >> 1) & 0x1;
@@ -1245,13 +1246,26 @@ static void emit_GLSL_uniform(Context *ctx, RegisterType regtype, int regnum)
 static void emit_GLSL_sampler(Context *ctx,int stage,TextureType ttype,int tb)
 {
     const char *type = "";
-    switch (ttype)
+    if(!(ctx->shadow_samplers&(1<<stage)))
     {
-        case TEXTURE_TYPE_2D: type = "sampler2D"; break;
-        case TEXTURE_TYPE_CUBE: type = "samplerCube"; break;
-        case TEXTURE_TYPE_VOLUME: type = "sampler3D"; break;
-        default: fail(ctx, "BUG: used a sampler we don't know how to define.");
-    } // switch
+        switch (ttype)
+        {
+            case TEXTURE_TYPE_2D: type = "sampler2D"; break;
+            case TEXTURE_TYPE_CUBE: type = "samplerCube"; break;
+            case TEXTURE_TYPE_VOLUME: type = "sampler3D"; break;
+            default: fail(ctx, "BUG: used a sampler we don't know how to define.");
+        }
+    }
+    else
+    {
+        switch (ttype)
+        {
+            case TEXTURE_TYPE_2D: type = "sampler2DShadow"; break;
+            case TEXTURE_TYPE_CUBE: type = "samplerCubeShadow"; break;
+            case TEXTURE_TYPE_VOLUME: type = "sampler3DShadow"; break;
+            default: fail(ctx, "BUG: used a sampler we don't know how to define.");
+        }
+    }
 
     char var[64];
     get_GLSL_varname_in_buf(ctx, REG_TYPE_SAMPLER, stage, var, sizeof (var));
@@ -2011,6 +2025,9 @@ static void glsl_texld(Context *ctx, const int texldd, const int texldl)
         char dst[64];
         char sampler[64];
         char code[128] = {0};
+        const char *coords = "";
+        const char *cast_left = "";
+        const char *cast_right = "";
 
         assert(!texldd && !texldl);
 
@@ -2023,16 +2040,44 @@ static void glsl_texld(Context *ctx, const int texldd, const int texldl)
         get_GLSL_varname_in_buf(ctx, REG_TYPE_SAMPLER, info->regnum,
                                 sampler, sizeof (sampler));
 
-        if(ttype == TEXTURE_TYPE_2D)
-            make_GLSL_destarg_assign(ctx, code, sizeof (code),
-                                     "texture(%s, %s.xy)",
-                                     sampler, dst);
-        else if(ttype == TEXTURE_TYPE_VOLUME || ttype == TEXTURE_TYPE_CUBE)
-            make_GLSL_destarg_assign(ctx, code, sizeof (code),
-                                     "texture(%s, %s.xyz)",
-                                     sampler, dst);
+        if(!(ctx->shadow_samplers&(1<<info->regnum)))
+        {
+            if(ttype == TEXTURE_TYPE_2D)
+                coords = ".xy";
+            else if(ttype == TEXTURE_TYPE_VOLUME || ttype == TEXTURE_TYPE_CUBE)
+                coords = ".xyz";
+            else
+                fail(ctx, "unexpected texture type");
+        }
         else
-            fail(ctx, "unexpected texture type");
+        {
+            const int vecsize = vecsize_from_writemask(info->writemask);
+            if(vecsize == 1)
+                cast_left = "float(";
+            else if(vecsize == 2)
+                cast_left = "vec2(";
+            else if(vecsize == 3)
+                cast_left = "vec3(";
+            else if(vecsize == 4)
+                cast_left = "vec4(";
+            else
+            {
+                fail(ctx, "Unexpected writemask size");
+                cast_left = "(";
+            }
+            cast_right = ")";
+
+            if(ttype == TEXTURE_TYPE_2D)
+                coords = ".xyz";
+            else if(ttype == TEXTURE_TYPE_VOLUME || ttype == TEXTURE_TYPE_CUBE)
+                coords = ".xyzw";
+            else
+                fail(ctx, "unexpected texture type");
+        }
+
+        make_GLSL_destarg_assign(ctx, code, sizeof(code),
+                                 "%stexture(%s, %s%s)%s",
+                                 cast_left, sampler, dst, coords, cast_right);
         output_line(ctx, "%s", code);
     }
     else if(!shader_version_atleast(ctx, 2, 0))
@@ -2045,7 +2090,7 @@ static void glsl_texld(Context *ctx, const int texldd, const int texldl)
     {
         const SourceArgInfo *samp_arg = &ctx->source_args[1];
         RegisterList *sreg = reglist_find(&ctx->samplers, REG_TYPE_SAMPLER, samp_arg->regnum);
-        const char *funcname = NULL;
+        char funcname[32] = { '\0' };
         char src0[64] = { '\0' };
         char src1[64]; get_GLSL_srcarg_varname(ctx, 1, src1, sizeof(src1)); // !!! FIXME: SRC_MOD?
         char src2[64] = { '\0' };
@@ -2079,24 +2124,46 @@ static void glsl_texld(Context *ctx, const int texldd, const int texldl)
         {
             if(sreg->index == TEXTURE_TYPE_CUBE)
                 fail(ctx, "TEXLDP on a cubemap");  // !!! FIXME: is this legal?
-            funcname = "textureProj";
+            if(!(ctx->shadow_samplers&(1<<samp_arg->regnum)))
+                snprintf(funcname, sizeof(funcname), "textureProj");
+            else
+            {
+                const int vecsize = vecsize_from_writemask(ctx->dest_arg.writemask);
+                if(vecsize == 1)
+                    snprintf(funcname, sizeof(funcname), "float(textureProj");
+                else
+                    snprintf(funcname, sizeof(funcname), "vec%d(textureProj", vecsize);
+            }
             // PS2.0+ always uses the 4th component for projection
             mask = (1<<3);
         }
         else
         {
             // texld/texldb/texldl
-            funcname = "texture";
+            if(!(ctx->shadow_samplers&(1<<samp_arg->regnum)))
+                snprintf(funcname, sizeof(funcname), "texture");
+            else
+            {
+                const int vecsize = vecsize_from_writemask(ctx->dest_arg.writemask);
+                if(vecsize == 1)
+                    snprintf(funcname, sizeof(funcname), "float(texture");
+                else
+                    snprintf(funcname, sizeof(funcname), "vec%d(texture", vecsize);
+            }
         }
 
         switch((const TextureType)sreg->index)
         {
         case TEXTURE_TYPE_2D:
             mask |= (1<<0) | (1<<1);
+            if((ctx->shadow_samplers&(1<<samp_arg->regnum)))
+                mask |= (1<<2);
             break;
         case TEXTURE_TYPE_VOLUME:
         case TEXTURE_TYPE_CUBE:
             mask |= (1<<0) | (1<<1) | (1<<2);
+            if((ctx->shadow_samplers&(1<<samp_arg->regnum)))
+                fail(ctx, "3D/Cube shadow samplers unsupported");
             break;
         default:
             fail(ctx, "unknown texture type");
@@ -2104,8 +2171,14 @@ static void glsl_texld(Context *ctx, const int texldd, const int texldl)
         }
         make_GLSL_srcarg_string(ctx, 0, mask, src0, sizeof(src0));
 
-        char swiz_str[6] = { '\0' };
-        make_GLSL_swizzle_string(swiz_str, samp_arg->swizzle, ctx->dest_arg.writemask);
+        char swiz_str[7] = { '\0', '\0' };
+        if(!(ctx->shadow_samplers&(1<<samp_arg->regnum)))
+            make_GLSL_swizzle_string(swiz_str, samp_arg->swizzle, ctx->dest_arg.writemask);
+        else
+        {
+            swiz_str[0] = ')';
+            make_GLSL_swizzle_string(swiz_str+1, samp_arg->swizzle, ctx->dest_arg.writemask);
+        }
 
         char code[128];
         if(texldd)
@@ -4388,7 +4461,8 @@ static Context *build_context(const char *profile,
                               const MOJOSHADER_swizzle *swiz,
                               const unsigned int swizcount,
                               const MOJOSHADER_samplerMap *smap,
-                              const unsigned int smapcount)
+                              const unsigned int smapcount,
+                              const unsigned int shadowsamp)
 {
     Context *ctx = malloc(sizeof(Context));
     memset(ctx, 0, sizeof (Context));
@@ -4401,6 +4475,7 @@ static Context *build_context(const char *profile,
     ctx->swizzles_count = swizcount;
     ctx->samplermap = smap;
     ctx->samplermap_count = smapcount;
+    ctx->shadow_samplers = shadowsamp;
     ctx->current_position = MOJOSHADER_POSITION_BEFORE;
     ctx->texm3x2pad_dst0 = -1;
     ctx->texm3x2pad_src0 = -1;
@@ -4974,14 +5049,15 @@ const MOJOSHADER_parseData *MOJOSHADER_parse(const char *profile,
                                              const MOJOSHADER_swizzle *swiz,
                                              const unsigned int swizcount,
                                              const MOJOSHADER_samplerMap *smap,
-                                             const unsigned int smapcount)
+                                             const unsigned int smapcount,
+                                             const unsigned int shadowsamp)
 {
     MOJOSHADER_parseData *retval = NULL;
     Context *ctx = NULL;
     int rc = 0;
     int failed = 0;
 
-    ctx = build_context(profile, tokenbuf, bufsize, swiz, swizcount, smap, smapcount);
+    ctx = build_context(profile, tokenbuf, bufsize, swiz, swizcount, smap, smapcount, shadowsamp);
     if(isfail(ctx))
     {
         retval = build_parsedata(ctx);
