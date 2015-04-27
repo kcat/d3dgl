@@ -2005,7 +2005,7 @@ HRESULT D3DGLDevice::CreateCubeTexture(UINT edgeLength, UINT levels, DWORD usage
 
     D3DSURFACE_DESC desc;
     desc.Format = format;
-    desc.Type = D3DRTYPE_TEXTURE;
+    desc.Type = D3DRTYPE_CUBETEXTURE;
     desc.Usage = usage;
     desc.Pool = pool;
     desc.MultiSampleType = D3DMULTISAMPLE_NONE;
