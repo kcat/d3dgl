@@ -452,36 +452,42 @@ static inline void add_sampler(Context *ctx, const int regnum,
 }
 
 
+#define WRITEMASK_X (1<<0)
+#define WRITEMASK_Y (1<<1)
+#define WRITEMASK_Z (1<<2)
+#define WRITEMASK_W (1<<3)
+
 static inline int writemask_xyzw(const int writemask)
 {
-    return (writemask == 0xF);  // 0xF == 1111. No explicit mask (full!).
+    // No explicit mask (full!).
+    return writemask == (WRITEMASK_X|WRITEMASK_Y|WRITEMASK_Z|WRITEMASK_W);
 }
 static inline int writemask_xyz(const int writemask)
 {
-    return (writemask == 0x7);  // 0x7 == 0111. (that is: xyz)
+    return writemask == (WRITEMASK_X|WRITEMASK_Y|WRITEMASK_Z);
 }
 static inline int writemask_xy(const int writemask)
 {
-    return (writemask == 0x3);  // 0x3 == 0011. (that is: xy)
+    return writemask == (WRITEMASK_X|WRITEMASK_Y);
 }
 static inline int writemask_x(const int writemask)
 {
-    return (writemask == 0x1);  // 0x1 == 0001. (that is: x)
+    return writemask == WRITEMASK_X;
 }
 static inline int writemask_y(const int writemask)
 {
-    return (writemask == 0x2);  // 0x1 == 0010. (that is: y)
+    return writemask == WRITEMASK_Y;
 }
 
 static inline int replicate_swizzle(const int swizzle)
 {
-    return (((swizzle >> 0) & 0x3) == ((swizzle >> 2) & 0x3)) &&
-           (((swizzle >> 2) & 0x3) == ((swizzle >> 4) & 0x3)) &&
-           (((swizzle >> 4) & 0x3) == ((swizzle >> 6) & 0x3));
+    return ((swizzle>>0) & 0x3) == ((swizzle>>2) & 0x3) &&
+           ((swizzle>>2) & 0x3) == ((swizzle>>4) & 0x3) &&
+           ((swizzle>>4) & 0x3) == ((swizzle>>6) & 0x3);
 }
 static inline int no_swizzle(const int swizzle)
 {
-    return (swizzle == 0xE4);  // 0xE4 == 11100100 ... 0 1 2 3. No swizzle.
+    return swizzle == 0xE4;  // 0xE4 == 11100100 ... 0 1 2 3. No swizzle.
 }
 
 static inline int vecsize_from_writemask(const int m)
@@ -493,10 +499,10 @@ static inline int vecsize_from_writemask(const int m)
 static inline void set_dstarg_writemask(DestArgInfo *dst, const int mask)
 {
     dst->writemask = mask;
-    dst->writemask0 = ((mask >> 0) & 1);
-    dst->writemask1 = ((mask >> 1) & 1);
-    dst->writemask2 = ((mask >> 2) & 1);
-    dst->writemask3 = ((mask >> 3) & 1);
+    dst->writemask0 = ((mask>>0) & 1);
+    dst->writemask1 = ((mask>>1) & 1);
+    dst->writemask2 = ((mask>>2) & 1);
+    dst->writemask3 = ((mask>>3) & 1);
 }
 
 
@@ -629,8 +635,8 @@ static const char *get_D3D_register_string(Context *ctx, RegisterType regtype,
             break;
     }
 
-    if (has_number)
-        snprintf(regnum_str, regnum_size, "%u", (uint) regnum);
+    if(has_number)
+        snprintf(regnum_str, regnum_size, "%u", (uint)regnum);
     else
         regnum_str[0] = '\0';
 
@@ -658,7 +664,7 @@ static inline const char *get_GLSL_register_string(Context *ctx,
 {
     // turns out these are identical at the moment.
     return get_D3D_register_string(ctx,regtype,regnum,regnum_str,regnum_size);
-} // get_GLSL_register_string
+}
 
 static const char *get_GLSL_uniform_type(Context *ctx, const RegisterType rtype)
 {
@@ -672,7 +678,7 @@ static const char *get_GLSL_uniform_type(Context *ctx, const RegisterType rtype)
 
     fail(ctx, "BUG: used a uniform we don't know how to define.");
     return NULL;
-} // get_GLSL_uniform_type
+}
 
 static const char *get_GLSL_varname_in_buf(Context *ctx, RegisterType rt,
                                            int regnum, char *buf,
@@ -682,7 +688,7 @@ static const char *get_GLSL_varname_in_buf(Context *ctx, RegisterType rt,
     const char *regtype_str = get_GLSL_register_string(ctx, rt, regnum, regnum_str, sizeof(regnum_str));
     snprintf(buf,len,"%s_%s%s", ctx->shader_type_str, regtype_str, regnum_str);
     return buf;
-} // get_GLSL_varname_in_buf
+}
 
 
 static const char *get_GLSL_varname(Context *ctx, RegisterType rt, int regnum)
@@ -697,7 +703,7 @@ static inline const char *get_GLSL_input_array_varname(char *buf, const size_t b
 {
     snprintf(buf, buflen, "%s", "vertex_input_array");
     return buf;
-} // get_GLSL_input_array_varname
+}
 
 
 static const char *get_GLSL_uniform_array_varname(Context *ctx,
@@ -708,27 +714,27 @@ static const char *get_GLSL_uniform_array_varname(Context *ctx,
     const char *type = get_GLSL_uniform_type(ctx, regtype);
     snprintf(buf, len, "%s_uniforms_%s", shadertype, type);
     return buf;
-} // get_GLSL_uniform_array_varname
+}
 
 static const char *get_GLSL_destarg_varname(Context *ctx, char *buf, size_t len)
 {
     const DestArgInfo *arg = &ctx->dest_arg;
     return get_GLSL_varname_in_buf(ctx, arg->regtype, arg->regnum, buf, len);
-} // get_GLSL_destarg_varname
+}
 
 static const char *get_GLSL_srcarg_varname(Context *ctx, const size_t idx,
                                            char *buf, size_t len)
 {
-    if (idx >= STATICARRAYLEN(ctx->source_args))
+    if(idx >= STATICARRAYLEN(ctx->source_args))
     {
         fail(ctx, "Too many source args");
         *buf = '\0';
         return buf;
-    } // if
+    }
 
     const SourceArgInfo *arg = &ctx->source_args[idx];
     return get_GLSL_varname_in_buf(ctx, arg->regtype, arg->regnum, buf, len);
-} // get_GLSL_srcarg_varname
+}
 
 
 static const char *make_GLSL_destarg_assign(Context *, char *, const size_t,
@@ -741,7 +747,7 @@ static const char *make_GLSL_destarg_assign(Context *ctx, char *buf,
     int need_parens = 0;
     const DestArgInfo *arg = &ctx->dest_arg;
 
-    if (arg->writemask == 0)
+    if(arg->writemask == 0)
     {
         *buf = '\0';
         return buf;  // no writemask? It's a no-op.
@@ -757,11 +763,11 @@ static const char *make_GLSL_destarg_assign(Context *ctx, char *buf,
     char clampbuf[32] = { '\0' };
     const char *clampleft = "";
     const char *clampright = "";
-    if((arg->result_mod & MOD_SATURATE) || force_saturate)
+    if((arg->result_mod&MOD_SATURATE) || force_saturate)
     {
         const int vecsize = vecsize_from_writemask(arg->writemask);
         clampleft = "clamp(";
-        if (vecsize == 1)
+        if(vecsize == 1)
             clampright = ", 0.0, 1.0)";
         else
         {
@@ -776,7 +782,7 @@ static const char *make_GLSL_destarg_assign(Context *ctx, char *buf,
     // CENTROID only allowed in DCL opcodes, which shouldn't come through here.
     assert((arg->result_mod & MOD_CENTROID) == 0);
 
-    if (ctx->predicated)
+    if(ctx->predicated)
     {
         fail(ctx, "predicated destinations unsupported");  // !!! FIXME
         *buf = '\0';
@@ -814,13 +820,13 @@ static const char *make_GLSL_destarg_assign(Context *ctx, char *buf,
     char writemask_str[6];
     size_t i = 0;
     const int scalar = isscalar(ctx, ctx->shader_type, arg->regtype, arg->regnum);
-    if (!scalar && !writemask_xyzw(arg->writemask))
+    if(!scalar && !writemask_xyzw(arg->writemask))
     {
         writemask_str[i++] = '.';
-        if (arg->writemask0) writemask_str[i++] = 'x';
-        if (arg->writemask1) writemask_str[i++] = 'y';
-        if (arg->writemask2) writemask_str[i++] = 'z';
-        if (arg->writemask3) writemask_str[i++] = 'w';
+        if(arg->writemask0) writemask_str[i++] = 'x';
+        if(arg->writemask1) writemask_str[i++] = 'y';
+        if(arg->writemask2) writemask_str[i++] = 'z';
+        if(arg->writemask3) writemask_str[i++] = 'w';
     }
     writemask_str[i] = '\0';
     assert(i < sizeof (writemask_str));
@@ -842,21 +848,21 @@ static char *make_GLSL_swizzle_string(char *swiz_str, const int swizzle, const i
     size_t i = 0;
     if(!no_swizzle(swizzle) || !writemask_xyzw(writemask))
     {
-        const int writemask0 = (writemask >> 0) & 0x1;
-        const int writemask1 = (writemask >> 1) & 0x1;
-        const int writemask2 = (writemask >> 2) & 0x1;
-        const int writemask3 = (writemask >> 3) & 0x1;
+        const int writemask0 = (writemask>>0) & 0x1;
+        const int writemask1 = (writemask>>1) & 0x1;
+        const int writemask2 = (writemask>>2) & 0x1;
+        const int writemask3 = (writemask>>3) & 0x1;
 
-        const int swizzle_x = (swizzle >> 0) & 0x3;
-        const int swizzle_y = (swizzle >> 2) & 0x3;
-        const int swizzle_z = (swizzle >> 4) & 0x3;
-        const int swizzle_w = (swizzle >> 6) & 0x3;
+        const int swizzle_x = (swizzle>>0) & 0x3;
+        const int swizzle_y = (swizzle>>2) & 0x3;
+        const int swizzle_z = (swizzle>>4) & 0x3;
+        const int swizzle_w = (swizzle>>6) & 0x3;
 
         swiz_str[i++] = '.';
-        if (writemask0) swiz_str[i++] = swizzle_channels[swizzle_x];
-        if (writemask1) swiz_str[i++] = swizzle_channels[swizzle_y];
-        if (writemask2) swiz_str[i++] = swizzle_channels[swizzle_z];
-        if (writemask3) swiz_str[i++] = swizzle_channels[swizzle_w];
+        if(writemask0) swiz_str[i++] = swizzle_channels[swizzle_x];
+        if(writemask1) swiz_str[i++] = swizzle_channels[swizzle_y];
+        if(writemask2) swiz_str[i++] = swizzle_channels[swizzle_z];
+        if(writemask3) swiz_str[i++] = swizzle_channels[swizzle_w];
     }
     swiz_str[i] = '\0';
     return swiz_str;
@@ -962,7 +968,7 @@ static const char *make_GLSL_srcarg_string(Context *ctx, const size_t idx,
     }
     else
     {
-        if (arg->regtype == REG_TYPE_INPUT)
+        if(arg->regtype == REG_TYPE_INPUT)
             get_GLSL_input_array_varname(regtype_str, sizeof(regtype_str));
         else
         {
@@ -988,7 +994,7 @@ static const char *make_GLSL_srcarg_string(Context *ctx, const size_t idx,
     }
 
     char swiz_str[6] = { '\0' };
-    if (!isscalar(ctx, ctx->shader_type, arg->regtype, arg->regnum))
+    if(!isscalar(ctx, ctx->shader_type, arg->regtype, arg->regnum))
         make_GLSL_swizzle_string(swiz_str, arg->swizzle, writemask);
 
     snprintf(buf, buflen, "%s%s%s%s%s%s%s%s%s",
@@ -1001,20 +1007,20 @@ static const char *make_GLSL_srcarg_string(Context *ctx, const size_t idx,
 
 // generate some convenience functions.
 #define MAKE_GLSL_SRCARG_STRING_(mask, bitmask) \
-    static inline const char *make_GLSL_srcarg_string_##mask(Context *ctx, \
-                                                const size_t idx, char *buf, \
-                                                const size_t buflen) { \
-        return make_GLSL_srcarg_string(ctx, idx, bitmask, buf, buflen); \
-    }
-MAKE_GLSL_SRCARG_STRING_(x, (1 << 0))
-MAKE_GLSL_SRCARG_STRING_(y, (1 << 1))
-MAKE_GLSL_SRCARG_STRING_(z, (1 << 2))
-MAKE_GLSL_SRCARG_STRING_(w, (1 << 3))
-MAKE_GLSL_SRCARG_STRING_(scalar, (1 << 0))
-MAKE_GLSL_SRCARG_STRING_(full, 0xF)
+static inline const char *make_GLSL_srcarg_string_##mask(Context *ctx,        \
+                            const size_t idx, char *buf, const size_t buflen) \
+{                                                                             \
+    return make_GLSL_srcarg_string(ctx, idx, bitmask, buf, buflen);           \
+}
 MAKE_GLSL_SRCARG_STRING_(masked, ctx->dest_arg.writemask)
-MAKE_GLSL_SRCARG_STRING_(vec3, 0x7)
-MAKE_GLSL_SRCARG_STRING_(vec2, 0x3)
+MAKE_GLSL_SRCARG_STRING_(vec4, WRITEMASK_X|WRITEMASK_Y|WRITEMASK_Z|WRITEMASK_W)
+MAKE_GLSL_SRCARG_STRING_(vec3, WRITEMASK_X|WRITEMASK_Y|WRITEMASK_Z)
+MAKE_GLSL_SRCARG_STRING_(vec2, WRITEMASK_X|WRITEMASK_Y)
+MAKE_GLSL_SRCARG_STRING_(scalar, WRITEMASK_X)
+MAKE_GLSL_SRCARG_STRING_(x, WRITEMASK_X)
+MAKE_GLSL_SRCARG_STRING_(y, WRITEMASK_Y)
+MAKE_GLSL_SRCARG_STRING_(z, WRITEMASK_Z)
+MAKE_GLSL_SRCARG_STRING_(w, WRITEMASK_W)
 #undef MAKE_GLSL_SRCARG_STRING_
 
 // special cases for comparison opcodes...
@@ -1022,14 +1028,14 @@ MAKE_GLSL_SRCARG_STRING_(vec2, 0x3)
 static const char *get_GLSL_comparison_string_scalar(Context *ctx)
 {
     static const char *comps[] = { "", ">", "==", ">=", "<", "!=", "<=" };
-    if (ctx->instruction_controls >= STATICARRAYLEN(comps))
+    if(ctx->instruction_controls >= STATICARRAYLEN(comps))
     {
         fail(ctx, "unknown comparison control");
         return "";
-    } // if
+    }
 
     return comps[ctx->instruction_controls];
-} // get_GLSL_comparison_string_scalar
+}
 
 static const char *get_GLSL_comparison_string_vector(Context *ctx)
 {
@@ -1038,14 +1044,14 @@ static const char *get_GLSL_comparison_string_vector(Context *ctx)
         "notEqual", "lessThanEqual"
     };
 
-    if (ctx->instruction_controls >= STATICARRAYLEN(comps))
+    if(ctx->instruction_controls >= STATICARRAYLEN(comps))
     {
         fail(ctx, "unknown comparison control");
         return "";
-    } // if
+    }
 
     return comps[ctx->instruction_controls];
-} // get_GLSL_comparison_string_vector
+}
 
 
 static void emit_GLSL_start(Context *ctx, const char *profilestr)
@@ -1138,7 +1144,7 @@ static void emit_GLSL_phase(Context *ctx)
 static void output_GLSL_uniform_array(Context *ctx, const RegisterType regtype,
                                       const int size)
 {
-    if (size > 0)
+    if(size > 0)
     {
         const char *pre="uniform ", *post="";
         char buf[64];
@@ -1178,7 +1184,7 @@ static void output_GLSL_uniform_array(Context *ctx, const RegisterType regtype,
         const char *type = get_GLSL_uniform_type(ctx, regtype);
         output_line(ctx, "%s%s %s[%d];%s", pre, type, buf, size, post);
     }
-} // output_GLSL_uniform_array
+}
 
 static void emit_GLSL_finalize(Context *ctx)
 {
@@ -1200,7 +1206,7 @@ static void emit_GLSL_finalize(Context *ctx)
     output_GLSL_uniform_array(ctx, REG_TYPE_CONSTINT, ctx->uniform_int4_count);
     output_GLSL_uniform_array(ctx, REG_TYPE_CONSTBOOL, ctx->uniform_bool_count);
     pop_output(ctx);
-} // emit_GLSL_finalize
+}
 
 static void emit_GLSL_global(Context *ctx, RegisterType regtype, int regnum)
 {
@@ -1237,7 +1243,7 @@ static void emit_GLSL_global(Context *ctx, RegisterType regtype, int regnum)
             break;
     }
     pop_output(ctx);
-} // emit_GLSL_global
+}
 
 static void emit_GLSL_uniform(Context *ctx, RegisterType regtype, int regnum)
 {
@@ -1257,7 +1263,7 @@ static void emit_GLSL_sampler(Context *ctx,int stage,TextureType ttype,int tb)
     const char *type = "";
     if(!(ctx->shadow_samplers&(1<<stage)))
     {
-        switch (ttype)
+        switch(ttype)
         {
             case TEXTURE_TYPE_2D: type = "sampler2D"; break;
             case TEXTURE_TYPE_CUBE: type = "samplerCube"; break;
@@ -1267,7 +1273,7 @@ static void emit_GLSL_sampler(Context *ctx,int stage,TextureType ttype,int tb)
     }
     else
     {
-        switch (ttype)
+        switch(ttype)
         {
             case TEXTURE_TYPE_2D: type = "sampler2DShadow"; break;
             case TEXTURE_TYPE_CUBE: type = "samplerCubeShadow"; break;
@@ -1281,7 +1287,7 @@ static void emit_GLSL_sampler(Context *ctx,int stage,TextureType ttype,int tb)
 
     push_output(ctx, &ctx->globals);
     output_line(ctx, "uniform %s %s;", type, var);
-    if (tb)  // This sampler used a ps_1_1 TEXBEM opcode?
+    if(tb)  // This sampler used a ps_1_1 TEXBEM opcode?
     {
         char name[64];
         const int index = ctx->uniform_float4_count;
@@ -1289,9 +1295,9 @@ static void emit_GLSL_sampler(Context *ctx,int stage,TextureType ttype,int tb)
         get_GLSL_uniform_array_varname(ctx, REG_TYPE_CONST, name, sizeof (name));
         output_line(ctx, "#define %s_texbem %s[%d]", var, name, index);
         output_line(ctx, "#define %s_texbeml %s[%d]", var, name, index+1);
-    } // if
+    }
     pop_output(ctx);
-} // emit_GLSL_sampler
+}
 
 static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                                 MOJOSHADER_usage usage, int index, int wmask,
@@ -1305,18 +1311,18 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
 
     get_GLSL_varname_in_buf(ctx, regtype, regnum, var, sizeof(var));
 
-    if (shader_is_vertex(ctx))
+    if(shader_is_vertex(ctx))
     {
         // pre-vs3 output registers.
         // these don't ever happen in DCL opcodes, I think. Map to vs_3_*
         //  output registers.
-        if (!shader_version_atleast(ctx, 3, 0))
+        if(!shader_version_atleast(ctx, 3, 0))
         {
-            if (regtype == REG_TYPE_RASTOUT)
+            if(regtype == REG_TYPE_RASTOUT)
             {
                 regtype = REG_TYPE_OUTPUT;
                 index = regnum;
-                switch ((const RastOutType) regnum)
+                switch((const RastOutType) regnum)
                 {
                     case RASTOUT_TYPE_POSITION:
                         usage = MOJOSHADER_USAGE_POSITION;
@@ -1329,13 +1335,13 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                         break;
                 }
             }
-            else if (regtype == REG_TYPE_ATTROUT)
+            else if(regtype == REG_TYPE_ATTROUT)
             {
                 regtype = REG_TYPE_OUTPUT;
                 usage = MOJOSHADER_USAGE_COLOR;
                 index = regnum;
             }
-            else if (regtype == REG_TYPE_TEXCRDOUT)
+            else if(regtype == REG_TYPE_TEXCRDOUT)
             {
                 regtype = REG_TYPE_OUTPUT;
                 usage = MOJOSHADER_USAGE_TEXCOORD;
@@ -1351,11 +1357,11 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
         // attributes like gl_SecondaryColor.
 
         push_output(ctx, &ctx->globals);
-        if (regtype == REG_TYPE_INPUT)
+        if(regtype == REG_TYPE_INPUT)
             output_line(ctx, "in vec4 %s; /* usage %s, index %i */", var, MOJOSHADER_usage_to_string(usage), index);
-        else if (regtype == REG_TYPE_OUTPUT)
+        else if(regtype == REG_TYPE_OUTPUT)
         {
-            switch (usage)
+            switch(usage)
             {
                 case MOJOSHADER_USAGE_POSITION:
                     output_line(ctx, "#define %s gl_Position", var);
@@ -1390,32 +1396,32 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
         }
         pop_output(ctx);
     }
-    else if (shader_is_pixel(ctx))
+    else if(shader_is_pixel(ctx))
     {
         // samplers DCLs get handled in emit_GLSL_sampler().
 
-        if (flags & MOD_CENTROID)  // !!! FIXME
+        if(flags & MOD_CENTROID)  // !!! FIXME
         {
             failf(ctx, "centroid unsupported in %s profile", ctx->profile->name);
             return;
         }
 
         push_output(ctx, &ctx->globals);
-        if (regtype == REG_TYPE_COLOROUT)
+        if(regtype == REG_TYPE_COLOROUT)
             output_line(ctx, "layout(location=%u) out vec4 %s;", (uint)regnum, var);
-        else if (regtype == REG_TYPE_DEPTHOUT)
+        else if(regtype == REG_TYPE_DEPTHOUT)
             output_line(ctx, "#define %s gl_FragDepth", var);
         else if(regtype == REG_TYPE_TEXTURE || regtype == REG_TYPE_INPUT)
         {
             // !!! FIXME: can you actualy have a texture register with COLOR usage?
-            if (usage == MOJOSHADER_USAGE_TEXCOORD)
+            if(usage == MOJOSHADER_USAGE_TEXCOORD)
             {
                 // ps_1_1 does a different hack for this attribute.
                 //  Refer to emit_GLSL_global()'s REG_TYPE_TEXTURE code.
-                if (shader_version_atleast(ctx, 1, 4))
+                if(shader_version_atleast(ctx, 1, 4))
                     output_line(ctx, "#define %s ps_input[%u]", var, (uint)index);
             }
-            else if (usage == MOJOSHADER_USAGE_COLOR)
+            else if(usage == MOJOSHADER_USAGE_COLOR)
             {
                 if(index < 0 || index > 1)
                     fail(ctx, "unsupported color index");
@@ -1426,12 +1432,12 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
                 fail(ctx, "unhandled texture/input usage");
             }
         }
-        else if (regtype == REG_TYPE_MISCTYPE)
+        else if(regtype == REG_TYPE_MISCTYPE)
         {
             const MiscTypeType mt = (MiscTypeType) regnum;
-            if (mt == MISCTYPE_TYPE_FACE)
+            if(mt == MISCTYPE_TYPE_FACE)
                 output_line(ctx, "float %s = gl_FrontFacing ? 1.0 : -1.0;", var);
-            else if (mt == MISCTYPE_TYPE_POSITION)
+            else if(mt == MISCTYPE_TYPE_POSITION)
             {
                 output_line(ctx, "layout(pixel_center_integer) in vec4 gl_FragCoord;");
                 output_line(ctx, "#define %s gl_FragCoord", var);
@@ -1456,8 +1462,8 @@ static void emit_GLSL_attribute(Context *ctx, RegisterType regtype, int regnum,
 static void emit_GLSL_NOP(Context *ctx)
 {
     // no-op is a no-op.  :)
-    (void)ctx;
-} // emit_GLSL_NOP
+    output_line(ctx, "/* noop */");
+}
 
 static void emit_GLSL_MOV(Context *ctx)
 {
@@ -1465,7 +1471,7 @@ static void emit_GLSL_MOV(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "%s", src0);
     output_line(ctx, "%s", code);
-} // emit_GLSL_MOV
+}
 
 static void emit_GLSL_ADD(Context *ctx)
 {
@@ -1474,7 +1480,7 @@ static void emit_GLSL_ADD(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "%s + %s", src0, src1);
     output_line(ctx, "%s", code);
-} // emit_GLSL_ADD
+}
 
 static void emit_GLSL_SUB(Context *ctx)
 {
@@ -1483,7 +1489,7 @@ static void emit_GLSL_SUB(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "%s - %s", src0, src1);
     output_line(ctx, "%s", code);
-} // emit_GLSL_SUB
+}
 
 static void emit_GLSL_MAD(Context *ctx)
 {
@@ -1493,7 +1499,7 @@ static void emit_GLSL_MAD(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "(%s * %s) + %s", src0, src1, src2);
     output_line(ctx, "%s", code);
-} // emit_GLSL_MAD
+}
 
 static void emit_GLSL_MUL(Context *ctx)
 {
@@ -1502,7 +1508,7 @@ static void emit_GLSL_MUL(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "%s * %s", src0, src1);
     output_line(ctx, "%s", code);
-} // emit_GLSL_MUL
+}
 
 static void emit_GLSL_RCP(Context *ctx)
 {
@@ -1510,7 +1516,7 @@ static void emit_GLSL_RCP(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "1.0 / %s", src0);
     output_line(ctx, "%s", code);
-} // emit_GLSL_RCP
+}
 
 static void emit_GLSL_RSQ(Context *ctx)
 {
@@ -1518,7 +1524,7 @@ static void emit_GLSL_RSQ(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "inversesqrt(%s)", src0);
     output_line(ctx, "%s", code);
-} // emit_GLSL_RSQ
+}
 
 static void emit_GLSL_dotprod(Context *ctx, const char *src0, const char *src1,
                               const char *extra)
@@ -1526,31 +1532,31 @@ static void emit_GLSL_dotprod(Context *ctx, const char *src0, const char *src1,
     const int vecsize = vecsize_from_writemask(ctx->dest_arg.writemask);
     char castleft[16] = { '\0' };
     const char *castright = "";
-    if (vecsize != 1)
+    if(vecsize != 1)
     {
         snprintf(castleft, sizeof (castleft), "vec%d(", vecsize);
         castright = ")";
-    } // if
+    }
 
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "%sdot(%s, %s)%s%s",
                              castleft, src0, src1, extra, castright);
     output_line(ctx, "%s", code);
-} // emit_GLSL_dotprod
+}
 
 static void emit_GLSL_DP3(Context *ctx)
 {
     char src0[64]; make_GLSL_srcarg_string_vec3(ctx, 0, src0, sizeof (src0));
     char src1[64]; make_GLSL_srcarg_string_vec3(ctx, 1, src1, sizeof (src1));
     emit_GLSL_dotprod(ctx, src0, src1, "");
-} // emit_GLSL_DP3
+}
 
 static void emit_GLSL_DP4(Context *ctx)
 {
-    char src0[64]; make_GLSL_srcarg_string_full(ctx, 0, src0, sizeof (src0));
-    char src1[64]; make_GLSL_srcarg_string_full(ctx, 1, src1, sizeof (src1));
+    char src0[64]; make_GLSL_srcarg_string_vec4(ctx, 0, src0, sizeof (src0));
+    char src1[64]; make_GLSL_srcarg_string_vec4(ctx, 1, src1, sizeof (src1));
     emit_GLSL_dotprod(ctx, src0, src1, "");
-} // emit_GLSL_DP4
+}
 
 static void emit_GLSL_MIN(Context *ctx)
 {
@@ -1559,7 +1565,7 @@ static void emit_GLSL_MIN(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "min(%s, %s)", src0, src1);
     output_line(ctx, "%s", code);
-} // emit_GLSL_MIN
+}
 
 static void emit_GLSL_MAX(Context *ctx)
 {
@@ -1568,7 +1574,7 @@ static void emit_GLSL_MAX(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "max(%s, %s)", src0, src1);
     output_line(ctx, "%s", code);
-} // emit_GLSL_MAX
+}
 
 static void emit_GLSL_SLT(Context *ctx)
 {
@@ -1578,7 +1584,7 @@ static void emit_GLSL_SLT(Context *ctx)
     char code[128];
 
     // float(bool) or vec(bvec) results in 0.0 or 1.0, like SLT wants.
-    if (vecsize == 1)
+    if(vecsize == 1)
         make_GLSL_destarg_assign(ctx, code, sizeof (code), "float(%s < %s)", src0, src1);
     else
     {
@@ -1587,7 +1593,7 @@ static void emit_GLSL_SLT(Context *ctx)
                                  vecsize, src0, src1);
     }
     output_line(ctx, "%s", code);
-} // emit_GLSL_SLT
+}
 
 static void emit_GLSL_SGE(Context *ctx)
 {
@@ -1597,7 +1603,7 @@ static void emit_GLSL_SGE(Context *ctx)
     char code[128];
 
     // float(bool) or vec(bvec) results in 0.0 or 1.0, like SGE wants.
-    if (vecsize == 1)
+    if(vecsize == 1)
     {
         make_GLSL_destarg_assign(ctx, code, sizeof (code),
                                  "float(%s >= %s)", src0, src1);
@@ -1609,7 +1615,7 @@ static void emit_GLSL_SGE(Context *ctx)
                                  vecsize, src0, src1);
     }
     output_line(ctx, "%s", code);
-} // emit_GLSL_SGE
+}
 
 static void emit_GLSL_EXP(Context *ctx)
 {
@@ -1617,7 +1623,7 @@ static void emit_GLSL_EXP(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "exp2(%s)", src0);
     output_line(ctx, "%s", code);
-} // emit_GLSL_EXP
+}
 
 static void emit_GLSL_LOG(Context *ctx)
 {
@@ -1625,7 +1631,7 @@ static void emit_GLSL_LOG(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "log2(%s)", src0);
     output_line(ctx, "%s", code);
-} // emit_GLSL_LOG
+}
 
 static void emit_GLSL_LIT_helper(Context *ctx)
 {
@@ -1633,7 +1639,6 @@ static void emit_GLSL_LIT_helper(Context *ctx)
 
     if (ctx->glsl_generated_lit_helper)
         return;
-
     ctx->glsl_generated_lit_helper = 1;
 
     push_output(ctx, &ctx->helpers);
@@ -1641,9 +1646,9 @@ static void emit_GLSL_LIT_helper(Context *ctx)
     output_line(ctx, "{"); ctx->indent++;
     output_line(ctx,   "float power = clamp(src.w, -%s, %s);",maxp,maxp);
     output_line(ctx,   "vec4 retval = vec4(1.0, 0.0, 0.0, 1.0);");
-    output_line(ctx,   "if (src.x > 0.0) {"); ctx->indent++;
+    output_line(ctx,   "if(src.x > 0.0) {"); ctx->indent++;
     output_line(ctx,     "retval.y = src.x;");
-    output_line(ctx,     "if (src.y > 0.0) {"); ctx->indent++;
+    output_line(ctx,     "if(src.y > 0.0) {"); ctx->indent++;
     output_line(ctx,       "retval.z = pow(src.y, power);"); ctx->indent--;
     output_line(ctx,     "}"); ctx->indent--;
     output_line(ctx,   "}");
@@ -1651,16 +1656,16 @@ static void emit_GLSL_LIT_helper(Context *ctx)
     output_line(ctx, "}");
     output_blank_line(ctx);
     pop_output(ctx);
-} // emit_GLSL_LIT_helper
+}
 
 static void emit_GLSL_LIT(Context *ctx)
 {
-    char src0[64]; make_GLSL_srcarg_string_full(ctx, 0, src0, sizeof (src0));
+    char src0[64]; make_GLSL_srcarg_string_vec4(ctx, 0, src0, sizeof (src0));
     char code[128];
     emit_GLSL_LIT_helper(ctx);
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "LIT(%s)", src0);
     output_line(ctx, "%s", code);
-} // emit_GLSL_LIT
+}
 
 static void emit_GLSL_DST(Context *ctx)
 {
@@ -1675,7 +1680,7 @@ static void emit_GLSL_DST(Context *ctx)
                              "vec4(1.0, %s * %s, %s, %s)",
                              src0_y, src1_y, src0_z, src1_w);
     output_line(ctx, "%s", code);
-} // emit_GLSL_DST
+}
 
 static void emit_GLSL_LRP(Context *ctx)
 {
@@ -1686,7 +1691,7 @@ static void emit_GLSL_LRP(Context *ctx)
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "mix(%s, %s, %s)",
                              src2, src1, src0);
     output_line(ctx, "%s", code);
-} // emit_GLSL_LRP
+}
 
 static void emit_GLSL_FRC(Context *ctx)
 {
@@ -1694,34 +1699,34 @@ static void emit_GLSL_FRC(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "fract(%s)", src0);
     output_line(ctx, "%s", code);
-} // emit_GLSL_FRC
+}
 
 static void emit_GLSL_M4X4(Context *ctx)
 {
-    char src0[64]; make_GLSL_srcarg_string_full(ctx, 0, src0, sizeof (src0));
-    char row0[64]; make_GLSL_srcarg_string_full(ctx, 1, row0, sizeof (row0));
-    char row1[64]; make_GLSL_srcarg_string_full(ctx, 2, row1, sizeof (row1));
-    char row2[64]; make_GLSL_srcarg_string_full(ctx, 3, row2, sizeof (row2));
-    char row3[64]; make_GLSL_srcarg_string_full(ctx, 4, row3, sizeof (row3));
+    char src0[64]; make_GLSL_srcarg_string_vec4(ctx, 0, src0, sizeof (src0));
+    char row0[64]; make_GLSL_srcarg_string_vec4(ctx, 1, row0, sizeof (row0));
+    char row1[64]; make_GLSL_srcarg_string_vec4(ctx, 2, row1, sizeof (row1));
+    char row2[64]; make_GLSL_srcarg_string_vec4(ctx, 3, row2, sizeof (row2));
+    char row3[64]; make_GLSL_srcarg_string_vec4(ctx, 4, row3, sizeof (row3));
     char code[256];
     make_GLSL_destarg_assign(ctx, code, sizeof (code),
                     "vec4(dot(%s, %s), dot(%s, %s), dot(%s, %s), dot(%s, %s))",
                     src0, row0, src0, row1, src0, row2, src0, row3);
     output_line(ctx, "%s", code);
-} // emit_GLSL_M4X4
+}
 
 static void emit_GLSL_M4X3(Context *ctx)
 {
-    char src0[64]; make_GLSL_srcarg_string_full(ctx, 0, src0, sizeof (src0));
-    char row0[64]; make_GLSL_srcarg_string_full(ctx, 1, row0, sizeof (row0));
-    char row1[64]; make_GLSL_srcarg_string_full(ctx, 2, row1, sizeof (row1));
-    char row2[64]; make_GLSL_srcarg_string_full(ctx, 3, row2, sizeof (row2));
+    char src0[64]; make_GLSL_srcarg_string_vec4(ctx, 0, src0, sizeof (src0));
+    char row0[64]; make_GLSL_srcarg_string_vec4(ctx, 1, row0, sizeof (row0));
+    char row1[64]; make_GLSL_srcarg_string_vec4(ctx, 2, row1, sizeof (row1));
+    char row2[64]; make_GLSL_srcarg_string_vec4(ctx, 3, row2, sizeof (row2));
     char code[256];
     make_GLSL_destarg_assign(ctx, code, sizeof (code),
                                 "vec3(dot(%s, %s), dot(%s, %s), dot(%s, %s))",
                                 src0, row0, src0, row1, src0, row2);
     output_line(ctx, "%s", code);
-} // emit_GLSL_M4X3
+}
 
 static void emit_GLSL_M3X4(Context *ctx)
 {
@@ -1738,7 +1743,7 @@ static void emit_GLSL_M3X4(Context *ctx)
                                 src0, row0, src0, row1,
                                 src0, row2, src0, row3);
     output_line(ctx, "%s", code);
-} // emit_GLSL_M3X4
+}
 
 static void emit_GLSL_M3X3(Context *ctx)
 {
@@ -1751,7 +1756,7 @@ static void emit_GLSL_M3X3(Context *ctx)
                                 "vec3(dot(%s, %s), dot(%s, %s), dot(%s, %s))",
                                 src0, row0, src0, row1, src0, row2);
     output_line(ctx, "%s", code);
-} // emit_GLSL_M3X3
+}
 
 static void emit_GLSL_M3X2(Context *ctx)
 {
@@ -1764,16 +1769,16 @@ static void emit_GLSL_M3X2(Context *ctx)
                                 "vec2(dot(%s, %s), dot(%s, %s))",
                                 src0, row0, src0, row1);
     output_line(ctx, "%s", code);
-} // emit_GLSL_M3X2
+}
 
 static void emit_GLSL_CALL(Context *ctx)
 {
     char src0[64]; make_GLSL_srcarg_string_masked(ctx, 0, src0, sizeof (src0));
-    if (ctx->loops > 0)
+    if(ctx->loops > 0)
         output_line(ctx, "%s(aL);", src0);
     else
         output_line(ctx, "%s();", src0);
-} // emit_GLSL_CALL
+}
 
 static void emit_GLSL_CALLNZ(Context *ctx)
 {
@@ -1782,23 +1787,22 @@ static void emit_GLSL_CALLNZ(Context *ctx)
     char src0[64]; make_GLSL_srcarg_string_masked(ctx, 0, src0, sizeof (src0));
     char src1[64]; make_GLSL_srcarg_string_masked(ctx, 1, src1, sizeof (src1));
 
-    if (ctx->loops > 0)
-        output_line(ctx, "if (%s) { %s(aL); }", src1, src0);
+    if(ctx->loops > 0)
+        output_line(ctx, "if(%s) { %s(aL); }", src1, src0);
     else
-        output_line(ctx, "if (%s) { %s(); }", src1, src0);
-} // emit_GLSL_CALLNZ
+        output_line(ctx, "if(%s) { %s(); }", src1, src0);
+}
 
 static void emit_GLSL_LOOP(Context *ctx)
 {
     // !!! FIXME: swizzle?
     char var[64]; get_GLSL_srcarg_varname(ctx, 1, var, sizeof (var));
     assert(ctx->source_args[0].regnum == 0);  // in case they add aL1 someday.
-    output_line(ctx, "{");
-    ctx->indent++;
+    output_line(ctx, "{"); ctx->indent++;
     output_line(ctx, "const int aLend = %s.x + %s.y;", var, var);
     output_line(ctx, "for (int aL = %s.y; aL < aLend; aL += %s.z) {", var, var);
     ctx->indent++;
-} // emit_GLSL_LOOP
+}
 
 static void emit_GLSL_RET(Context *ctx)
 {
@@ -1809,7 +1813,7 @@ static void emit_GLSL_RET(Context *ctx)
     output_line(ctx, "}");
     output_blank_line(ctx);
     set_output(ctx, &ctx->subroutines);
-} // emit_GLSL_RET
+}
 
 static void emit_GLSL_ENDLOOP(Context *ctx)
 {
@@ -1817,7 +1821,7 @@ static void emit_GLSL_ENDLOOP(Context *ctx)
     output_line(ctx, "}");
     ctx->indent--;
     output_line(ctx, "}");
-} // emit_GLSL_ENDLOOP
+}
 
 static void emit_GLSL_LABEL(Context *ctx)
 {
@@ -1829,23 +1833,22 @@ static void emit_GLSL_LABEL(Context *ctx)
 
     // MSDN specs say CALL* has to come before the LABEL, so we know if we
     //  can ditch the entire function here as unused.
-    if (reg == NULL)
-        set_output(ctx, &ctx->ignore);  // Func not used. Parse, but don't output.
+    if(reg == NULL) set_output(ctx, &ctx->ignore);  // Func not used. Parse, but don't output.
 
     // !!! FIXME: it would be nice if we could determine if a function is
     // !!! FIXME:  only called once and, if so, forcibly inline it.
 
-    const char *uses_loopreg = ((reg) && (reg->misc == 1)) ? "int aL" : "";
+    const char *uses_loopreg = (reg && reg->misc == 1) ? "int aL" : "";
     output_line(ctx, "void %s(%s)", src0, uses_loopreg);
     output_line(ctx, "{");
     ctx->indent++;
-} // emit_GLSL_LABEL
+}
 
 static void emit_GLSL_DCL(Context *ctx)
 {
     // no-op. We do this in our emit_attribute() and emit_uniform().
     (void)ctx;
-} // emit_GLSL_DCL
+}
 
 static void emit_GLSL_POW(Context *ctx)
 {
@@ -1855,7 +1858,7 @@ static void emit_GLSL_POW(Context *ctx)
     make_GLSL_destarg_assign(ctx, code, sizeof (code),
                              "pow(abs(%s), %s)", src0, src1);
     output_line(ctx, "%s", code);
-} // emit_GLSL_POW
+}
 
 static void emit_GLSL_CRS(Context *ctx)
 {
@@ -1866,7 +1869,7 @@ static void emit_GLSL_CRS(Context *ctx)
     make_GLSL_destarg_assign(ctx, code, sizeof (code),
                              "cross(%s, %s)", src0, src1);
     output_line(ctx, "%s", code);
-} // emit_GLSL_CRS
+}
 
 static void emit_GLSL_SGN(Context *ctx)
 {
@@ -1875,7 +1878,7 @@ static void emit_GLSL_SGN(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "sign(%s)", src0);
     output_line(ctx, "%s", code);
-} // emit_GLSL_SGN
+}
 
 static void emit_GLSL_ABS(Context *ctx)
 {
@@ -1883,7 +1886,7 @@ static void emit_GLSL_ABS(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "abs(%s)", src0);
     output_line(ctx, "%s", code);
-} // emit_GLSL_ABS
+}
 
 static void emit_GLSL_NRM(Context *ctx)
 {
@@ -1891,7 +1894,7 @@ static void emit_GLSL_NRM(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "normalize(%s)", src0);
     output_line(ctx, "%s", code);
-} // emit_GLSL_NRM
+}
 
 static void emit_GLSL_SINCOS(Context *ctx)
 {
@@ -1903,18 +1906,18 @@ static void emit_GLSL_SINCOS(Context *ctx)
     char src0[64]; make_GLSL_srcarg_string_scalar(ctx, 0, src0, sizeof (src0));
     char code[128] = { '\0' };
 
-    if (writemask_x(mask))
+    if(writemask_x(mask))
         make_GLSL_destarg_assign(ctx, code, sizeof (code), "cos(%s)", src0);
-    else if (writemask_y(mask))
+    else if(writemask_y(mask))
         make_GLSL_destarg_assign(ctx, code, sizeof (code), "sin(%s)", src0);
-    else if (writemask_xy(mask))
+    else if(writemask_xy(mask))
     {
         make_GLSL_destarg_assign(ctx, code, sizeof (code),
                                  "vec2(cos(%s), sin(%s))", src0, src0);
-    } // else if
+    }
 
     output_line(ctx, "%s", code);
-} // emit_GLSL_SINCOS
+}
 
 static void emit_GLSL_REP(Context *ctx)
 {
@@ -1924,59 +1927,59 @@ static void emit_GLSL_REP(Context *ctx)
     //  we clamp here?
     // !!! FIXME: swizzle is legal here, right?
     char src0[64]; make_GLSL_srcarg_string_x(ctx, 0, src0, sizeof(src0));
-    const uint rep = (uint) ctx->reps;
-    output_line(ctx, "for (int rep%u = 0; rep%u < %s; rep%u++) {",
+    const uint rep = (uint)ctx->reps;
+    output_line(ctx, "for(int rep%u = 0; rep%u < %s; rep%u++) {",
                 rep, rep, src0, rep);
     ctx->indent++;
-} // emit_GLSL_REP
+}
 
 static void emit_GLSL_ENDREP(Context *ctx)
 {
     ctx->indent--;
     output_line(ctx, "}");
-} // emit_GLSL_ENDREP
+}
 
 static void emit_GLSL_IF(Context *ctx)
 {
     char src0[64]; make_GLSL_srcarg_string_scalar(ctx, 0, src0, sizeof (src0));
-    output_line(ctx, "if (%s) {", src0);
+    output_line(ctx, "if(%s) {", src0);
     ctx->indent++;
-} // emit_GLSL_IF
+}
 
 static void emit_GLSL_IFC(Context *ctx)
 {
     const char *comp = get_GLSL_comparison_string_scalar(ctx);
     char src0[64]; make_GLSL_srcarg_string_scalar(ctx, 0, src0, sizeof (src0));
     char src1[64]; make_GLSL_srcarg_string_scalar(ctx, 1, src1, sizeof (src1));
-    output_line(ctx, "if (%s %s %s) {", src0, comp, src1);
+    output_line(ctx, "if(%s %s %s) {", src0, comp, src1);
     ctx->indent++;
-} // emit_GLSL_IFC
+}
 
 static void emit_GLSL_ELSE(Context *ctx)
 {
     ctx->indent--;
     output_line(ctx, "} else {");
     ctx->indent++;
-} // emit_GLSL_ELSE
+}
 
 static void emit_GLSL_ENDIF(Context *ctx)
 {
     ctx->indent--;
     output_line(ctx, "}");
-} // emit_GLSL_ENDIF
+}
 
 static void emit_GLSL_BREAK(Context *ctx)
 {
     output_line(ctx, "break;");
-} // emit_GLSL_BREAK
+}
 
 static void emit_GLSL_BREAKC(Context *ctx)
 {
     const char *comp = get_GLSL_comparison_string_scalar(ctx);
     char src0[64]; make_GLSL_srcarg_string_scalar(ctx, 0, src0, sizeof (src0));
     char src1[64]; make_GLSL_srcarg_string_scalar(ctx, 1, src1, sizeof (src1));
-    output_line(ctx, "if (%s %s %s) { break; }", src0, comp, src1);
-} // emit_GLSL_BREAKC
+    output_line(ctx, "if(%s %s %s) { break; }", src0, comp, src1);
+}
 
 static void emit_GLSL_MOVA(Context *ctx)
 {
@@ -1997,7 +2000,7 @@ static void emit_GLSL_MOVA(Context *ctx)
     }
 
     output_line(ctx, "%s", code);
-} // emit_GLSL_MOVA
+}
 
 static void emit_GLSL_DEFB(Context *ctx)
 {
@@ -2006,25 +2009,25 @@ static void emit_GLSL_DEFB(Context *ctx)
     output_line(ctx, "const bool %s = %s;",
                 varname, ctx->dwords[0] ? "true" : "false");
     pop_output(ctx);
-} // emit_GLSL_DEFB
+}
 
 static void emit_GLSL_DEFI(Context *ctx)
 {
     char varname[64]; get_GLSL_destarg_varname(ctx, varname, sizeof (varname));
-    const int32 *x = (const int32 *) ctx->dwords;
+    const int32 *x = (const int32*)ctx->dwords;
     push_output(ctx, &ctx->globals);
     output_line(ctx, "const ivec4 %s = ivec4(%d, %d, %d, %d);",
-                varname, (int) x[0], (int) x[1], (int) x[2], (int) x[3]);
+                varname, (int)x[0], (int)x[1], (int)x[2], (int)x[3]);
     pop_output(ctx);
-} // emit_GLSL_DEFI
+}
 
 EMIT_GLSL_OPCODE_UNIMPLEMENTED_FUNC(TEXCRD)
 
 static void emit_GLSL_TEXKILL(Context *ctx)
 {
     char dst[64]; get_GLSL_destarg_varname(ctx, dst, sizeof (dst));
-    output_line(ctx, "if (any(lessThan(%s.xyz, vec3(0.0)))) discard;", dst);
-} // emit_GLSL_TEXKILL
+    output_line(ctx, "if(any(lessThan(%s.xyz, vec3(0.0)))) discard;", dst);
+}
 
 static void glsl_texld(Context *ctx, const int texldd, const int texldl)
 {
@@ -2042,7 +2045,7 @@ static void glsl_texld(Context *ctx, const int texldd, const int texldl)
 
         RegisterList *sreg;
         sreg = reglist_find(&ctx->samplers, REG_TYPE_SAMPLER, info->regnum);
-        const TextureType ttype = (TextureType) (sreg ? sreg->index : 0);
+        const TextureType ttype = (TextureType)(sreg ? sreg->index : 0);
 
         // !!! FIXME: this code counts on the register not having swizzles, etc.
         get_GLSL_destarg_varname(ctx, dst, sizeof (dst));
@@ -2144,7 +2147,7 @@ static void glsl_texld(Context *ctx, const int texldd, const int texldl)
                     snprintf(funcname, sizeof(funcname), "vec%d(textureProj", vecsize);
             }
             // PS2.0+ always uses the 4th component for projection
-            mask = (1<<3);
+            mask = WRITEMASK_W;
         }
         else
         {
@@ -2164,13 +2167,13 @@ static void glsl_texld(Context *ctx, const int texldd, const int texldl)
         switch((const TextureType)sreg->index)
         {
         case TEXTURE_TYPE_2D:
-            mask |= (1<<0) | (1<<1);
+            mask |= WRITEMASK_X | WRITEMASK_Y;
             if((ctx->shadow_samplers&(1<<samp_arg->regnum)))
-                mask |= (1<<2);
+                mask |= WRITEMASK_Z;
             break;
         case TEXTURE_TYPE_VOLUME:
         case TEXTURE_TYPE_CUBE:
-            mask |= (1<<0) | (1<<1) | (1<<2);
+            mask |= WRITEMASK_X | WRITEMASK_Y | WRITEMASK_Z;
             if((ctx->shadow_samplers&(1<<samp_arg->regnum)))
                 fail(ctx, "3D/Cube shadow samplers unsupported");
             break;
@@ -2227,14 +2230,12 @@ static void emit_GLSL_TEXBEM(Context *ctx)
 
     make_GLSL_destarg_assign(ctx, code, sizeof(code),
         "texture(%s, vec2(%s.x + (%s_texbem.x * %s.x) + (%s_texbem.z * %s.y),"
-        " %s.y + (%s_texbem.y * %s.x) + (%s_texbem.w * %s.y)))",
-        sampler,
+        " %s.y + (%s_texbem.y * %s.x) + (%s_texbem.w * %s.y)))", sampler,
         dst, sampler, src, sampler, src,
         dst, sampler, src, sampler, src);
 
     output_line(ctx, "%s", code);
-} // emit_GLSL_TEXBEM
-
+}
 
 static void emit_GLSL_TEXBEML(Context *ctx)
 {
@@ -2251,15 +2252,14 @@ static void emit_GLSL_TEXBEML(Context *ctx)
     make_GLSL_destarg_assign(ctx, code, sizeof (code),
         "(texture(%s, vec2(%s.x + (%s_texbem.x * %s.x) + (%s_texbem.z * %s.y),"
         " %s.y + (%s_texbem.y * %s.x) + (%s_texbem.w * %s.y)))) *"
-        " ((%s.z * %s_texbeml.x) + %s_texbem.y)",
-        sampler,
+        " ((%s.z * %s_texbeml.x) + %s_texbem.y)",        sampler,
         dst, sampler, src, sampler, src,
         dst, sampler, src, sampler, src,
         src, sampler, sampler
     );
 
     output_line(ctx, "%s", code);
-} // emit_GLSL_TEXBEML
+}
 
 EMIT_GLSL_OPCODE_UNIMPLEMENTED_FUNC(TEXREG2AR) // !!! FIXME
 EMIT_GLSL_OPCODE_UNIMPLEMENTED_FUNC(TEXREG2GB) // !!! FIXME
@@ -2273,7 +2273,7 @@ static void emit_GLSL_TEXM3X2PAD(Context *ctx)
 
 static void emit_GLSL_TEXM3X2TEX(Context *ctx)
 {
-    if (ctx->texm3x2pad_src0 == -1)
+    if(ctx->texm3x2pad_src0 == -1)
         return;
 
     DestArgInfo *info = &ctx->dest_arg;
@@ -2297,7 +2297,7 @@ static void emit_GLSL_TEXM3X2TEX(Context *ctx)
     );
 
     output_line(ctx, "%s", code);
-} // emit_GLSL_TEXM3X2TEX
+}
 
 static void emit_GLSL_TEXM3X3PAD(Context *ctx)
 {
@@ -2307,7 +2307,7 @@ static void emit_GLSL_TEXM3X3PAD(Context *ctx)
 
 static void emit_GLSL_TEXM3X3TEX(Context *ctx)
 {
-    if (ctx->texm3x3pad_src1 == -1)
+    if(ctx->texm3x3pad_src1 == -1)
         return;
 
     DestArgInfo *info = &ctx->dest_arg;
@@ -2338,11 +2338,11 @@ static void emit_GLSL_TEXM3X3TEX(Context *ctx)
         sampler, src0, src1, src2, src3, dst, src4);
 
     output_line(ctx, "%s", code);
-} // emit_GLSL_TEXM3X3TEX
+}
 
 static void emit_GLSL_TEXM3X3SPEC_helper(Context *ctx)
 {
-    if (ctx->glsl_generated_texm3x3spec_helper)
+    if(ctx->glsl_generated_texm3x3spec_helper)
         return;
     ctx->glsl_generated_texm3x3spec_helper = 1;
 
@@ -2353,11 +2353,11 @@ static void emit_GLSL_TEXM3X3SPEC_helper(Context *ctx)
                      "}");
     output_blank_line(ctx);
     pop_output(ctx);
-} // emit_GLSL_TEXM3X3SPEC_helper
+}
 
 static void emit_GLSL_TEXM3X3SPEC(Context *ctx)
 {
-    if (ctx->texm3x3pad_src1 == -1)
+    if(ctx->texm3x3pad_src1 == -1)
         return;
 
     DestArgInfo *info = &ctx->dest_arg;
@@ -2398,11 +2398,11 @@ static void emit_GLSL_TEXM3X3SPEC(Context *ctx)
         sampler, src0, src1, src2, src3, dst, src4, src5);
 
     output_line(ctx, "%s", code);
-} // emit_GLSL_TEXM3X3SPEC
+}
 
 static void emit_GLSL_TEXM3X3VSPEC(Context *ctx)
 {
-    if (ctx->texm3x3pad_src1 == -1)
+    if(ctx->texm3x3pad_src1 == -1)
         return;
 
     DestArgInfo *info = &ctx->dest_arg;
@@ -2441,19 +2441,19 @@ static void emit_GLSL_TEXM3X3VSPEC(Context *ctx)
         sampler, src0, src1, src2, src3, dst, src4, src0, src2, dst);
 
     output_line(ctx, "%s", code);
-} // emit_GLSL_TEXM3X3VSPEC
+}
 
 static void emit_GLSL_EXPP(Context *ctx)
 {
     // !!! FIXME: msdn's asm docs don't list this opcode, I'll have to check the driver documentation.
     emit_GLSL_EXP(ctx);  // I guess this is just partial precision EXP?
-} // emit_GLSL_EXPP
+}
 
 static void emit_GLSL_LOGP(Context *ctx)
 {
     // LOGP is just low-precision LOG, but we'll take the higher precision.
     emit_GLSL_LOG(ctx);
-} // emit_GLSL_LOGP
+}
 
 // common code between CMP and CND.
 static void emit_GLSL_comparison_operations(Context *ctx, const char *cmp)
@@ -2468,7 +2468,7 @@ static void emit_GLSL_comparison_operations(Context *ctx, const char *cmp)
     const int src0swiz[4] = { srcarg0->swizzle_x, srcarg0->swizzle_y,
                               srcarg0->swizzle_z, srcarg0->swizzle_w };
 
-    for (i = 0; i < 4; i++)
+    for(i = 0; i < 4; i++)
     {
         int mask = (1 << i);
 
@@ -2481,15 +2481,15 @@ static void emit_GLSL_comparison_operations(Context *ctx, const char *cmp)
         // see if there are any other elements swizzled to match (.yyyy)
         for(j = i + 1; j < 4; j++)
         {
-            if (!writemask[j]) continue;
-            if (src0swiz[i] != src0swiz[j]) continue;
+            if(!writemask[j]) continue;
+            if(src0swiz[i] != src0swiz[j]) continue;
             mask |= (1 << j);
             used_swiz[j] = 1;
         }
 
         // okay, (mask) should be the writemask of swizzles we like.
 
-        //return make_GLSL_srcarg_string(ctx, idx, (1 << 0));
+        //return make_GLSL_srcarg_string(ctx, idx, WRITEMASK_X);
 
         char src0[64];
         char src1[64];
@@ -2508,12 +2508,12 @@ static void emit_GLSL_comparison_operations(Context *ctx, const char *cmp)
     }
 
     set_dstarg_writemask(dst, origmask);
-} // emit_GLSL_comparison_operations
+}
 
 static void emit_GLSL_CND(Context *ctx)
 {
     emit_GLSL_comparison_operations(ctx, "> 0.5");
-} // emit_GLSL_CND
+}
 
 static void emit_GLSL_DEF(Context *ctx)
 {
@@ -2528,7 +2528,7 @@ static void emit_GLSL_DEF(Context *ctx)
     output_line(ctx, "const vec4 %s = vec4(%s, %s, %s, %s);",
                 varname, val0, val1, val2, val3);
     pop_output(ctx);
-} // emit_GLSL_DEF
+}
 
 EMIT_GLSL_OPCODE_UNIMPLEMENTED_FUNC(TEXREG2RGB) // !!! FIXME
 EMIT_GLSL_OPCODE_UNIMPLEMENTED_FUNC(TEXDP3TEX) // !!! FIXME
@@ -2537,7 +2537,7 @@ EMIT_GLSL_OPCODE_UNIMPLEMENTED_FUNC(TEXDP3) // !!! FIXME
 
 static void emit_GLSL_TEXM3X3(Context *ctx)
 {
-    if (ctx->texm3x3pad_src1 == -1)
+    if(ctx->texm3x3pad_src1 == -1)
         return;
 
     char dst[64];
@@ -2561,14 +2561,14 @@ static void emit_GLSL_TEXM3X3(Context *ctx)
         src0, src1, src2, src3, dst, src4);
 
     output_line(ctx, "%s", code);
-} // emit_GLSL_TEXM3X3
+}
 
 EMIT_GLSL_OPCODE_UNIMPLEMENTED_FUNC(TEXDEPTH) // !!! FIXME
 
 static void emit_GLSL_CMP(Context *ctx)
 {
     emit_GLSL_comparison_operations(ctx, ">= 0.0");
-} // emit_GLSL_CMP
+}
 
 EMIT_GLSL_OPCODE_UNIMPLEMENTED_FUNC(BEM) // !!! FIXME
 
@@ -2579,7 +2579,7 @@ static void emit_GLSL_DP2ADD(Context *ctx)
     char src2[64]; make_GLSL_srcarg_string_scalar(ctx, 2, src2, sizeof (src2));
     char extra[64]; snprintf(extra, sizeof (extra), " + %s", src2);
     emit_GLSL_dotprod(ctx, src0, src1, extra);
-} // emit_GLSL_DP2ADD
+}
 
 static void emit_GLSL_DSX(Context *ctx)
 {
@@ -2587,7 +2587,7 @@ static void emit_GLSL_DSX(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "dFdx(%s)", src0);
     output_line(ctx, "%s", code);
-} // emit_GLSL_DSX
+}
 
 static void emit_GLSL_DSY(Context *ctx)
 {
@@ -2595,12 +2595,12 @@ static void emit_GLSL_DSY(Context *ctx)
     char code[128];
     make_GLSL_destarg_assign(ctx, code, sizeof (code), "dFdy(%s)", src0);
     output_line(ctx, "%s", code);
-} // emit_GLSL_DSY
+}
 
 static void emit_GLSL_TEXLDD(Context *ctx)
 {
     glsl_texld(ctx, 1, 0);
-} // emit_GLSL_TEXLDD
+}
 
 static void emit_GLSL_SETP(Context *ctx)
 {
@@ -2624,24 +2624,24 @@ static void emit_GLSL_SETP(Context *ctx)
     }
 
     output_line(ctx, "%s", code);
-} // emit_GLSL_SETP
+}
 
 static void emit_GLSL_TEXLDL(Context *ctx)
 {
     glsl_texld(ctx, 0, 1);
-} // emit_GLSL_TEXLDL
+}
 
 static void emit_GLSL_BREAKP(Context *ctx)
 {
     char src0[64]; make_GLSL_srcarg_string_scalar(ctx, 0, src0, sizeof (src0));
-    output_line(ctx, "if (%s) { break; }", src0);
-} // emit_GLSL_BREAKP
+    output_line(ctx, "if(%s) { break; }", src0);
+}
 
 static void emit_GLSL_RESERVED(Context *ctx)
 {
     // do nothing; fails in the state machine.
     (void)ctx;
-} // emit_GLSL_RESERVED
+}
 
 #endif  // SUPPORT_PROFILE_GLSL
 
@@ -2686,11 +2686,11 @@ static const struct { const char *from; const char *to; } profileMap[] =
 static int parse_destination_token(Context *ctx, DestArgInfo *info)
 {
     // !!! FIXME: recheck against the spec for ranges (like RASTOUT values, etc).
-    if (ctx->tokencount == 0)
+    if(ctx->tokencount == 0)
     {
         fail(ctx, "Out of tokens in destination parameter");
         return 0;
-    } // if
+    }
 
     const uint32 token = *(ctx->tokens);
     const int reserved1 = (int)((token>>14) & 0x3); // bits 14 through 15
@@ -2705,8 +2705,8 @@ static int parse_destination_token(Context *ctx, DestArgInfo *info)
     info->regtype = (RegisterType)(((token>>28) & 0x7) | ((token>>8) & 0x18));  // bits 28-30, 11-12
 
     int writemask;
-    if (isscalar(ctx, ctx->shader_type, info->regtype, info->regnum))
-        writemask = 0x1;  // just x.
+    if(isscalar(ctx, ctx->shader_type, info->regtype, info->regnum))
+        writemask = WRITEMASK_X;
     else
         writemask = info->orig_writemask;
 
@@ -2714,17 +2714,17 @@ static int parse_destination_token(Context *ctx, DestArgInfo *info)
 
     // all the REG_TYPE_CONSTx types are the same register type, it's just
     //  split up so its regnum can be > 2047 in the bytecode. Clean it up.
-    if (info->regtype == REG_TYPE_CONST2)
+    if(info->regtype == REG_TYPE_CONST2)
     {
         info->regtype = REG_TYPE_CONST;
         info->regnum += 2048;
     }
-    else if (info->regtype == REG_TYPE_CONST3)
+    else if(info->regtype == REG_TYPE_CONST3)
     {
         info->regtype = REG_TYPE_CONST;
         info->regnum += 4096;
     }
-    else if (info->regtype == REG_TYPE_CONST4)
+    else if(info->regtype == REG_TYPE_CONST4)
     {
         info->regtype = REG_TYPE_CONST;
         info->regnum += 6144;
@@ -2733,17 +2733,16 @@ static int parse_destination_token(Context *ctx, DestArgInfo *info)
     // swallow token for now, for multiple calls in a row.
     adjust_token_position(ctx, 1);
 
-    if (reserved1 != 0x0)
+    if(reserved1 != 0x0)
         fail(ctx, "Reserved bit #1 in destination token must be zero");
-
-    if (reserved2 != 0x1)
+    if(reserved2 != 0x1)
         fail(ctx, "Reserved bit #2 in destination token must be one");
 
-    if (info->relative)
+    if(info->relative)
     {
-        if (!shader_is_vertex(ctx))
+        if(!shader_is_vertex(ctx))
             fail(ctx, "Relative addressing in non-vertex shader");
-        if (!shader_version_atleast(ctx, 3, 0))
+        if(!shader_version_atleast(ctx, 3, 0))
             fail(ctx, "Relative addressing in vertex shader version < 3.0");
 
         // !!! FIXME: I don't have a shader that has a relative dest currently.
@@ -2752,38 +2751,38 @@ static int parse_destination_token(Context *ctx, DestArgInfo *info)
     }
 
     const int s = info->result_shift;
-    if (s != 0)
+    if(s != 0)
     {
-        if (!shader_is_pixel(ctx))
+        if(!shader_is_pixel(ctx))
             fail(ctx, "Result shift scale in non-pixel shader");
-        if (shader_version_atleast(ctx, 2, 0))
+        if(shader_version_atleast(ctx, 2, 0))
             fail(ctx, "Result shift scale in pixel shader version >= 2.0");
-        if ( ! (((s >= 1) && (s <= 3)) || ((s >= 0xD) && (s <= 0xF))) )
+        if(!((s >= 1 && s <= 3) || (s >= 0xD && s <= 0xF)))
             fail(ctx, "Result shift scale isn't 1 to 3, or 13 to 15.");
     }
 
-    if (info->result_mod & MOD_PP)  // Partial precision (pixel shaders only)
+    if(info->result_mod & MOD_PP)  // Partial precision (pixel shaders only)
     {
-        if (!shader_is_pixel(ctx))
+        if(!shader_is_pixel(ctx))
             fail(ctx, "Partial precision result mod in non-pixel shader");
     }
 
-    if (info->result_mod & MOD_CENTROID)  // Centroid (pixel shaders only)
+    if(info->result_mod & MOD_CENTROID)  // Centroid (pixel shaders only)
     {
-        if (!shader_is_pixel(ctx))
+        if(!shader_is_pixel(ctx))
             fail(ctx, "Centroid result mod in non-pixel shader");
-        else if (!ctx->centroid_allowed)  // only on DCL opcodes!
+        else if(!ctx->centroid_allowed)  // only on DCL opcodes!
             fail(ctx, "Centroid modifier not allowed here");
     }
 
-    if ((info->regtype < 0) || (info->regtype > REG_TYPE_MAX))
+    if(info->regtype < 0 || info->regtype > REG_TYPE_MAX)
         fail(ctx, "Register type is out of range");
 
-    if (!isfail(ctx))
+    if(!isfail(ctx))
         set_used_register(ctx, info->regtype, info->regnum, 1);
 
     return 1;
-} // parse_destination_token
+}
 
 
 static void determine_constants_arrays(Context *ctx)
@@ -2794,8 +2793,8 @@ static void determine_constants_arrays(Context *ctx)
         return;
     ctx->determined_constants_arrays = 1;
 
-    if (ctx->constant_count <= 1)
-        return;  // nothing to sort or group.
+    if(ctx->constant_count <= 1)
+        return;
 
     // Sort the linked list into an array for easier tapdancing...
     ConstantsList **array = alloca(sizeof(ConstantsList*) * (ctx->constant_count+1));
@@ -2843,11 +2842,11 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
 {
     int retval = 1;
 
-    if (ctx->tokencount == 0)
+    if(ctx->tokencount == 0)
     {
         fail(ctx, "Out of tokens in source parameter");
         return 0;
-    } // if
+    }
 
     const uint32 token = *(ctx->tokens);
     const int reserved1 = (int)((token>>14) & 0x3); // bits 14 through 15
@@ -2879,34 +2878,33 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
     }
 
     info->swizzle = swizzle;
-    info->swizzle_x = ((info->swizzle >> 0) & 0x3);
-    info->swizzle_y = ((info->swizzle >> 2) & 0x3);
-    info->swizzle_z = ((info->swizzle >> 4) & 0x3);
-    info->swizzle_w = ((info->swizzle >> 6) & 0x3);
+    info->swizzle_x = ((info->swizzle>>0) & 0x3);
+    info->swizzle_y = ((info->swizzle>>2) & 0x3);
+    info->swizzle_z = ((info->swizzle>>4) & 0x3);
+    info->swizzle_w = ((info->swizzle>>6) & 0x3);
 
     // swallow token for now, for multiple calls in a row.
     adjust_token_position(ctx, 1);
 
-    if (reserved1 != 0x0)
+    if(reserved1 != 0x0)
         fail(ctx, "Reserved bits #1 in source token must be zero");
-
-    if (reserved2 != 0x1)
+    if(reserved2 != 0x1)
         fail(ctx, "Reserved bit #2 in source token must be one");
 
-    if ((info->relative) && (ctx->tokencount == 0))
+    if(info->relative && ctx->tokencount == 0)
     {
         fail(ctx, "Out of tokens in relative source parameter");
         info->relative = 0;  // don't try to process it.
-    } // if
+    }
 
-    if (info->relative)
+    if(info->relative)
     {
         if(shader_is_pixel(ctx) && !shader_version_atleast(ctx, 3, 0))
             fail(ctx, "Relative addressing in pixel shader version < 3.0");
 
         // Shader Model 1 doesn't have an extra token to specify the
         //  relative register: it's always a0.x.
-        if (!shader_version_atleast(ctx, 2, 0))
+        if(!shader_version_atleast(ctx, 2, 0))
         {
             info->relative_regnum = 0;
             info->relative_regtype = REG_TYPE_ADDRESS;
@@ -2924,13 +2922,13 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
                                         (((reltoken>>28) & 0x7) |
                                         ((reltoken>>8) & 0x18));
 
-            if (((reltoken>>31) & 0x1) == 0)
+            if(((reltoken>>31) & 0x1) == 0)
                 fail(ctx, "bit #31 in relative address must be set");
 
-            if ((reltoken & 0xF00E000) != 0)  // usused bits.
+            if((reltoken&0xF00E000) != 0)  // usused bits.
                 fail(ctx, "relative address reserved bit must be zero");
 
-            switch (info->relative_regtype)
+            switch(info->relative_regtype)
             {
                 case REG_TYPE_LOOP:
                 case REG_TYPE_ADDRESS:
@@ -2940,23 +2938,22 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
                     break;
             }
 
-            if (info->relative_regnum != 0)  // true for now.
+            if(info->relative_regnum != 0)  // true for now.
                 fail(ctx, "invalid register for relative address");
-
-            if (!replicate_swizzle(relswiz))
+            if(!replicate_swizzle(relswiz))
                 fail(ctx, "relative address needs replicate swizzle");
 
-            info->relative_component = (relswiz & 0x3);
+            info->relative_component = (relswiz&0x3);
 
             retval++;
         }
 
-        if (info->regtype == REG_TYPE_INPUT)
+        if(info->regtype == REG_TYPE_INPUT)
         {
             if(shader_is_pixel(ctx) || !shader_version_atleast(ctx, 3, 0))
                 fail(ctx, "relative addressing of input registers not supported in this shader model");
             ctx->have_relative_input_registers = 1;
-        } // if
+        }
         else if (info->regtype == REG_TYPE_CONST)
         {
             // figure out what array we're in...
@@ -2971,7 +2968,7 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
         }
     }
 
-    switch (info->src_mod)
+    switch(info->src_mod)
     {
         case SRCMOD_NONE:
         case SRCMOD_ABSNEGATE:
@@ -2989,21 +2986,21 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
         case SRCMOD_X2:
         case SRCMOD_DZ:
         case SRCMOD_DW:
-            if (shader_version_atleast(ctx, 2, 0))
+            if(shader_version_atleast(ctx, 2, 0))
                 fail(ctx, "illegal source mod for this Shader Model.");
             break;
 
         case SRCMOD_NOT:  // !!! FIXME: I _think_ this is right...
-            if (shader_version_atleast(ctx, 2, 0))
+            if(shader_version_atleast(ctx, 2, 0))
             {
-                if (info->regtype != REG_TYPE_PREDICATE)
+                if(info->regtype != REG_TYPE_PREDICATE)
                     fail(ctx, "NOT only allowed on predicate register.");
-            } // if
+            }
             break;
 
         default:
             fail(ctx, "Unknown source modifier");
-    } // switch
+    }
 
     // !!! FIXME: docs say this for sm3 ... check these!
     //  "The negate modifier cannot be used on second source register of these
@@ -3014,7 +3011,7 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
     //    All of the constant floating-point registers must use the abs modifier.
     //    None of the constant floating-point registers can use the abs modifier.
 
-    if (!isfail(ctx))
+    if(!isfail(ctx))
     {
         RegisterList *reg;
         reg = set_used_register(ctx, info->regtype, info->regnum, 0);
@@ -3023,29 +3020,29 @@ static int parse_source_token(Context *ctx, SourceArgInfo *info)
         // !!! FIXME:  destination token first.
         // !!! FIXME: Microsoft's shader validation explicitly checks temp
         // !!! FIXME:  registers for this...do they check other writable ones?
-        if ((info->regtype == REG_TYPE_TEMP) && (reg) && (!reg->written))
+        if(info->regtype == REG_TYPE_TEMP && reg && !reg->written)
             failf(ctx, "Temp register r%d used uninitialized", info->regnum);
-    } // if
+    }
 
     return retval;
-} // parse_source_token
+}
 
 
 static int parse_predicated_token(Context *ctx)
 {
     SourceArgInfo *arg = &ctx->predicate_arg;
     parse_source_token(ctx, arg);
-    if (arg->regtype != REG_TYPE_PREDICATE)
+    if(arg->regtype != REG_TYPE_PREDICATE)
         fail(ctx, "Predicated instruction but not predicate register!");
-    if ((arg->src_mod != SRCMOD_NONE) && (arg->src_mod != SRCMOD_NOT))
+    if(arg->src_mod != SRCMOD_NONE && arg->src_mod != SRCMOD_NOT)
         fail(ctx, "Predicated instruction register is not NONE or NOT");
-    if ( !no_swizzle(arg->swizzle) && !replicate_swizzle(arg->swizzle) )
+    if(!no_swizzle(arg->swizzle) && !replicate_swizzle(arg->swizzle))
         fail(ctx, "Predicated instruction register has wrong swizzle");
-    if (arg->relative)  // I'm pretty sure this is illegal...?
+    if(arg->relative)  // I'm pretty sure this is illegal...?
         fail(ctx, "relative addressing in predicated token");
 
     return 1;
-} // parse_predicated_token
+}
 
 
 static int parse_args_NULL(Context *ctx)
@@ -3058,9 +3055,9 @@ static int parse_args_NULL(Context *ctx)
 static int parse_args_DEF(Context *ctx)
 {
     parse_destination_token(ctx, &ctx->dest_arg);
-    if (ctx->dest_arg.regtype != REG_TYPE_CONST)
+    if(ctx->dest_arg.regtype != REG_TYPE_CONST)
         fail(ctx, "DEF using non-CONST register");
-    if (ctx->dest_arg.relative)  // I'm pretty sure this is illegal...?
+    if(ctx->dest_arg.relative)  // I'm pretty sure this is illegal...?
         fail(ctx, "relative addressing in DEF");
 
     ctx->dwords[0] = ctx->tokens[0];
@@ -3069,15 +3066,14 @@ static int parse_args_DEF(Context *ctx)
     ctx->dwords[3] = ctx->tokens[3];
 
     return 6;
-} // parse_args_DEF
-
+}
 
 static int parse_args_DEFI(Context *ctx)
 {
     parse_destination_token(ctx, &ctx->dest_arg);
-    if (ctx->dest_arg.regtype != REG_TYPE_CONSTINT)
-        fail(ctx, "DEFI using non-CONSTING register");
-    if (ctx->dest_arg.relative)  // I'm pretty sure this is illegal...?
+    if(ctx->dest_arg.regtype != REG_TYPE_CONSTINT)
+        fail(ctx, "DEFI using non-CONSTINT register");
+    if(ctx->dest_arg.relative)  // I'm pretty sure this is illegal...?
         fail(ctx, "relative addressing in DEFI");
 
     ctx->dwords[0] = ctx->tokens[0];
@@ -3086,45 +3082,43 @@ static int parse_args_DEFI(Context *ctx)
     ctx->dwords[3] = ctx->tokens[3];
 
     return 6;
-} // parse_args_DEFI
-
+}
 
 static int parse_args_DEFB(Context *ctx)
 {
     parse_destination_token(ctx, &ctx->dest_arg);
-    if (ctx->dest_arg.regtype != REG_TYPE_CONSTBOOL)
+    if(ctx->dest_arg.regtype != REG_TYPE_CONSTBOOL)
         fail(ctx, "DEFB using non-CONSTBOOL register");
-    if (ctx->dest_arg.relative)  // I'm pretty sure this is illegal...?
+    if(ctx->dest_arg.relative)  // I'm pretty sure this is illegal...?
         fail(ctx, "relative addressing in DEFB");
 
     ctx->dwords[0] = *(ctx->tokens) ? 1 : 0;
 
     return 3;
-} // parse_args_DEFB
+}
 
 
 static int valid_texture_type(const uint32 ttype)
 {
-    switch ((const TextureType) ttype)
+    switch ((const TextureType)ttype)
     {
         case TEXTURE_TYPE_2D:
         case TEXTURE_TYPE_CUBE:
         case TEXTURE_TYPE_VOLUME:
             return 1;  // it's okay.
-    } // switch
-
+    }
     return 0;
-} // valid_texture_type
+}
 
 
 // !!! FIXME: this function is kind of a mess.
 static int parse_args_DCL(Context *ctx)
 {
     const uint32 token = *(ctx->tokens);
-    const int reserved1 = (int) ((token>>31) & 0x1); // bit 31
+    const int reserved1 = (int)((token>>31) & 0x1); // bit 31
     uint32 reserved_mask = 0x00000000;
 
-    if (reserved1 != 0x1)
+    if(reserved1 != 0x1)
         fail(ctx, "Bit #31 in DCL token must be one");
 
     ctx->centroid_allowed = 1;
@@ -3132,16 +3126,16 @@ static int parse_args_DCL(Context *ctx)
     parse_destination_token(ctx, &ctx->dest_arg);
     ctx->centroid_allowed = 0;
 
-    if (ctx->dest_arg.result_shift != 0)  // I'm pretty sure this is illegal...?
+    if(ctx->dest_arg.result_shift != 0)  // I'm pretty sure this is illegal...?
         fail(ctx, "shift scale in DCL");
-    if (ctx->dest_arg.relative)  // I'm pretty sure this is illegal...?
+    if(ctx->dest_arg.relative)  // I'm pretty sure this is illegal...?
         fail(ctx, "relative addressing in DCL");
 
     const RegisterType regtype = ctx->dest_arg.regtype;
     const int regnum = ctx->dest_arg.regnum;
     if(shader_is_pixel(ctx) && shader_version_atleast(ctx, 3, 0))
     {
-        if (regtype == REG_TYPE_INPUT)
+        if(regtype == REG_TYPE_INPUT)
         {
             const uint32 usage = (token & 0xF);
             const uint32 index = ((token >> 16) & 0xF);
@@ -3152,16 +3146,16 @@ static int parse_args_DCL(Context *ctx)
         else if(regtype == REG_TYPE_MISCTYPE)
         {
             const MiscTypeType mt = (MiscTypeType) regnum;
-            if (mt == MISCTYPE_TYPE_POSITION)
+            if(mt == MISCTYPE_TYPE_POSITION)
                 reserved_mask = 0x7FFFFFFF;
-            else if (mt == MISCTYPE_TYPE_FACE)
+            else if(mt == MISCTYPE_TYPE_FACE)
             {
                 reserved_mask = 0x7FFFFFFF;
-                if (!writemask_xyzw(ctx->dest_arg.orig_writemask))
+                if(!writemask_xyzw(ctx->dest_arg.orig_writemask))
                     fail(ctx, "DCL face writemask must be full");
-                if (ctx->dest_arg.result_mod != 0)
+                if(ctx->dest_arg.result_mod != 0)
                     fail(ctx, "DCL face result modifier must be zero");
-                if (ctx->dest_arg.result_shift != 0)
+                if(ctx->dest_arg.result_shift != 0)
                     fail(ctx, "DCL face shift scale must be zero");
             }
             else
@@ -3172,18 +3166,18 @@ static int parse_args_DCL(Context *ctx)
             ctx->dwords[0] = (uint32) MOJOSHADER_USAGE_UNKNOWN;
             ctx->dwords[1] = 0;
         }
-        else if (regtype == REG_TYPE_TEXTURE)
+        else if(regtype == REG_TYPE_TEXTURE)
         {
-            const uint32 usage = (token & 0xF);
-            const uint32 index = ((token >> 16) & 0xF);
-            if (usage == MOJOSHADER_USAGE_TEXCOORD)
+            const uint32 usage = (token&0xF);
+            const uint32 index = ((token>>16) & 0xF);
+            if(usage == MOJOSHADER_USAGE_TEXCOORD)
             {
-                if (index > 7)
+                if(index > 7)
                     fail(ctx, "DCL texcoord usage must have 0-7 index");
             }
-            else if (usage == MOJOSHADER_USAGE_COLOR)
+            else if(usage == MOJOSHADER_USAGE_COLOR)
             {
-                if (index != 0)
+                if(index != 0)
                     fail(ctx, "DCL color usage must have 0 index");
             }
             else
@@ -3195,10 +3189,10 @@ static int parse_args_DCL(Context *ctx)
             ctx->dwords[0] = usage;
             ctx->dwords[1] = index;
         }
-        else if (regtype == REG_TYPE_SAMPLER)
+        else if(regtype == REG_TYPE_SAMPLER)
         {
-            const uint32 ttype = ((token >> 27) & 0xF);
-            if (!valid_texture_type(ttype))
+            const uint32 ttype = ((token>>27) & 0xF);
+            if(!valid_texture_type(ttype))
                 fail(ctx, "unknown sampler texture type");
             reserved_mask = 0x7FFFFFF;
             ctx->dwords[0] = ttype;
@@ -3210,22 +3204,22 @@ static int parse_args_DCL(Context *ctx)
     }
     else if(shader_is_pixel(ctx) && shader_version_atleast(ctx, 2, 0))
     {
-        if (regtype == REG_TYPE_INPUT)
+        if(regtype == REG_TYPE_INPUT)
         {
-            ctx->dwords[0] = (uint32) MOJOSHADER_USAGE_COLOR;
+            ctx->dwords[0] = MOJOSHADER_USAGE_COLOR;
             ctx->dwords[1] = regnum;
             reserved_mask = 0x7FFFFFFF;
         }
-        else if (regtype == REG_TYPE_TEXTURE)
+        else if(regtype == REG_TYPE_TEXTURE)
         {
-            ctx->dwords[0] = (uint32) MOJOSHADER_USAGE_TEXCOORD;
+            ctx->dwords[0] = MOJOSHADER_USAGE_TEXCOORD;
             ctx->dwords[1] = regnum;
             reserved_mask = 0x7FFFFFFF;
         }
-        else if (regtype == REG_TYPE_SAMPLER)
+        else if(regtype == REG_TYPE_SAMPLER)
         {
-            const uint32 ttype = ((token >> 27) & 0xF);
-            if (!valid_texture_type(ttype))
+            const uint32 ttype = ((token>>27) & 0xF);
+            if(!valid_texture_type(ttype))
                 fail(ctx, "unknown sampler texture type");
             reserved_mask = 0x7FFFFFF;
             ctx->dwords[0] = ttype;
@@ -3240,15 +3234,15 @@ static int parse_args_DCL(Context *ctx)
         if(regtype == REG_TYPE_INPUT || regtype == REG_TYPE_OUTPUT)
         {
             const uint32 usage = (token & 0xF);
-            const uint32 index = ((token >> 16) & 0xF);
+            const uint32 index = ((token>>16) & 0xF);
             reserved_mask = 0x7FF0FFE0;
             ctx->dwords[0] = usage;
             ctx->dwords[1] = index;
         }
-        else if (regtype == REG_TYPE_SAMPLER)
+        else if(regtype == REG_TYPE_SAMPLER)
         {
-            const uint32 ttype = ((token >> 27) & 0xF);
-            if (!valid_texture_type(ttype))
+            const uint32 ttype = ((token>>27) & 0xF);
+            if(!valid_texture_type(ttype))
                 fail(ctx, "unknown sampler texture type");
             reserved_mask = 0x7FFFFFF;
             ctx->dwords[0] = ttype;
@@ -3260,10 +3254,10 @@ static int parse_args_DCL(Context *ctx)
     }
     else if(shader_is_vertex(ctx) && shader_version_atleast(ctx, 1, 1))
     {
-        if (regtype == REG_TYPE_INPUT)
+        if(regtype == REG_TYPE_INPUT)
         {
-            const uint32 usage = (token & 0xF);
-            const uint32 index = ((token >> 16) & 0xF);
+            const uint32 usage = (token&0xF);
+            const uint32 index = ((token>>16) & 0xF);
             reserved_mask = 0x7FF0FFE0;
             ctx->dwords[0] = usage;
             ctx->dwords[1] = index;
@@ -3278,11 +3272,11 @@ static int parse_args_DCL(Context *ctx)
         failf(ctx, "Unknown shader type in DCL");
     }
 
-    if ((token & reserved_mask) != 0)
+    if((token&reserved_mask) != 0)
         fail(ctx, "reserved bits in DCL dword aren't zero");
 
     return 3;
-} // parse_args_DCL
+}
 
 
 static int parse_args_D(Context *ctx)
@@ -3290,16 +3284,14 @@ static int parse_args_D(Context *ctx)
     int retval = 1;
     retval += parse_destination_token(ctx, &ctx->dest_arg);
     return retval;
-} // parse_args_D
-
+}
 
 static int parse_args_S(Context *ctx)
 {
     int retval = 1;
     retval += parse_source_token(ctx, &ctx->source_args[0]);
     return retval;
-} // parse_args_S
-
+}
 
 static int parse_args_SS(Context *ctx)
 {
@@ -3307,8 +3299,7 @@ static int parse_args_SS(Context *ctx)
     retval += parse_source_token(ctx, &ctx->source_args[0]);
     retval += parse_source_token(ctx, &ctx->source_args[1]);
     return retval;
-} // parse_args_SS
-
+}
 
 static int parse_args_DS(Context *ctx)
 {
@@ -3316,8 +3307,7 @@ static int parse_args_DS(Context *ctx)
     retval += parse_destination_token(ctx, &ctx->dest_arg);
     retval += parse_source_token(ctx, &ctx->source_args[0]);
     return retval;
-} // parse_args_DS
-
+}
 
 static int parse_args_DSS(Context *ctx)
 {
@@ -3326,8 +3316,7 @@ static int parse_args_DSS(Context *ctx)
     retval += parse_source_token(ctx, &ctx->source_args[0]);
     retval += parse_source_token(ctx, &ctx->source_args[1]);
     return retval;
-} // parse_args_DSS
-
+}
 
 static int parse_args_DSSS(Context *ctx)
 {
@@ -3337,8 +3326,7 @@ static int parse_args_DSSS(Context *ctx)
     retval += parse_source_token(ctx, &ctx->source_args[1]);
     retval += parse_source_token(ctx, &ctx->source_args[2]);
     return retval;
-} // parse_args_DSSS
-
+}
 
 static int parse_args_DSSSS(Context *ctx)
 {
@@ -3349,36 +3337,33 @@ static int parse_args_DSSSS(Context *ctx)
     retval += parse_source_token(ctx, &ctx->source_args[2]);
     retval += parse_source_token(ctx, &ctx->source_args[3]);
     return retval;
-} // parse_args_DSSSS
-
+}
 
 static int parse_args_SINCOS(Context *ctx)
 {
     // this opcode needs extra registers for sm2 and lower.
-    if (!shader_version_atleast(ctx, 3, 0))
+    if(!shader_version_atleast(ctx, 3, 0))
         return parse_args_DSSS(ctx);
     return parse_args_DS(ctx);
-} // parse_args_SINCOS
-
+}
 
 static int parse_args_TEXCRD(Context *ctx)
 {
     // added extra register in ps_1_4.
-    if (shader_version_atleast(ctx, 1, 4))
+    if(shader_version_atleast(ctx, 1, 4))
         return parse_args_DS(ctx);
     return parse_args_D(ctx);
-} // parse_args_TEXCRD
-
+}
 
 static int parse_args_TEXLD(Context *ctx)
 {
     // different registers in px_1_3, ps_1_4, and ps_2_0!
-    if (shader_version_atleast(ctx, 2, 0))
+    if(shader_version_atleast(ctx, 2, 0))
         return parse_args_DSS(ctx);
-    else if (shader_version_atleast(ctx, 1, 4))
+    else if(shader_version_atleast(ctx, 1, 4))
         return parse_args_DS(ctx);
     return parse_args_D(ctx);
-} // parse_args_TEXLD
+}
 
 
 // State machine functions...
@@ -3401,9 +3386,9 @@ static void state_DEF(Context *ctx)
 
     // !!! FIXME: fail if same register is defined twice.
 
-    if (ctx->instruction_count != 0)
+    if(ctx->instruction_count != 0)
         fail(ctx, "DEF token must come before any instructions");
-    else if (regtype != REG_TYPE_CONST)
+    else if(regtype != REG_TYPE_CONST)
         fail(ctx, "DEF token using invalid register");
     else
     {
@@ -3411,7 +3396,7 @@ static void state_DEF(Context *ctx)
         item->constant.index = regnum;
         item->constant.type = MOJOSHADER_UNIFORM_FLOAT;
         memcpy(item->constant.value.f, ctx->dwords,
-               sizeof (item->constant.value.f));
+               sizeof(item->constant.value.f));
         set_defined_register(ctx, regtype, regnum);
     }
 }
@@ -3423,9 +3408,9 @@ static void state_DEFI(Context *ctx)
 
     // !!! FIXME: fail if same register is defined twice.
 
-    if (ctx->instruction_count != 0)
+    if(ctx->instruction_count != 0)
         fail(ctx, "DEFI token must come before any instructions");
-    else if (regtype != REG_TYPE_CONSTINT)
+    else if(regtype != REG_TYPE_CONSTINT)
         fail(ctx, "DEFI token using invalid register");
     else
     {
@@ -3433,8 +3418,7 @@ static void state_DEFI(Context *ctx)
         item->constant.index = regnum;
         item->constant.type = MOJOSHADER_UNIFORM_INT;
         memcpy(item->constant.value.i, ctx->dwords,
-               sizeof (item->constant.value.i));
-
+               sizeof(item->constant.value.i));
         set_defined_register(ctx, regtype, regnum);
     }
 }
@@ -3446,9 +3430,9 @@ static void state_DEFB(Context *ctx)
 
     // !!! FIXME: fail if same register is defined twice.
 
-    if (ctx->instruction_count != 0)
+    if(ctx->instruction_count != 0)
         fail(ctx, "DEFB token must come before any instructions");
-    else if (regtype != REG_TYPE_CONSTBOOL)
+    else if(regtype != REG_TYPE_CONSTBOOL)
         fail(ctx, "DEFB token using invalid register");
     else
     {
@@ -3470,17 +3454,17 @@ static void state_DCL(Context *ctx)
 
     // parse_args_DCL() does a lot of state checking before we get here.
 
-    if (ctx->instruction_count != 0)
+    if(ctx->instruction_count != 0)
         fail(ctx, "DCL token must come before any instructions");
-    else if (shader_is_vertex(ctx))
+    else if(shader_is_vertex(ctx))
     {
-        if (regtype == REG_TYPE_SAMPLER)
-            add_sampler(ctx, regnum, (TextureType) ctx->dwords[0], 0);
+        if(regtype == REG_TYPE_SAMPLER)
+            add_sampler(ctx, regnum, (TextureType)ctx->dwords[0], 0);
         else
         {
-            const MOJOSHADER_usage usage = (const MOJOSHADER_usage) ctx->dwords[0];
+            const MOJOSHADER_usage usage = (MOJOSHADER_usage)ctx->dwords[0];
             const int index = ctx->dwords[1];
-            if (usage >= MOJOSHADER_USAGE_TOTAL)
+            if(usage >= MOJOSHADER_USAGE_TOTAL)
             {
                 fail(ctx, "unknown DCL usage");
                 return;
@@ -3488,13 +3472,13 @@ static void state_DCL(Context *ctx)
             add_attribute_register(ctx, regtype, regnum, usage, index, wmask, mods);
         }
     }
-    else if (shader_is_pixel(ctx))
+    else if(shader_is_pixel(ctx))
     {
-        if (regtype == REG_TYPE_SAMPLER)
-            add_sampler(ctx, regnum, (TextureType) ctx->dwords[0], 0);
+        if(regtype == REG_TYPE_SAMPLER)
+            add_sampler(ctx, regnum, (TextureType)ctx->dwords[0], 0);
         else
         {
-            const MOJOSHADER_usage usage = (MOJOSHADER_usage) ctx->dwords[0];
+            const MOJOSHADER_usage usage = (MOJOSHADER_usage)ctx->dwords[0];
             const int index = ctx->dwords[1];
             add_attribute_register(ctx, regtype, regnum, usage, index, wmask, mods);
         }
@@ -3510,7 +3494,7 @@ static void state_DCL(Context *ctx)
 
 static void state_TEXCRD(Context *ctx)
 {
-    if (shader_version_atleast(ctx, 2, 0))
+    if(shader_version_atleast(ctx, 2, 0))
         fail(ctx, "TEXCRD in Shader Model >= 2.0");  // apparently removed.
 }
 
@@ -3518,11 +3502,11 @@ static void state_FRC(Context *ctx)
 {
     const DestArgInfo *dst = &ctx->dest_arg;
 
-    if (dst->result_mod & MOD_SATURATE)  // according to msdn...
+    if(dst->result_mod & MOD_SATURATE)  // according to msdn...
         fail(ctx, "FRC destination can't use saturate modifier");
-    else if (!shader_version_atleast(ctx, 2, 0))
+    else if(!shader_version_atleast(ctx, 2, 0))
     {
-        if (!writemask_y(dst->writemask) && !writemask_xy(dst->writemask))
+        if(!writemask_y(dst->writemask) && !writemask_xy(dst->writemask))
             fail(ctx, "FRC writemask must be .y or .xy for shader model 1.x");
     }
 }
@@ -3535,9 +3519,9 @@ static void srcarg_matrix_replicate(Context *ctx, const int idx, const int rows)
     int i;
     SourceArgInfo *src = &ctx->source_args[idx];
     SourceArgInfo *dst = &ctx->source_args[idx+1];
-    for (i = 0; i < (rows-1); i++, dst++)
+    for(i = 0; i < (rows-1); i++,dst++)
     {
-        memcpy(dst, src, sizeof (SourceArgInfo));
+        memcpy(dst, src, sizeof(SourceArgInfo));
         dst->regnum += (i + 1);
         set_used_register(ctx, dst->regtype, dst->regnum, 0);
     }
@@ -3546,37 +3530,39 @@ static void srcarg_matrix_replicate(Context *ctx, const int idx, const int rows)
 static void state_M4X4(Context *ctx)
 {
     const DestArgInfo *info = &ctx->dest_arg;
-    if (!writemask_xyzw(info->writemask))
+    if(!writemask_xyzw(info->writemask))
         fail(ctx, "M4X4 writemask must be full");
 
-// !!! FIXME: MSDN:
-//The xyzw (default) mask is required for the destination register. Negate and swizzle modifiers are allowed for src0, but not for src1.
-//Swizzle and negate modifiers are invalid for the src0 register. The dest and src0 registers cannot be the same.
+    // !!! FIXME: MSDN:
+    //The xyzw (default) mask is required for the destination register. Negate
+    // and swizzle modifiers are allowed for src0, but not for src1.
+    //Swizzle and negate modifiers are invalid for the src0 register. The dest
+    // and src0 registers cannot be the same.
 
     srcarg_matrix_replicate(ctx, 1, 4);
-} // state_M4X4
+}
 
 static void state_M4X3(Context *ctx)
 {
     const DestArgInfo *info = &ctx->dest_arg;
-    if (!writemask_xyz(info->writemask))
+    if(!writemask_xyz(info->writemask))
         fail(ctx, "M4X3 writemask must be .xyz");
 
-// !!! FIXME: MSDN stuff
+    // !!! FIXME: MSDN stuff
 
     srcarg_matrix_replicate(ctx, 1, 3);
-} // state_M4X3
+}
 
 static void state_M3X4(Context *ctx)
 {
     const DestArgInfo *info = &ctx->dest_arg;
-    if (!writemask_xyzw(info->writemask))
+    if(!writemask_xyzw(info->writemask))
         fail(ctx, "M3X4 writemask must be .xyzw");
 
-// !!! FIXME: MSDN stuff
+    // !!! FIXME: MSDN stuff
 
     srcarg_matrix_replicate(ctx, 1, 4);
-} // state_M3X4
+}
 
 static void state_M3X3(Context *ctx)
 {
@@ -3584,10 +3570,10 @@ static void state_M3X3(Context *ctx)
     if (!writemask_xyz(info->writemask))
         fail(ctx, "M3X3 writemask must be .xyz");
 
-// !!! FIXME: MSDN stuff
+    // !!! FIXME: MSDN stuff
 
     srcarg_matrix_replicate(ctx, 1, 3);
-} // state_M3X3
+}
 
 static void state_M3X2(Context *ctx)
 {
@@ -3595,10 +3581,10 @@ static void state_M3X2(Context *ctx)
     if (!writemask_xy(info->writemask))
         fail(ctx, "M3X2 writemask must be .xy");
 
-// !!! FIXME: MSDN stuff
+    // !!! FIXME: MSDN stuff
 
     srcarg_matrix_replicate(ctx, 1, 2);
-} // state_M3X2
+}
 
 static void state_RET(Context *ctx)
 {
@@ -3609,11 +3595,11 @@ static void state_RET(Context *ctx)
     //  which is a godsend for GLSL...this also means we can consider things
     //  like a LOOP without a matching ENDLOOP within a label's section as
     //  an error.
-    if (ctx->loops > 0)
+    if(ctx->loops > 0)
         fail(ctx, "LOOP without ENDLOOP");
-    if (ctx->reps > 0)
+    if(ctx->reps > 0)
         fail(ctx, "REP without ENDREP");
-} // state_RET
+}
 
 static void check_label_register(Context *ctx, int arg, const char *opcode)
 {
@@ -3621,23 +3607,23 @@ static void check_label_register(Context *ctx, int arg, const char *opcode)
     const RegisterType regtype = info->regtype;
     const int regnum = info->regnum;
 
-    if (regtype != REG_TYPE_LABEL)
+    if(regtype != REG_TYPE_LABEL)
         failf(ctx, "%s with a non-label register specified", opcode);
-    if (!shader_version_atleast(ctx, 2, 0))
+    if(!shader_version_atleast(ctx, 2, 0))
         failf(ctx, "%s not supported in Shader Model 1", opcode);
-    if ((shader_version_atleast(ctx, 2, 255)) && (regnum > 2047))
+    if(shader_version_atleast(ctx, 2, 255) && regnum > 2047)
         fail(ctx, "label register number must be <= 2047");
-    if (regnum > 15)
+    if(regnum > 15)
         fail(ctx, "label register number must be <= 15");
-} // check_label_register
+}
 
 static void state_LABEL(Context *ctx)
 {
-    if (ctx->previous_opcode != OPCODE_RET)
+    if(ctx->previous_opcode != OPCODE_RET)
         fail(ctx, "LABEL not followed by a RET");
     check_label_register(ctx, 0, "LABEL");
     set_defined_register(ctx, REG_TYPE_LABEL, ctx->source_args[0].regnum);
-} // state_LABEL
+}
 
 static void check_call_loop_wrappage(Context *ctx, const int regnum)
 {
@@ -3650,96 +3636,96 @@ static void check_call_loop_wrappage(Context *ctx, const int regnum)
     RegisterList *reg = reglist_find(&ctx->used_registers, REG_TYPE_LABEL, regnum);
     assert(reg != NULL);
 
-    if (reg->misc == 0)
+    if(reg->misc == 0)
         reg->misc = current_usage;
-    else if (reg->misc != current_usage)
+    else if(reg->misc != current_usage)
     {
-        if (current_usage == 1)
+        if(current_usage == 1)
             fail(ctx, "CALL to this label must be wrapped in LOOP/ENDLOOP");
         else
             fail(ctx, "CALL to this label must not be wrapped in LOOP/ENDLOOP");
-    } // else if
-} // check_call_loop_wrappage
+    }
+}
 
 static void state_CALL(Context *ctx)
 {
     check_label_register(ctx, 0, "CALL");
     check_call_loop_wrappage(ctx, ctx->source_args[0].regnum);
-} // state_CALL
+}
 
 static void state_CALLNZ(Context *ctx)
 {
     const RegisterType regtype = ctx->source_args[1].regtype;
-    if ((regtype != REG_TYPE_CONSTBOOL) && (regtype != REG_TYPE_PREDICATE))
+    if(regtype != REG_TYPE_CONSTBOOL && regtype != REG_TYPE_PREDICATE)
         fail(ctx, "CALLNZ argument isn't constbool or predicate register");
     check_label_register(ctx, 0, "CALLNZ");
     check_call_loop_wrappage(ctx, ctx->source_args[0].regnum);
-} // state_CALLNZ
+}
 
 static void state_MOVA(Context *ctx)
 {
-    if (ctx->dest_arg.regtype != REG_TYPE_ADDRESS)
+    if(ctx->dest_arg.regtype != REG_TYPE_ADDRESS)
         fail(ctx, "MOVA argument isn't address register");
-} // state_MOVA
+}
 
 static void state_RCP(Context *ctx)
 {
-    if (!replicate_swizzle(ctx->source_args[0].swizzle))
+    if(!replicate_swizzle(ctx->source_args[0].swizzle))
         fail(ctx, "RCP without replicate swizzzle");
-} // state_RCP
+}
 
 static void state_LOOP(Context *ctx)
 {
-    if (ctx->source_args[0].regtype != REG_TYPE_LOOP)
+    if(ctx->source_args[0].regtype != REG_TYPE_LOOP)
         fail(ctx, "LOOP argument isn't loop register");
-    else if (ctx->source_args[1].regtype != REG_TYPE_CONSTINT)
+    else if(ctx->source_args[1].regtype != REG_TYPE_CONSTINT)
         fail(ctx, "LOOP argument isn't constint register");
     else
         ctx->loops++;
-} // state_LOOP
+}
 
 static void state_ENDLOOP(Context *ctx)
 {
     // !!! FIXME: check that we aren't straddling an IF block.
-    if (ctx->loops <= 0)
+    if(ctx->loops <= 0)
         fail(ctx, "ENDLOOP without LOOP");
     ctx->loops--;
-} // state_ENDLOOP
+}
 
 static void state_BREAKP(Context *ctx)
 {
     const RegisterType regtype = ctx->source_args[0].regtype;
-    if (regtype != REG_TYPE_PREDICATE)
+    if(regtype != REG_TYPE_PREDICATE)
         fail(ctx, "BREAKP argument isn't predicate register");
-    else if (!replicate_swizzle(ctx->source_args[0].swizzle))
+    else if(!replicate_swizzle(ctx->source_args[0].swizzle))
         fail(ctx, "BREAKP without replicate swizzzle");
-    else if ((ctx->loops == 0) && (ctx->reps == 0))
+    else if(ctx->loops == 0 && ctx->reps == 0)
         fail(ctx, "BREAKP outside LOOP/ENDLOOP or REP/ENDREP");
-} // state_BREAKP
+}
 
 static void state_BREAK(Context *ctx)
 {
-    if ((ctx->loops == 0) && (ctx->reps == 0))
+    if(ctx->loops == 0 && ctx->reps == 0)
         fail(ctx, "BREAK outside LOOP/ENDLOOP or REP/ENDREP");
-} // state_BREAK
+}
 
 static void state_SETP(Context *ctx)
 {
     const RegisterType regtype = ctx->dest_arg.regtype;
-    if (regtype != REG_TYPE_PREDICATE)
+    if(regtype != REG_TYPE_PREDICATE)
         fail(ctx, "SETP argument isn't predicate register");
-} // state_SETP
+}
 
 static void state_REP(Context *ctx)
 {
     const RegisterType regtype = ctx->source_args[0].regtype;
-    if (regtype != REG_TYPE_CONSTINT)
+    if(regtype != REG_TYPE_CONSTINT)
         fail(ctx, "REP argument isn't constint register");
 
     ctx->reps++;
-    if (ctx->reps > ctx->max_reps)
+    if(ctx->reps > ctx->max_reps)
         ctx->max_reps = ctx->reps;
-} // state_REP
+}
 
 static void state_ENDREP(Context *ctx)
 {
@@ -3747,140 +3733,133 @@ static void state_ENDREP(Context *ctx)
     if (ctx->reps <= 0)
         fail(ctx, "ENDREP without REP");
     ctx->reps--;
-} // state_ENDREP
+}
 
 static void state_CMP(Context *ctx)
 {
     ctx->cmps++;
 
     // extra limitations for ps <= 1.4 ...
-    if (!shader_version_atleast(ctx, 1, 4))
+    if(!shader_version_atleast(ctx, 1, 4))
     {
         int i;
         const DestArgInfo *dst = &ctx->dest_arg;
         const RegisterType dregtype = dst->regtype;
         const int dregnum = dst->regnum;
 
-        if (ctx->cmps > 3)
+        if(ctx->cmps > 3)
             fail(ctx, "only 3 CMP instructions allowed in this shader model");
 
-        for (i = 0; i < 3; i++)
+        for(i = 0;i < 3;i++)
         {
             const SourceArgInfo *src = &ctx->source_args[i];
             const RegisterType sregtype = src->regtype;
             const int sregnum = src->regnum;
-            if ((dregtype == sregtype) && (dregnum == sregnum))
+            if(dregtype == sregtype && dregnum == sregnum)
                 fail(ctx, "CMP dest can't match sources in this shader model");
-        } // for
+        }
 
         ctx->instruction_count++;  // takes an extra slot in ps_1_2 and _3.
-    } // if
-} // state_CMP
+    }
+}
 
 static void state_DP4(Context *ctx)
 {
     // extra limitations for ps <= 1.4 ...
-    if (!shader_version_atleast(ctx, 1, 4))
+    if(!shader_version_atleast(ctx, 1, 4))
         ctx->instruction_count++;  // takes an extra slot in ps_1_2 and _3.
-} // state_DP4
+}
 
 static void state_CND(Context *ctx)
 {
     // apparently it was removed...it's not in the docs past ps_1_4 ...
-    if (shader_version_atleast(ctx, 2, 0))
+    if(shader_version_atleast(ctx, 2, 0))
         fail(ctx, "CND not allowed in this shader model");
-
     // extra limitations for ps <= 1.4 ...
-    else if (!shader_version_atleast(ctx, 1, 4))
+    else if(!shader_version_atleast(ctx, 1, 4))
     {
         const SourceArgInfo *src = &ctx->source_args[0];
-        if ((src->regtype != REG_TYPE_TEMP) || (src->regnum != 0) ||
-            (src->swizzle != 0xFF))
-        {
+        if(src->regtype != REG_TYPE_TEMP || src->regnum != 0 || src->swizzle != 0xFF)
             fail(ctx, "CND src must be r0.a in this shader model");
-        } // if
-    } // if
-} // state_CND
+    }
+}
 
 static void state_POW(Context *ctx)
 {
-    if (!replicate_swizzle(ctx->source_args[0].swizzle))
+    if(!replicate_swizzle(ctx->source_args[0].swizzle))
         fail(ctx, "POW src0 must have replicate swizzle");
-    else if (!replicate_swizzle(ctx->source_args[1].swizzle))
+    else if(!replicate_swizzle(ctx->source_args[1].swizzle))
         fail(ctx, "POW src1 must have replicate swizzle");
-} // state_POW
+}
 
 static void state_LOG(Context *ctx)
 {
-    if (!replicate_swizzle(ctx->source_args[0].swizzle))
+    if(!replicate_swizzle(ctx->source_args[0].swizzle))
         fail(ctx, "LOG src0 must have replicate swizzle");
-} // state_LOG
+}
 
 static void state_LOGP(Context *ctx)
 {
-    if (!replicate_swizzle(ctx->source_args[0].swizzle))
+    if(!replicate_swizzle(ctx->source_args[0].swizzle))
         fail(ctx, "LOGP src0 must have replicate swizzle");
-} // state_LOGP
+}
 
 static void state_SINCOS(Context *ctx)
 {
     const DestArgInfo *dst = &ctx->dest_arg;
     const int mask = dst->writemask;
-    if (!writemask_x(mask) && !writemask_y(mask) && !writemask_xy(mask))
+    if(!writemask_x(mask) && !writemask_y(mask) && !writemask_xy(mask))
         fail(ctx, "SINCOS write mask must be .x or .y or .xy");
-
-    else if (!replicate_swizzle(ctx->source_args[0].swizzle))
+    else if(!replicate_swizzle(ctx->source_args[0].swizzle))
         fail(ctx, "SINCOS src0 must have replicate swizzle");
-
-    else if (dst->result_mod & MOD_SATURATE)  // according to msdn...
+    else if(dst->result_mod & MOD_SATURATE)  // according to msdn...
         fail(ctx, "SINCOS destination can't use saturate modifier");
-
     // this opcode needs extra registers, with extra limitations, for <= sm2.
-    else if (!shader_version_atleast(ctx, 3, 0))
+    else if(!shader_version_atleast(ctx, 3, 0))
     {
         int i;
-        for (i = 1; i < 3; i++)
+        for(i = 1;i < 3;i++)
         {
-            if (ctx->source_args[i].regtype != REG_TYPE_CONST)
+            if(ctx->source_args[i].regtype != REG_TYPE_CONST)
             {
                 failf(ctx, "SINCOS src%d must be constfloat", i);
                 return;
-            } // if
-        } // for
+            }
+        }
 
-        if (ctx->source_args[1].regnum == ctx->source_args[2].regnum)
+        if(ctx->source_args[1].regnum == ctx->source_args[2].regnum)
             fail(ctx, "SINCOS src1 and src2 must be different registers");
-    } // if
-} // state_SINCOS
+    }
+}
 
 static void state_IF(Context *ctx)
 {
     const RegisterType regtype = ctx->source_args[0].regtype;
-    if ((regtype != REG_TYPE_PREDICATE) && (regtype != REG_TYPE_CONSTBOOL))
+    if(regtype != REG_TYPE_PREDICATE && regtype != REG_TYPE_CONSTBOOL)
         fail(ctx, "IF src0 must be CONSTBOOL or PREDICATE");
-    else if (!replicate_swizzle(ctx->source_args[0].swizzle))
+    else if(!replicate_swizzle(ctx->source_args[0].swizzle))
         fail(ctx, "IF src0 must have replicate swizzle");
     // !!! FIXME: track if nesting depth.
-} // state_IF
+}
 
 static void state_IFC(Context *ctx)
 {
-    if (!replicate_swizzle(ctx->source_args[0].swizzle))
+    if(!replicate_swizzle(ctx->source_args[0].swizzle))
         fail(ctx, "IFC src0 must have replicate swizzle");
-    else if (!replicate_swizzle(ctx->source_args[1].swizzle))
+    else if(!replicate_swizzle(ctx->source_args[1].swizzle))
         fail(ctx, "IFC src1 must have replicate swizzle");
     // !!! FIXME: track if nesting depth.
-} // state_IFC
+}
 
 static void state_BREAKC(Context *ctx)
 {
-    if (!replicate_swizzle(ctx->source_args[0].swizzle))
+    if(!replicate_swizzle(ctx->source_args[0].swizzle))
         fail(ctx, "BREAKC src1 must have replicate swizzle");
-    else if (!replicate_swizzle(ctx->source_args[1].swizzle))
+    else if(!replicate_swizzle(ctx->source_args[1].swizzle))
         fail(ctx, "BREAKC src2 must have replicate swizzle");
-    else if ((ctx->loops == 0) && (ctx->reps == 0))
+    else if(ctx->loops == 0 && ctx->reps == 0)
         fail(ctx, "BREAKC outside LOOP/ENDLOOP or REP/ENDREP");
-} // state_BREAKC
+}
 
 static void state_TEXKILL(Context *ctx)
 {
@@ -3888,15 +3867,15 @@ static void state_TEXKILL(Context *ctx)
     //  say it's a dest arg. That's annoying.
     const DestArgInfo *info = &ctx->dest_arg;
     const RegisterType regtype = info->regtype;
-    if (!writemask_xyzw(info->writemask))
+    if(!writemask_xyzw(info->writemask))
         fail(ctx, "TEXKILL writemask must be .xyzw");
-    else if ((regtype != REG_TYPE_TEMP) && (regtype != REG_TYPE_TEXTURE))
+    else if(regtype != REG_TYPE_TEMP && regtype != REG_TYPE_TEXTURE)
         fail(ctx, "TEXKILL must use a temp or texture register");
 
     // !!! FIXME: "If a temporary register is used, all components must have been previously written."
     // !!! FIXME: "If a texture register is used, all components that are read must have been declared."
     // !!! FIXME: there are further limitations in ps_1_3 and earlier.
-} // state_TEXKILL
+}
 
 // Some rules that apply to some of the fruity ps_1_1 texture opcodes...
 static void state_texops(Context *ctx, const char *opcode,
@@ -3904,18 +3883,18 @@ static void state_texops(Context *ctx, const char *opcode,
 {
     const DestArgInfo *dst = &ctx->dest_arg;
     const SourceArgInfo *src = &ctx->source_args[0];
-    if (dst->regtype != REG_TYPE_TEXTURE)
+    if(dst->regtype != REG_TYPE_TEXTURE)
         failf(ctx, "%s destination must be a texture register", opcode);
-    if (src->regtype != REG_TYPE_TEXTURE)
+    if(src->regtype != REG_TYPE_TEXTURE)
         failf(ctx, "%s source must be a texture register", opcode);
-    if (src->regnum >= dst->regnum)  // so says MSDN.
+    if(src->regnum >= dst->regnum)  // so says MSDN.
         failf(ctx, "%s dest must be a higher register than source", opcode);
 
-    if (dims)
+    if(dims)
     {
         TextureType ttyp = (dims == 2) ? TEXTURE_TYPE_2D : TEXTURE_TYPE_CUBE;
         add_sampler(ctx, dst->regnum, ttyp, texbem);
-    } // if
+    }
 
     add_attribute_register(ctx, REG_TYPE_TEXTURE, dst->regnum,
                            MOJOSHADER_USAGE_TEXCOORD, dst->regnum, 0xF, 0);
@@ -3926,7 +3905,7 @@ static void state_texops(Context *ctx, const char *opcode,
     //  cryptic error message even if the developer didn't do the TEX.
     add_attribute_register(ctx, REG_TYPE_TEXTURE, src->regnum,
                            MOJOSHADER_USAGE_TEXCOORD, src->regnum, 0xF, 0);
-} // state_texops
+}
 
 static void state_texbem(Context *ctx, const char *opcode)
 {
@@ -3941,14 +3920,14 @@ static void state_texbem(Context *ctx, const char *opcode)
     //t(m)RGBA = t(m)RGBA * [(t(n)B * D3DTSS_BUMPENVLSCALE(stage m)) +
     //           D3DTSS_BUMPENVLOFFSET(stage m)]
 
-    if (shader_version_atleast(ctx, 1, 4))
+    if(shader_version_atleast(ctx, 1, 4))
         failf(ctx, "%s opcode not available after Shader Model 1.3", opcode);
 
-    if (!shader_version_atleast(ctx, 1, 2))
+    if(!shader_version_atleast(ctx, 1, 2))
     {
-        if (ctx->source_args[0].src_mod == SRCMOD_SIGN)
+        if(ctx->source_args[0].src_mod == SRCMOD_SIGN)
             failf(ctx, "%s forbids _bx2 on source reg before ps_1_2", opcode);
-    } // if
+    }
 
     // !!! FIXME: MSDN:
     // !!! FIXME: Register data that has been read by a texbem
@@ -3956,33 +3935,33 @@ static void state_texbem(Context *ctx, const char *opcode)
     // !!! FIXME:  except by another texbem or texbeml.
 
     state_texops(ctx, opcode, 2, 1);
-} // state_texbem
+}
 
 static void state_TEXBEM(Context *ctx)
 {
     state_texbem(ctx, "TEXBEM");
-} // state_TEXBEM
+}
 
 static void state_TEXBEML(Context *ctx)
 {
     state_texbem(ctx, "TEXBEML");
-} // state_TEXBEML
+}
 
 static void state_TEXM3X2PAD(Context *ctx)
 {
-    if (shader_version_atleast(ctx, 1, 4))
+    if(shader_version_atleast(ctx, 1, 4))
         fail(ctx, "TEXM3X2PAD opcode not available after Shader Model 1.3");
     state_texops(ctx, "TEXM3X2PAD", 0, 0);
     // !!! FIXME: check for correct opcode existance and order more rigorously?
     ctx->texm3x2pad_src0 = ctx->source_args[0].regnum;
     ctx->texm3x2pad_dst0 = ctx->dest_arg.regnum;
-} // state_TEXM3X2PAD
+}
 
 static void state_TEXM3X2TEX(Context *ctx)
 {
-    if (shader_version_atleast(ctx, 1, 4))
+    if(shader_version_atleast(ctx, 1, 4))
         fail(ctx, "TEXM3X2TEX opcode not available after Shader Model 1.3");
-    if (ctx->texm3x2pad_dst0 == -1)
+    if(ctx->texm3x2pad_dst0 == -1)
         fail(ctx, "TEXM3X2TEX opcode without matching TEXM3X2PAD");
     // !!! FIXME: check for correct opcode existance and order more rigorously?
     state_texops(ctx, "TEXM3X2TEX", 2, 0);
@@ -3990,79 +3969,79 @@ static void state_TEXM3X2TEX(Context *ctx)
 
     RegisterList *sreg = reglist_find(&ctx->samplers, REG_TYPE_SAMPLER,
                                       ctx->dest_arg.regnum);
-    const TextureType ttype = (TextureType) (sreg ? sreg->index : 0);
+    const TextureType ttype = (TextureType)(sreg ? sreg->index : 0);
 
     // A samplermap might change this to something nonsensical.
-    if (ttype != TEXTURE_TYPE_2D)
+    if(ttype != TEXTURE_TYPE_2D)
         fail(ctx, "TEXM3X2TEX needs a 2D sampler");
-} // state_TEXM3X2TEX
+}
 
 static void state_TEXM3X3PAD(Context *ctx)
 {
-    if (shader_version_atleast(ctx, 1, 4))
+    if(shader_version_atleast(ctx, 1, 4))
         fail(ctx, "TEXM3X2TEX opcode not available after Shader Model 1.3");
     state_texops(ctx, "TEXM3X3PAD", 0, 0);
 
     // !!! FIXME: check for correct opcode existance and order more rigorously?
-    if (ctx->texm3x3pad_dst0 == -1)
+    if(ctx->texm3x3pad_dst0 == -1)
     {
         ctx->texm3x3pad_src0 = ctx->source_args[0].regnum;
         ctx->texm3x3pad_dst0 = ctx->dest_arg.regnum;
-    } // if
-    else if (ctx->texm3x3pad_dst1 == -1)
+    }
+    else if(ctx->texm3x3pad_dst1 == -1)
     {
         ctx->texm3x3pad_src1 = ctx->source_args[0].regnum;
         ctx->texm3x3pad_dst1 = ctx->dest_arg.regnum;
-    } // else
-} // state_TEXM3X3PAD
+    }
+}
 
 static void state_texm3x3(Context *ctx, const char *opcode, const int dims)
 {
     // !!! FIXME: check for correct opcode existance and order more rigorously?
-    if (shader_version_atleast(ctx, 1, 4))
+    if(shader_version_atleast(ctx, 1, 4))
         failf(ctx, "%s opcode not available after Shader Model 1.3", opcode);
-    if (ctx->texm3x3pad_dst1 == -1)
+    if(ctx->texm3x3pad_dst1 == -1)
         failf(ctx, "%s opcode without matching TEXM3X3PADs", opcode);
     state_texops(ctx, opcode, dims, 0);
     ctx->reset_texmpad = 1;
 
     RegisterList *sreg = reglist_find(&ctx->samplers, REG_TYPE_SAMPLER,
                                       ctx->dest_arg.regnum);
-    const TextureType ttype = (TextureType) (sreg ? sreg->index : 0);
+    const TextureType ttype = (TextureType)(sreg ? sreg->index : 0);
 
     // A samplermap might change this to something nonsensical.
-    if ((ttype != TEXTURE_TYPE_VOLUME) && (ttype != TEXTURE_TYPE_CUBE))
+    if(ttype != TEXTURE_TYPE_VOLUME && ttype != TEXTURE_TYPE_CUBE)
         failf(ctx, "%s needs a 3D or Cubemap sampler", opcode);
-} // state_texm3x3
+}
 
 static void state_TEXM3X3(Context *ctx)
 {
-    if (!shader_version_atleast(ctx, 1, 2))
+    if(!shader_version_atleast(ctx, 1, 2))
         fail(ctx, "TEXM3X3 opcode not available in Shader Model 1.1");
     state_texm3x3(ctx, "TEXM3X3", 0);
-} // state_TEXM3X3
+}
 
 static void state_TEXM3X3TEX(Context *ctx)
 {
     state_texm3x3(ctx, "TEXM3X3TEX", 3);
-} // state_TEXM3X3TEX
+}
 
 static void state_TEXM3X3SPEC(Context *ctx)
 {
     state_texm3x3(ctx, "TEXM3X3SPEC", 3);
-    if (ctx->source_args[1].regtype != REG_TYPE_CONST)
+    if(ctx->source_args[1].regtype != REG_TYPE_CONST)
         fail(ctx, "TEXM3X3SPEC final arg must be a constant register");
-} // state_TEXM3X3SPEC
+}
 
 static void state_TEXM3X3VSPEC(Context *ctx)
 {
     state_texm3x3(ctx, "TEXM3X3VSPEC", 3);
-} // state_TEXM3X3VSPEC
+}
 
 
 static void state_TEXLD(Context *ctx)
 {
-    if (shader_version_atleast(ctx, 2, 0))
+    if(shader_version_atleast(ctx, 2, 0))
     {
         const SourceArgInfo *src0 = &ctx->source_args[0];
         const SourceArgInfo *src1 = &ctx->source_args[1];
@@ -4076,81 +4055,77 @@ static void state_TEXLD(Context *ctx)
 
         // !!! FIXME: msdn says it has to be temp, but Microsoft's HLSL
         // !!! FIXME:  compiler is generating code that uses oC0 for a dest.
-        //if (ctx->dest_arg.regtype != REG_TYPE_TEMP)
+        //if(ctx->dest_arg.regtype != REG_TYPE_TEMP)
         //    fail(ctx, "TEXLD dest must be a temp register");
-
         // !!! FIXME: this can be an REG_TYPE_INPUT, DCL'd to TEXCOORD.
-        //else if ((rt0 != REG_TYPE_TEXTURE) && (rt0 != REG_TYPE_TEMP))
+        //else if(rt0 != REG_TYPE_TEXTURE && rt0 != REG_TYPE_TEMP)
         //    fail(ctx, "TEXLD src0 must be texture or temp register");
         //else
 
-        if (src0->src_mod != SRCMOD_NONE)
+        if(src0->src_mod != SRCMOD_NONE)
             fail(ctx, "TEXLD src0 must have no modifiers");
-        else if (src1->regtype != REG_TYPE_SAMPLER)
+        else if(src1->regtype != REG_TYPE_SAMPLER)
             fail(ctx, "TEXLD src1 must be sampler register");
-        else if (src1->src_mod != SRCMOD_NONE)
+        else if(src1->src_mod != SRCMOD_NONE)
             fail(ctx, "TEXLD src1 must have no modifiers");
-        else if ( (ctx->instruction_controls != CONTROL_TEXLD) &&
-                  (ctx->instruction_controls != CONTROL_TEXLDP) &&
-                  (ctx->instruction_controls != CONTROL_TEXLDB) )
+        else if(ctx->instruction_controls != CONTROL_TEXLD &&
+                ctx->instruction_controls != CONTROL_TEXLDP &&
+                ctx->instruction_controls != CONTROL_TEXLDB)
         {
             fail(ctx, "TEXLD has unknown control bits");
-        } // else if
+        }
 
         // Shader Model 3 added swizzle support to this opcode.
-        if (!shader_version_atleast(ctx, 3, 0))
+        if(!shader_version_atleast(ctx, 3, 0))
         {
-            if (!no_swizzle(src0->swizzle))
+            if(!no_swizzle(src0->swizzle))
                 fail(ctx, "TEXLD src0 must not swizzle");
-            else if (!no_swizzle(src1->swizzle))
+            else if(!no_swizzle(src1->swizzle))
                 fail(ctx, "TEXLD src1 must not swizzle");
-        } // if
+        }
 
-        if ( ((TextureType) ctx->source_args[1].regnum) == TEXTURE_TYPE_CUBE )
+        if(ctx->source_args[1].regnum == TEXTURE_TYPE_CUBE)
             ctx->instruction_count += 3;
-    } // if
-
-    else if (shader_version_atleast(ctx, 1, 4))
+    }
+    else if(shader_version_atleast(ctx, 1, 4))
     {
         // !!! FIXME: checks for ps_1_4 version here...
-    } // else if
-
+    }
     else
     {
         // !!! FIXME: add (other?) checks for ps_1_1 version here...
         const DestArgInfo *info = &ctx->dest_arg;
         const int sampler = info->regnum;
-        if (info->regtype != REG_TYPE_TEXTURE)
+        if(info->regtype != REG_TYPE_TEXTURE)
             fail(ctx, "TEX param must be a texture register");
         add_sampler(ctx, sampler, TEXTURE_TYPE_2D, 0);
         add_attribute_register(ctx, REG_TYPE_TEXTURE, sampler,
                                MOJOSHADER_USAGE_TEXCOORD, sampler, 0xF, 0);
-    } // else
-} // state_TEXLD
+    }
+}
 
 static void state_TEXLDL(Context *ctx)
 {
-    if (!shader_version_atleast(ctx, 3, 0))
+    if(!shader_version_atleast(ctx, 3, 0))
         fail(ctx, "TEXLDL in version < Shader Model 3.0");
-    else if (ctx->source_args[1].regtype != REG_TYPE_SAMPLER)
+    else if(ctx->source_args[1].regtype != REG_TYPE_SAMPLER)
         fail(ctx, "TEXLDL src1 must be sampler register");
     else
     {
-        if ( ((TextureType) ctx->source_args[1].regnum) == TEXTURE_TYPE_CUBE )
+        if(ctx->source_args[1].regnum == TEXTURE_TYPE_CUBE)
             ctx->instruction_count += 3;
-    } // else
-} // state_TEXLDL
+    }
+}
 
 static void state_DP2ADD(Context *ctx)
 {
-    if (!replicate_swizzle(ctx->source_args[2].swizzle))
+    if(!replicate_swizzle(ctx->source_args[2].swizzle))
         fail(ctx, "DP2ADD src2 must have replicate swizzle");
-} // state_DP2ADD
+}
 
 
 // Lookup table for instruction opcodes...
-typedef struct
-{
+typedef struct {
     const char *opcode_string;
     int slots;  // number of instruction slots this opcode eats.
     MOJOSHADER_shaderType shader_types;  // mask of types that can use opcode.
@@ -4161,12 +4136,10 @@ typedef struct
 
 // These have to be in the right order! This array is indexed by the value
 //  of the instruction token.
-static const Instruction instructions[] =
-{
+static const Instruction instructions[] = {
     #define INSTRUCTION_STATE(op, opstr, slots, a, t) { \
         opstr, slots, t, parse_args_##a, state_##op, PROFILE_EMITTERS(op) \
     },
-
     #define INSTRUCTION(op, opstr, slots, a, t) { \
         opstr, slots, t, parse_args_##a, 0, PROFILE_EMITTERS(op) \
     },
@@ -4195,36 +4168,36 @@ static int parse_instruction_token(Context *ctx)
     const int coissue = (token & 0x40000000) ? 1 : 0;
     const int predicated = (token & 0x10000000) ? 1 : 0;
 
-    if ( opcode >= (sizeof (instructions) / sizeof (instructions[0])) )
+    if(opcode >= (sizeof(instructions)/sizeof(instructions[0])))
         return 0;  // not an instruction token, or just not handled here.
 
     const Instruction *instruction = &instructions[opcode];
     const emit_function emitter = instruction->emitter[ctx->profileid];
 
-    if ((token & 0x80000000) != 0)
+    if((token&0x80000000) != 0)
         fail(ctx, "instruction token high bit must be zero.");  // so says msdn.
 
-    if (instruction->opcode_string == NULL)
+    if(instruction->opcode_string == NULL)
     {
         fail(ctx, "Unknown opcode.");
         return insttoks + 1;  // pray that you resync later.
-    } // if
+    }
 
-    if (coissue)
+    if(coissue)
     {
-        if (!shader_is_pixel(ctx))
+        if(!shader_is_pixel(ctx))
             fail(ctx, "coissue instruction on non-pixel shader");
-        if (shader_version_atleast(ctx, 2, 0))
+        if(shader_version_atleast(ctx, 2, 0))
             fail(ctx, "coissue instruction in Shader Model >= 2.0");
-    } // if
+    }
 
-    if ((ctx->shader_type & instruction->shader_types) == 0)
+    if((ctx->shader_type&instruction->shader_types) == 0)
     {
         failf(ctx, "opcode '%s' not available in this shader type.",
                 instruction->opcode_string);
-    } // if
+    }
 
-    memset(ctx->dwords, '\0', sizeof (ctx->dwords));
+    memset(ctx->dwords, '\0', sizeof(ctx->dwords));
     ctx->instruction_controls = controls;
     ctx->predicated = predicated;
 
@@ -4232,7 +4205,7 @@ static int parse_instruction_token(Context *ctx)
     adjust_token_position(ctx, 1);
     retval = instruction->parse_args(ctx);
 
-    if (predicated)
+    if(predicated)
         retval += parse_predicated_token(ctx);
 
     // parse_args() moves these forward for convenience...reset them.
@@ -4240,15 +4213,15 @@ static int parse_instruction_token(Context *ctx)
     ctx->tokencount = start_tokencount;
     ctx->current_position = start_position;
 
-    if (instruction->state != NULL)
+    if(instruction->state != NULL)
         instruction->state(ctx);
 
     ctx->instruction_count += instruction->slots;
 
-    if (!isfail(ctx))
+    if(!isfail(ctx))
         emitter(ctx);  // call the profile's emitter.
 
-    if (ctx->reset_texmpad)
+    if(ctx->reset_texmpad)
     {
         ctx->texm3x2pad_dst0 = -1;
         ctx->texm3x2pad_src0 = -1;
@@ -4257,42 +4230,41 @@ static int parse_instruction_token(Context *ctx)
         ctx->texm3x3pad_dst1 = -1;
         ctx->texm3x3pad_src1 = -1;
         ctx->reset_texmpad = 0;
-    } // if
+    }
 
     ctx->previous_opcode = opcode;
 
-    if (!shader_version_atleast(ctx, 2, 0))
+    if(!shader_version_atleast(ctx, 2, 0))
     {
-        if (insttoks != 0)  // reserved field in shaders < 2.0 ...
+        if(insttoks != 0)  // reserved field in shaders < 2.0 ...
             fail(ctx, "instruction token count must be zero");
-    } // if
+    }
     else
     {
-        if (((uint32)retval) != (insttoks+1))
+        if((uint32)retval != insttoks+1)
         {
             failf(ctx, "wrong token count (%u, not %u) for opcode '%s'.",
-                    (uint) retval, (uint) (insttoks+1),
-                    instruction->opcode_string);
+                  (uint)retval, (uint)(insttoks+1), instruction->opcode_string);
             retval = insttoks + 1;  // try to keep sync.
-        } // if
-    } // else
+        }
+    }
 
     return retval;
-} // parse_instruction_token
+}
 
 
 static int parse_version_token(Context *ctx, const char *profilestr)
 {
-    if (ctx->tokencount == 0)
+    if(ctx->tokencount == 0)
     {
         fail(ctx, "Expected version token, got none at all.");
         return 0;
-    } // if
+    }
 
     const uint32 token = *(ctx->tokens);
     const uint32 shadertype = ((token>>16) & 0xFFFF);
-    const uint8 major = (uint8) ((token>>8) & 0xFF);
-    const uint8 minor = (uint8) (token & 0xFF);
+    const uint8 major = (uint8)((token>>8) & 0xFF);
+    const uint8 minor = (uint8)(token & 0xFF);
 
     ctx->version_token = token;
 
@@ -4326,14 +4298,14 @@ static int parse_version_token(Context *ctx, const char *profilestr)
         ctx->profile->start_emitter(ctx, profilestr);
 
     return 1;  // ate one token.
-} // parse_version_token
+}
 
 
 static int is_comment_token(Context *ctx, const uint32 token, uint32 *tokcount)
 {
     if((token&0xFFFF) == 0xFFFE)  // actually a comment token?
     {
-        if ((token&0x80000000) != 0)
+        if((token&0x80000000) != 0)
             fail(ctx, "comment token high bit must be zero.");  // so says msdn.
         *tokcount = ((token>>16) & 0xFFFF);
         return 1;
@@ -4341,7 +4313,6 @@ static int is_comment_token(Context *ctx, const uint32 token, uint32 *tokcount)
 
     return 0;
 }
-
 
 static int parse_comment_token(Context *ctx)
 {
@@ -4382,7 +4353,7 @@ static int parse_phase_token(Context *ctx)
         ctx->profile->phase_emitter(ctx);
 
     return 1;
-} // parse_phase_token
+}
 
 
 static int parse_token(Context *ctx)
@@ -4391,48 +4362,44 @@ static int parse_token(Context *ctx)
 
     assert(ctx->output_stack_len == 0);
 
-    if (ctx->tokencount == 0)
+    if(ctx->tokencount == 0)
         fail(ctx, "unexpected end of shader.");
-
-    else if ((rc = parse_comment_token(ctx)) != 0)
+    else if((rc=parse_comment_token(ctx)) != 0)
+        return rc;
+    else if((rc=parse_end_token(ctx)) != 0)
+        return rc;
+    else if((rc=parse_phase_token(ctx)) != 0)
+        return rc;
+    else if((rc=parse_instruction_token(ctx)) != 0)
         return rc;
 
-    else if ((rc = parse_end_token(ctx)) != 0)
-        return rc;
-
-    else if ((rc = parse_phase_token(ctx)) != 0)
-        return rc;
-
-    else if ((rc = parse_instruction_token(ctx)) != 0)
-        return rc;
-
-    failf(ctx, "unknown token (0x%x)", (uint) *ctx->tokens);
+    failf(ctx, "unknown token (0x%x)", (uint)*ctx->tokens);
     return 1;  // good luck!
-} // parse_token
+}
 
 
 static int find_profile_id(const char *profile)
 {
     size_t i;
-    for (i = 0; i < STATICARRAYLEN(profileMap); i++)
+    for(i = 0;i < STATICARRAYLEN(profileMap);i++)
     {
         const char *name = profileMap[i].from;
-        if (strcmp(name, profile) == 0)
+        if(strcmp(name, profile) == 0)
         {
             profile = profileMap[i].to;
             break;
-        } // if
-    } // for
+        }
+    }
 
-    for (i = 0; i < STATICARRAYLEN(profiles); i++)
+    for(i = 0;i < STATICARRAYLEN(profiles);i++)
     {
         const char *name = profiles[i].name;
         if (strcmp(name, profile) == 0)
             return i;
-    } // for
+    }
 
     return -1;  // no match.
-} // find_profile_id
+}
 
 
 static Context *build_context(const char *profile,
@@ -4448,7 +4415,7 @@ static Context *build_context(const char *profile,
     ctx->tokens = (const uint32 *) tokenbuf;
     ctx->orig_tokens = (const uint32 *) tokenbuf;
     ctx->know_shader_size = (bufsize != 0);
-    ctx->tokencount = ctx->know_shader_size ? (bufsize / sizeof (uint32)) : 0xFFFFFFFF;
+    ctx->tokencount = ctx->know_shader_size ? (bufsize/sizeof(uint32)) : 0xFFFFFFFF;
     ctx->samplermap = smap;
     ctx->samplermap_count = smapcount;
     ctx->shadow_samplers = shadowsamp;
@@ -4487,7 +4454,7 @@ static Context *build_context(const char *profile,
 
 static void free_constants_list(ConstantsList *item)
 {
-    while (item != NULL)
+    while(item != NULL)
     {
         ConstantsList *next = item->next;
         free(item);
@@ -4577,7 +4544,7 @@ static MOJOSHADER_sampler *build_samplers(Context *ctx)
         }
 
         assert(item->regtype == REG_TYPE_SAMPLER);
-        retval[i].type = cvtD3DToMojoSamplerType((TextureType) item->index);
+        retval[i].type = cvtD3DToMojoSamplerType((TextureType)item->index);
         retval[i].index = item->regnum;
         retval[i].name = alloc_varname(ctx, item);
         retval[i].texbem = (item->misc != 0) ? 1 : 0;
@@ -4586,7 +4553,6 @@ static MOJOSHADER_sampler *build_samplers(Context *ctx)
 
     return retval;
 }
-
 
 static MOJOSHADER_attribute *build_attributes(Context *ctx, int *_count)
 {
@@ -4658,7 +4624,7 @@ static MOJOSHADER_attribute *build_outputs(Context *ctx, int *_count)
 {
     int count = 0;
 
-    if (ctx->attribute_count == 0)
+    if(ctx->attribute_count == 0)
     {
         *_count = 0;
         return NULL;
@@ -4680,7 +4646,7 @@ static MOJOSHADER_attribute *build_outputs(Context *ctx, int *_count)
             break;
         }
 
-        switch (item->regtype)
+        switch(item->regtype)
         {
             case REG_TYPE_RASTOUT:
             case REG_TYPE_ATTROUT:
@@ -4702,7 +4668,7 @@ static MOJOSHADER_attribute *build_outputs(Context *ctx, int *_count)
 
     *_count = count;
     return retval;
-} // build_outputs
+}
 
 
 static MOJOSHADER_parseData *build_parsedata(Context *ctx)
@@ -4731,28 +4697,28 @@ static MOJOSHADER_parseData *build_parsedata(Context *ctx)
     errors = errorlist_flatten(ctx->errors);
 
     // check again, in case build_output, etc, ran out of memory.
-    if (isfail(ctx))
+    if(isfail(ctx))
     {
         int i;
 
         free(output);
         free(constants);
 
-        if (attributes != NULL)
+        if(attributes != NULL)
         {
-            for (i = 0; i < attribute_count; i++)
+            for(i = 0; i < attribute_count; i++)
                 free((void*)attributes[i].name);
             free(attributes);
         }
 
-        if (outputs != NULL)
+        if(outputs != NULL)
         {
-            for (i = 0; i < output_count; i++)
+            for(i = 0; i < output_count; i++)
                 free((void*)outputs[i].name);
             free(outputs);
         }
 
-        if (samplers != NULL)
+        if(samplers != NULL)
         {
             for(i = 0; i < ctx->sampler_count; i++)
                 free((void*)samplers[i].name);
@@ -4763,12 +4729,12 @@ static MOJOSHADER_parseData *build_parsedata(Context *ctx)
     {
         retval->profile = ctx->profile->name;
         retval->output = output;
-        retval->output_len = (int) output_len;
+        retval->output_len = (int)output_len;
         retval->instruction_count = ctx->instruction_count;
         retval->token_count = ctx->tokens - ctx->orig_tokens;
         retval->shader_type = ctx->shader_type;
-        retval->major_ver = (int) ctx->major_ver;
-        retval->minor_ver = (int) ctx->minor_ver;
+        retval->major_ver = (int)ctx->major_ver;
+        retval->minor_ver = (int)ctx->minor_ver;
         retval->constant_count = ctx->constant_count;
         retval->constants = constants;
         retval->sampler_count = ctx->sampler_count;
@@ -4798,16 +4764,16 @@ static void process_definitions(Context *ctx)
     RegisterList *prev = &ctx->used_registers;
     RegisterList *item = prev->next;
 
-    while (item != NULL)
+    while(item != NULL)
     {
         RegisterList *next = item->next;
         const RegisterType regtype = item->regtype;
         const int regnum = item->regnum;
 
-        if (!get_defined_register(ctx, regtype, regnum))
+        if(!get_defined_register(ctx, regtype, regnum))
         {
             // haven't already dealt with this one.
-            switch (regtype)
+            switch(regtype)
             {
                 // !!! FIXME: I'm not entirely sure this is right...
                 case REG_TYPE_RASTOUT:
@@ -4815,7 +4781,7 @@ static void process_definitions(Context *ctx)
                 case REG_TYPE_TEXCRDOUT:
                 case REG_TYPE_COLOROUT:
                 case REG_TYPE_DEPTHOUT:
-                    if (shader_is_vertex(ctx) && shader_version_atleast(ctx,3,0))
+                    if(shader_is_vertex(ctx) && shader_version_atleast(ctx,3,0))
                     {
                         fail(ctx, "vs_3 can't use output registers"
                                   " without declaring them first.");
@@ -4850,7 +4816,7 @@ static void process_definitions(Context *ctx)
 
                 case REG_TYPE_INPUT:
                     // You don't have to dcl_ your inputs in Shader Model 1.
-                    if (shader_is_pixel(ctx) && !shader_version_atleast(ctx,2,0))
+                    if(shader_is_pixel(ctx) && !shader_version_atleast(ctx,2,0))
                     {
                         add_attribute_register(ctx, regtype, regnum,
                                                MOJOSHADER_USAGE_COLOR, regnum,
@@ -4869,12 +4835,12 @@ static void process_definitions(Context *ctx)
     }
 
     // ...and uniforms...
-    for (item = ctx->uniforms.next; item != NULL; item = item->next)
+    for(item = ctx->uniforms.next;item != NULL;item = item->next)
     {
         ctx->profile->uniform_emitter(ctx, item->regtype, item->regnum);
 
         ctx->uniform_count++;
-        switch (item->regtype)
+        switch(item->regtype)
         {
             case REG_TYPE_CONST:
                 ctx->uniform_float4_count = Max(ctx->uniform_float4_count, item->regnum+1);
@@ -4898,16 +4864,15 @@ static void process_definitions(Context *ctx)
     }
 
     // ...and samplers...
-    for (item = ctx->samplers.next; item != NULL; item = item->next)
+    for(item = ctx->samplers.next; item != NULL; item = item->next)
     {
         ctx->sampler_count++;
-        ctx->profile->sampler_emitter(ctx, item->regnum,
-                                      (TextureType) item->index,
+        ctx->profile->sampler_emitter(ctx, item->regnum, (TextureType)item->index,
                                       item->misc != 0);
     }
 
     // ...and attributes...
-    for (item = ctx->attributes.next; item != NULL; item = item->next)
+    for(item = ctx->attributes.next; item != NULL; item = item->next)
     {
         ctx->attribute_count++;
         ctx->profile->attribute_emitter(ctx, item->regtype, item->regnum,
@@ -4957,7 +4922,7 @@ const MOJOSHADER_parseData *MOJOSHADER_parse(const char *profile,
         return retval;
     }
 
-    if(((uint32)rc) > ctx->tokencount)
+    if((uint32)rc > ctx->tokencount)
     {
         fail(ctx, "Corrupted or truncated shader");
         ctx->tokencount = rc;
@@ -4979,7 +4944,7 @@ const MOJOSHADER_parseData *MOJOSHADER_parse(const char *profile,
         }
 
         rc = parse_token(ctx);
-        if(((uint32)rc) > ctx->tokencount)
+        if((uint32)rc > ctx->tokencount)
         {
             fail(ctx, "Corrupted or truncated shader");
             break;
@@ -5022,7 +4987,7 @@ void MOJOSHADER_freeParseData(const MOJOSHADER_parseData *_data)
 
     int i;
 
-    // we don't f(data->profile), because that's internal static data.
+    // we don't free(data->profile), because that's internal static data.
 
     free((void*)data->output);
     free((void*)data->constants);
