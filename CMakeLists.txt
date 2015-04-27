@@ -84,6 +84,7 @@ set(HDRS  include/query.hpp
           include/commandqueue.hpp
           include/private_iids.hpp
           include/condwait.hpp
+          include/allocators.hpp
 )
 
 set(SRCS  src/query.cpp

@@ -7,6 +7,7 @@
 #include <d3d9.h>
 
 #include "glew.h"
+#include "allocators.hpp"
 
 
 struct GLFormatInfo;
@@ -22,7 +23,7 @@ class D3DGLCubeTexture : public IDirect3DCubeTexture9 {
     const GLFormatInfo *mGLFormat;
     bool mIsCompressed;
     GLuint mTexId;
-    std::vector<GLubyte> mSysMem;
+    std::vector<GLubyte,AlignedAllocator<GLubyte>> mSysMem;
 
     std::array<RECT,6> mDirtyRect;
     std::atomic<ULONG> mUpdateInProgress;

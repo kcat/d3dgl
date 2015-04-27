@@ -6,6 +6,7 @@
 #include <d3d9.h>
 
 #include "glew.h"
+#include "allocators.hpp"
 
 
 class D3DGLDevice;
@@ -22,7 +23,7 @@ class D3DGLBufferObject : public IDirect3DVertexBuffer9, public IDirect3DIndexBu
     D3DPOOL mPool;
 
     GLuint mBufferId;
-    std::vector<GLubyte> mSysMem;
+    std::vector<GLubyte,AlignedAllocator<GLubyte>> mSysMem;
 
     enum LockType {
         LT_Unlocked,
