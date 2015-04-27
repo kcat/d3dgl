@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <vector>
+#include <memory>
 #include <d3d9.h>
 
 #include "glew.h"
@@ -10,6 +11,17 @@
 
 
 class D3DGLDevice;
+
+class BufferDataAlloc {
+public:
+    GLubyte *operator()(size_t len)
+    { return AlignedAllocator<GLubyte>().allocate(len); }
+};
+class BufferDataFree {
+public:
+    void operator()(void *ptr)
+    { AlignedAllocator<GLubyte>().deallocate(static_cast<GLubyte*>(ptr), 0); }
+};
 
 class D3DGLBufferObject : public IDirect3DVertexBuffer9, public IDirect3DIndexBuffer9 {
     std::atomic<ULONG> mRefCount;
@@ -23,7 +35,7 @@ class D3DGLBufferObject : public IDirect3DVertexBuffer9, public IDirect3DIndexBu
     D3DPOOL mPool;
 
     GLuint mBufferId;
-    std::vector<GLubyte,AlignedAllocator<GLubyte>> mSysMem;
+    std::shared_ptr<GLubyte> mBufData;
 
     enum LockType {
         LT_Unlocked,
@@ -49,8 +61,8 @@ public:
 
     void resetBufferData(const GLubyte *data, GLuint length);
 
-    void initGL();
-    void loadBufferDataGL(UINT offset, UINT length);
+    void initGL(const GLubyte *data);
+    void loadBufferDataGL(UINT offset, UINT length, const GLubyte *data);
     void resizeBufferGL();
 
     D3DFORMAT getFormat() const { return mFormat; }
