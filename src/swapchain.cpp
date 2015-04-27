@@ -18,10 +18,9 @@ void D3DGLSwapChain::swapBuffersGL(size_t backbuffer)
     if(!SwapBuffers(mDevCtx))
         ERR("Failed to swap buffers, error: 0x%lx\n", GetLastError());
 
-    ConditionWaiter &waiter = mParent->getSwapWaiter();
-    waiter.prepareSignal();
+    mSwapWaiter.prepareSignal();
     --mPendingSwaps;
-    waiter.sendSignal();
+    mSwapWaiter.sendSignal();
 }
 class SwapchainSwapBuffers : public Command {
     D3DGLSwapChain *mTarget;
@@ -183,6 +182,12 @@ HRESULT D3DGLSwapChain::Present(const RECT *srcRect, const RECT *dstRect, HWND d
         WARN("Dirty region ignored\n");
     if(flags)
         FIXME("Ignoring flags 0x%lx\n", flags);
+
+    // Wait for the last swap to complete before doing the next one
+    mSwapWaiter.beginWait();
+    while(mPendingSwaps > 0)
+        mSwapWaiter.wait();
+    mSwapWaiter.endWait();
 
     ++mPendingSwaps;
     mParent->getQueue().send<SwapchainSwapBuffers>(this, 0);

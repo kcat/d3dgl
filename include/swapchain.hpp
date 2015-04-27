@@ -5,6 +5,8 @@
 #include <vector>
 #include <d3d9.h>
 
+#include "condwait.hpp"
+
 
 class D3DGLDevice;
 class D3DGLRenderTarget;
@@ -21,6 +23,7 @@ class D3DGLSwapChain : public IDirect3DSwapChain9 {
     HDC mDevCtx;
     bool mIsAuto;
 
+    ConditionWaiter mSwapWaiter;
     std::atomic<ULONG> mPendingSwaps;
 
     void addIface();

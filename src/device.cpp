@@ -2619,12 +2619,6 @@ HRESULT D3DGLDevice::BeginScene()
         return D3DERR_INVALIDCALL;
     }
 
-    // Wait for the last swap to complete before starting the next scene
-    mSwapWaiter.beginWait();
-    while(mSwapchains[0]->getPendingSwaps() > 0)
-        mSwapWaiter.wait();
-    mSwapWaiter.endWait();
-
     // TODO: Prepare any GL state? Depends on what's allowed or not to be
     // called within a 'scene'.
 

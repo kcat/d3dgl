@@ -8,7 +8,6 @@
 
 #include "d3dgl.hpp"
 #include "commandqueue.hpp"
-#include "condwait.hpp"
 
 
 class D3DGLSwapChain;
@@ -149,7 +148,7 @@ class D3DGLDevice : public IDirect3DDevice9 {
 
     D3DGLBufferObject *mPrimitiveUserData;
 
-    ConditionWaiter mSwapWaiter;
+    /* Bit-depth of the current depth-stencil buffer */
     UINT mDepthBits;
 
     /* Bitmask of sampler stages that have a shadow texture format */
@@ -179,7 +178,6 @@ public:
 
     const D3DAdapter &getAdapter() const { return mAdapter; }
     CommandQueue &getQueue() { return mQueue; }
-    ConditionWaiter &getSwapWaiter() { return mSwapWaiter; }
 
     GLuint getShaderPipeline() const { return mGLState.pipeline; }
 
