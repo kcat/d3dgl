@@ -1302,6 +1302,7 @@ void D3DGLDevice::deinitGL()
 {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+    glDeleteBuffers(1, &mGLState.vtx_state_uniform_buffer);
     glDeleteBuffers(1, &mGLState.pos_fixup_uniform_buffer);
     glDeleteBuffers(1, &mGLState.ps_uniform_bufferf);
     glDeleteBuffers(1, &mGLState.vs_uniform_bufferf);
