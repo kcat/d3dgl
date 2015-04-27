@@ -2429,7 +2429,7 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
         rtarget = mRenderTargets[index].exchange(cubesurface);
         mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
             GL_COLOR_ATTACHMENT0+index, cubesurface->getTarget(), cubetex->getTextureId(),
-            0
+            cubesurface->getLevel()
         );
     }
     else
