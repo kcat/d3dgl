@@ -334,6 +334,10 @@ HRESULT D3DGLBufferObject::Lock(UINT offset, UINT length, void **data, DWORD fla
         return D3DERR_INVALIDCALL;
     }
 
+    // FIXME: Try to allocate a new sysmem segment with D3DLOCK_DISCARD
+    DWORD unknown_flags = flags & ~(D3DLOCK_READONLY|D3DLOCK_NOOVERWRITE|D3DLOCK_DISCARD|D3DLOCK_NOSYSLOCK);
+    if(unknown_flags) FIXME("Unhandled flags: 0x%lx\n", unknown_flags);
+
     if((flags&D3DLOCK_READONLY))
     {
         if((mUsage&D3DUSAGE_WRITEONLY))
@@ -346,15 +350,24 @@ HRESULT D3DGLBufferObject::Lock(UINT offset, UINT length, void **data, DWORD fla
     {
         LockType lt = ((flags&D3DLOCK_READONLY) ? LT_ReadOnly : LT_Full);
         LockType nolock = LT_Unlocked;
+        // Apparently this is allowed? According to MSDN: "When working with
+        // vertex buffers, you are allowed to make multiple lock calls;
+        // however, you must ensure that the number of lock calls match the
+        // number of unlock calls. DrawPrimitive calls will not succeed with
+        // any outstanding lock count on any currently set vertex buffer."
         if(!mLock.compare_exchange_strong(nolock, lt))
         {
-            WARN("Locking a locked buffer\n");
+            FIXME("Locking a locked buffer\n");
             return D3DERR_INVALIDCALL;
         }
     }
 
-    while(mUpdateInProgress)
-        Sleep(1);
+    // No need to wait if we're not writing over previous data.
+    if(!(flags&D3DLOCK_NOOVERWRITE) && !(flags&D3DLOCK_READONLY))
+    {
+        while(mUpdateInProgress)
+            Sleep(1);
+    }
 
     mLockedOffset = offset;
     mLockedLength = length;

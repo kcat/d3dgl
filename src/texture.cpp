@@ -651,7 +651,7 @@ HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *re
         return D3DERR_INVALIDCALL;
     }
 
-    DWORD unknown_flags = flags & ~(D3DLOCK_DISCARD|D3DLOCK_READONLY|D3DLOCK_NO_DIRTY_UPDATE);
+    DWORD unknown_flags = flags & ~(D3DLOCK_DISCARD|D3DLOCK_NOOVERWRITE|D3DLOCK_READONLY|D3DLOCK_NO_DIRTY_UPDATE);
     if(unknown_flags) FIXME("Unknown lock flags: 0x%lx\n", unknown_flags);
 
     UINT w = std::max(1u, mParent->mDesc.Width>>mLevel);
@@ -683,8 +683,12 @@ HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *re
         }
     }
 
-    while(mParent->mUpdateInProgress)
-        Sleep(1);
+    // No need to wait if we're not writing over previous data.
+    if(!(flags&D3DLOCK_NOOVERWRITE) && !(flags&D3DLOCK_READONLY))
+    {
+        while(mParent->mUpdateInProgress)
+            Sleep(1);
+    }
 
     GLubyte *memPtr = &mParent->mSysMem[mDataOffset];
     mLockRegion = *rect;
