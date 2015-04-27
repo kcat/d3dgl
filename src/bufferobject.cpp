@@ -205,12 +205,9 @@ bool D3DGLBufferObject::init_ibo(UINT length, DWORD usage, D3DFORMAT format, D3D
 
 void D3DGLBufferObject::resetBufferData(const GLubyte *data, GLuint length)
 {
-    while(mUpdateInProgress)
-        Sleep(1);
-
     ++mUpdateInProgress;
     mParent->getQueue().lock();
-    if(length > mLength)
+    if(length > mLength || mUpdateInProgress > 1)
     {
         UINT data_len = (length+15) & ~15;
         mBufData.reset(BufferDataAlloc()(data_len), BufferDataFree());
