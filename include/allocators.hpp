@@ -36,7 +36,7 @@ public:
     typedef T         value_type;
     typedef T        *pointer;
     typedef const T  *const_pointer;
-    typedef T&        reference;
+    typedef T        &reference;
     typedef const T  &const_reference;
     typedef size_t    size_type;
     typedef ptrdiff_t difference_type;
@@ -112,7 +112,7 @@ public:
 
     pointer allocate(size_type n, typename AlignedAllocator<void, Align>::const_pointer = 0)
     {
-        const size_type alignment = static_cast<size_type>( Align );
+        const size_type alignment = static_cast<size_type>(Align);
         void *ptr = _aligned_malloc(n * sizeof(T), alignment);
         if(ptr == nullptr) throw std::bad_alloc();
         return reinterpret_cast<pointer>(ptr);
