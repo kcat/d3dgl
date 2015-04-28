@@ -19,8 +19,8 @@ public:
 };
 class BufferDataFree {
 public:
-    void operator()(void *ptr)
-    { AlignedAllocator<GLubyte>().deallocate(static_cast<GLubyte*>(ptr), 0); }
+    void operator()(GLubyte *ptr)
+    { AlignedAllocator<GLubyte>().deallocate(ptr, 0); }
 };
 
 class D3DGLBufferObject : public IDirect3DVertexBuffer9, public IDirect3DIndexBuffer9 {
