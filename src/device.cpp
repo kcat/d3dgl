@@ -2732,12 +2732,33 @@ HRESULT D3DGLDevice::Clear(DWORD count, const D3DRECT *rects, DWORD flags, D3DCO
 {
     TRACE("iface %p, count %lu, rects %p, flags 0x%lx, color 0x%08lx, depth %f, stencil 0x%lx\n", this, count, rects, flags, color, depth, stencil);
 
-    GLbitfield mask = 0;
-    if((flags&D3DCLEAR_TARGET)) mask |= GL_COLOR_BUFFER_BIT;
-    if((flags&D3DCLEAR_ZBUFFER)) mask |= GL_DEPTH_BUFFER_BIT;
-    if((flags&D3DCLEAR_STENCIL)) mask |= GL_STENCIL_BUFFER_BIT;
-
     mQueue.lock();
+    GLbitfield mask = 0;
+    if((flags&D3DCLEAR_TARGET))
+        mask |= GL_COLOR_BUFFER_BIT;
+    if((flags&D3DCLEAR_ZBUFFER))
+    {
+        if(!mDepthStencil)
+        {
+            mQueue.unlock();
+            WARN("Trying to clear depth without a depth-stencil buffer\n");
+            return D3DERR_INVALIDCALL;
+        }
+        mask |= GL_DEPTH_BUFFER_BIT;
+        if((flags&D3DCLEAR_STENCIL))
+            mask |= GL_STENCIL_BUFFER_BIT;
+    }
+    else if((flags&D3DCLEAR_STENCIL))
+    {
+        if(!mDepthStencil)
+        {
+            mQueue.unlock();
+            WARN("Trying to clear stencil without a depth-stencil buffer\n");
+            return D3DERR_INVALIDCALL;
+        }
+        mask |= GL_STENCIL_BUFFER_BIT;
+    }
+
     if(count == 0)
     {
         RECT main_rect;
