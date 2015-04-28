@@ -1376,8 +1376,18 @@ D3DGLDevice::~D3DGLDevice()
     delete mPrimitiveUserData;
     mPrimitiveUserData = nullptr;
 
-    D3DGLVertexDeclaration *vtxdecl = mVertexDecl.exchange(nullptr);
-    if(vtxdecl) vtxdecl->releaseIface();
+    for(auto &stream : mStreams)
+    {
+        if(stream.mBuffer)
+            stream.mBuffer->releaseIface();
+        stream.mBuffer = nullptr;
+    }
+
+    if(D3DGLBufferObject *idxbuffer = mIndexBuffer.exchange(nullptr))
+        idxbuffer->releaseIface();
+
+    if(D3DGLVertexDeclaration *vtxdecl = mVertexDecl.exchange(nullptr))
+        vtxdecl->releaseIface();
 
     for(auto &fvfdecl : mVtxDeclMap)
         delete fvfdecl.second;
@@ -3537,7 +3547,7 @@ HRESULT D3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE type, UINT count, const vo
     else
     {
         if(mStreams[0].mBuffer)
-            mStreams[0].mBuffer->Release();
+            mStreams[0].mBuffer->releaseIface();
         mStreams[0].mBuffer = nullptr;
         mStreams[0].mOffset = 0;
         mStreams[0].mStride = 0;
@@ -3838,20 +3848,26 @@ HRESULT D3DGLDevice::SetStreamSource(UINT index, IDirect3DVertexBuffer9 *stream,
         return D3DERR_INVALIDCALL;
     }
 
-    D3DGLBufferObject *buffer = nullptr;
-    if(stream)
+    if(!stream)
     {
-        HRESULT hr;
-        hr = stream->QueryInterface(IID_D3DGLBufferObject, (void**)&buffer);
-        if(FAILED(hr)) return D3DERR_INVALIDCALL;
+        if(mStreams[index].mBuffer)
+            mStreams[index].mBuffer->releaseIface();
+        mStreams[index].mBuffer = nullptr;
+        return D3D_OK;
     }
 
+    D3DGLBufferObject *buffer;
+    if(FAILED(stream->QueryInterface(IID_D3DGLBufferObject, (void**)&buffer)))
+        return D3DERR_INVALIDCALL;
+    buffer->addIface();
+
     if(mStreams[index].mBuffer)
-        mStreams[index].mBuffer->Release();
+        mStreams[index].mBuffer->releaseIface();
     mStreams[index].mBuffer = buffer;
     mStreams[index].mOffset = offset;
     mStreams[index].mStride = stride;
 
+    buffer->Release();
     return D3D_OK;
 }
 
@@ -3926,12 +3942,14 @@ HRESULT D3DGLDevice::SetIndices(IDirect3DIndexBuffer9 *index)
         HRESULT hr;
         hr = index->QueryInterface(IID_D3DGLBufferObject, (void**)&buffer);
         if(FAILED(hr)) return D3DERR_INVALIDCALL;
+        buffer->addIface();
+        buffer->Release();
     }
 
     mQueue.lock();
     D3DGLBufferObject *oldbuffer = mIndexBuffer.exchange(buffer);
     mQueue.sendAndUnlock<ElementArraySet>(buffer ? buffer->getBufferId() : 0);
-    if(oldbuffer) oldbuffer->Release();
+    if(oldbuffer) oldbuffer->releaseIface();
 
     return D3D_OK;
 }

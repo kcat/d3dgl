@@ -25,6 +25,7 @@ public:
 
 class D3DGLBufferObject : public IDirect3DVertexBuffer9, public IDirect3DIndexBuffer9 {
     std::atomic<ULONG> mRefCount;
+    std::atomic<ULONG> mIfaceCount;
 
     D3DGLDevice *mParent;
 
@@ -66,6 +67,9 @@ public:
     void resizeBufferGL();
 
     D3DFORMAT getFormat() const { return mFormat; }
+
+    ULONG addIface() { return ++mIfaceCount; }
+    ULONG releaseIface();
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;

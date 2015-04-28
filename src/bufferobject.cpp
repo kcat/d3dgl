@@ -94,6 +94,7 @@ public:
 
 D3DGLBufferObject::D3DGLBufferObject(D3DGLDevice *parent)
   : mRefCount(0)
+  , mIfaceCount(0)
   , mParent(parent)
   , mLength(0)
   , mUsage(0)
@@ -219,6 +220,13 @@ void D3DGLBufferObject::resetBufferData(const GLubyte *data, GLuint length)
     mParent->getQueue().sendAndUnlock<LoadBufferDataCmd>(this, 0, mLength, mBufData);
 }
 
+ULONG D3DGLBufferObject::releaseIface()
+{
+    ULONG ret = --mIfaceCount;
+    if(ret == 0) delete this;
+    return ret;
+}
+
 
 HRESULT D3DGLBufferObject::QueryInterface(REFIID riid, void **obj)
 {
@@ -246,7 +254,11 @@ ULONG D3DGLBufferObject::AddRef()
 {
     ULONG ret = ++mRefCount;
     TRACE("%p New refcount: %lu\n", this, ret);
-    if(ret == 1) mParent->AddRef();
+    if(ret == 1)
+    {
+        addIface();
+        mParent->AddRef();
+    }
     return ret;
 }
 
@@ -257,7 +269,7 @@ ULONG D3DGLBufferObject::Release()
     if(ret == 0)
     {
         D3DGLDevice *parent = mParent;
-        delete this;
+        releaseIface();
         parent->Release();
     }
     return ret;
