@@ -38,7 +38,7 @@ public:
     bool init(const D3DPRESENT_PARAMETERS *params, HWND window, bool isauto=false);
 
     D3DGLRenderTarget *getBackbuffer() { return mBackbuffers[0]; }
-    ULONG getPendingSwaps() const { return mPendingSwaps; }
+    bool getIsWindowed() const { return mParams.Windowed; }
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;

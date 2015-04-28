@@ -1752,7 +1752,29 @@ HRESULT D3DGLDevice::CreateAdditionalSwapChain(D3DPRESENT_PARAMETERS *params, ID
         }
     }
 
-    return E_NOTIMPL;
+    if(!mSwapchains[0]->getIsWindowed())
+    {
+        WARN("Cannot create additional swapchain on fullscreen device\n");
+        return D3DERR_INVALIDCALL;
+    }
+    if(!params->Windowed)
+    {
+        WARN("Cannot create additional fullscreen swapchain\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    HWND win = (!params->hDeviceWindow ? mWindow : params->hDeviceWindow);
+    D3DGLSwapChain *swapchain = new D3DGLSwapChain(this);
+    if(!swapchain->init(params, win))
+    {
+        delete swapchain;
+        return D3DERR_INVALIDCALL;
+    }
+
+    *schain = swapchain;
+    (*schain)->AddRef();
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::GetSwapChain(UINT swapchain, IDirect3DSwapChain9 **schain)
