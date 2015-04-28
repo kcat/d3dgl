@@ -336,7 +336,6 @@ HRESULT D3DGLBufferObject::Lock(UINT offset, UINT length, void **data, DWORD fla
         return D3DERR_INVALIDCALL;
     }
 
-    // FIXME: Try to allocate a new sysmem segment with D3DLOCK_DISCARD
     DWORD unknown_flags = flags & ~(D3DLOCK_READONLY|D3DLOCK_NOOVERWRITE|D3DLOCK_DISCARD|D3DLOCK_NOSYSLOCK);
     if(unknown_flags) FIXME("Unhandled flags: 0x%lx\n", unknown_flags);
 
