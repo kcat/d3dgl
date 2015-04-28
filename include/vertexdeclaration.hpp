@@ -30,8 +30,8 @@ public:
     D3DGLVertexDeclaration(D3DGLDevice *parent);
     virtual ~D3DGLVertexDeclaration();
 
-    bool init(DWORD fvf, bool isauto=false);
-    bool init(const D3DVERTEXELEMENT9 *elems, bool isauto=false);
+    HRESULT init(DWORD fvf, bool isauto=false);
+    HRESULT init(const D3DVERTEXELEMENT9 *elems, bool isauto=false);
 
     ULONG addIface() { return ++mIfaceCount; }
     ULONG releaseIface();

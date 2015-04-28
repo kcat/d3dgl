@@ -3487,15 +3487,16 @@ HRESULT D3DGLDevice::CreateVertexDeclaration(const D3DVERTEXELEMENT9 *elems, IDi
     TRACE("iface %p, elems %p, decl %p\n", this, elems, decl);
 
     D3DGLVertexDeclaration *vtxdecl = new D3DGLVertexDeclaration(this);
-    if(!vtxdecl->init(elems))
+    HRESULT hr = vtxdecl->init(elems);
+    if(FAILED(hr))
     {
         delete vtxdecl;
-        return D3DERR_INVALIDCALL;
+        return hr;
     }
 
     *decl = vtxdecl;
     (*decl)->AddRef();
-    return D3D_OK;
+    return hr;
 }
 
 HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9 *decl)
@@ -3557,11 +3558,12 @@ HRESULT D3DGLDevice::SetFVF(DWORD fvf)
     else
     {
         vtxdecl = new D3DGLVertexDeclaration(this);
-        if(!vtxdecl->init(fvf, true))
+        HRESULT hr = vtxdecl->init(fvf, true);
+        if(FAILED(hr))
         {
             delete vtxdecl;
             mQueue.unlock();
-            return D3DERR_INVALIDCALL;
+            return hr;
         }
         mVtxDeclMap.insert(std::make_pair(fvf, vtxdecl));
     }

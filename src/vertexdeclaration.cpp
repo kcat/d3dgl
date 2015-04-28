@@ -48,7 +48,7 @@ D3DGLVertexDeclaration::~D3DGLVertexDeclaration()
 {
 }
 
-bool D3DGLVertexDeclaration::init(DWORD fvf, bool isauto)
+HRESULT D3DGLVertexDeclaration::init(DWORD fvf, bool isauto)
 {
     bool has_pos = (fvf&D3DFVF_POSITION_MASK) != 0;
     bool has_blend = (fvf&D3DFVF_XYZB5) > D3DFVF_XYZRHW;
@@ -140,7 +140,7 @@ bool D3DGLVertexDeclaration::init(DWORD fvf, bool isauto)
     return init(elems.data(), isauto);
 }
 
-bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems, bool isauto)
+HRESULT D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems, bool isauto)
 {
     mIsAuto = isauto;
 
@@ -148,6 +148,12 @@ bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems, bool isauto)
     size_t size = 0;
     while(!isEnd(elems[size]))
     {
+        if((elems[size].Offset&3) != 0)
+        {
+            FIXME("Invalid element offset (%u, expected alignment of 4)\n", elems[size].Offset);
+            return E_FAIL;
+        }
+
         if(elems[size].Usage == D3DDECLUSAGE_POSITION)
             haspos = true;
         else if(elems[size].Usage == D3DDECLUSAGE_POSITIONT)
@@ -166,13 +172,14 @@ bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems, bool isauto)
         }
         else
             FIXME("Unhandled element usage type: 0x%x\n", elems[size].Usage);
+
         ++size;
     }
 
     if(haspos && haspost)
     {
         FIXME("Position and PositionT specified in declaration\n");
-        return false;
+        return E_FAIL;
     }
 
     mElements.resize(size);
@@ -271,7 +278,7 @@ bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems, bool isauto)
 #endif
             default:
                 ERR("Unhandled element type: 0x%x\n", (UINT)elem.Type);
-                return false;
+                return E_FAIL;
         }
 
         TRACE("Index: %u, Offset: %u, Type: 0x%x, Method: 0x%x, Usage: 0x%x, UsageIndex: %u\n",
@@ -284,7 +291,7 @@ bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems, bool isauto)
     //{
     //}
 
-    return true;
+    return D3D_OK;
 }
 
 ULONG D3DGLVertexDeclaration::releaseIface()
