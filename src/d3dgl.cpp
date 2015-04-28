@@ -74,6 +74,24 @@ D3DFORMAT pixelformat_for_depth(DWORD depth)
     return D3DFMT_UNKNOWN;
 }
 
+
+void setup_fpu(void)
+{
+#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
+    WORD cw;
+    __asm__ volatile ("fnstcw %0" : "=m" (cw));
+    cw = (cw & ~0xf3f) | 0x3f;
+    __asm__ volatile ("fldcw %0" : : "m" (cw));
+#elif defined(__i386__) && defined(_MSC_VER)
+    WORD cw;
+    __asm fnstcw cw;
+    cw = (cw & ~0xf3f) | 0x3f;
+    __asm fldcw cw;
+#else
+    FIXME("FPU setup not implemented for this platform.\n");
+#endif
+}
+
 } // namespace
 
 
@@ -363,16 +381,18 @@ HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND window, 
         return D3DERR_INVALIDCALL;
     }
 
+    if(!(flags&D3DCREATE_FPU_PRESERVE))
+        setup_fpu();
+
     // FIXME: handle known flags
-    //D3DCREATE_FPU_PRESERVE
     //D3DCREATE_MULTITHREADED - we should be thread-safe already
     //D3DCREATE_PUREDEVICE
     //D3DCREATE_SOFTWARE_VERTEXPROCESSING - OpenGL handles vertex processing for us
-    //D3DCREATE_HARDWARE_VERTEXPROCESSING -   ^       ^       ^        ^      ^  ^
     //D3DCREATE_MIXED_VERTEXPROCESSING    -   ^       ^       ^        ^      ^  ^
     //D3DCREATE_DISABLE_DRIVER_MANAGEMENT
     //D3DCREATE_ADAPTERGROUP_DEVICE
-    FIXME("Unhandled flags: 0x%lx\n", flags);
+    DWORD unknown_flags = flags & ~(D3DCREATE_FPU_PRESERVE|D3DCREATE_HARDWARE_VERTEXPROCESSING);
+    if(unknown_flags) FIXME("Unhandled flags: 0x%lx\n", unknown_flags);
 
     D3DGLDevice *device = new D3DGLDevice(this, gAdapterList[adapter], window, flags);
     if(!device->init(params))
