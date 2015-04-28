@@ -1411,6 +1411,7 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
         params->BackBufferCount = 1;
         return false;
     }
+    params->BackBufferCount = 1;
 
     if((params->Flags&D3DPRESENTFLAG_LOCKABLE_BACKBUFFER))
     {
@@ -1698,6 +1699,59 @@ WINBOOL D3DGLDevice::ShowCursor(WINBOOL show)
 HRESULT D3DGLDevice::CreateAdditionalSwapChain(D3DPRESENT_PARAMETERS *params, IDirect3DSwapChain9 **schain)
 {
     FIXME("iface %p, params %p, schain %p : stub!\n", this, params, schain);
+
+    TRACE("Creating additional swapchain with parameters:\n"
+          "\tBackBufferWidth            = %u\n"
+          "\tBackBufferHeight           = %u\n"
+          "\tBackBufferFormat           = %s\n"
+          "\tBackBufferCount            = %u\n"
+          "\tMultiSampleType            = 0x%x\n"
+          "\tMultiSampleQuality         = %lu\n"
+          "\tSwapEffect                 = 0x%x\n"
+          "\thDeviceWindow              = %p\n"
+          "\tWindowed                   = %d\n"
+          "\tEnableAutoDepthStencil     = %d\n"
+          "\tAutoDepthStencilFormat     = %s\n"
+          "\tFlags                      = 0x%lx\n"
+          "\tFullScreen_RefreshRateInHz = %u\n"
+          "\tPresentationInterval       = 0x%x\n",
+          params->BackBufferWidth, params->BackBufferHeight, d3dfmt_to_str(params->BackBufferFormat),
+          params->BackBufferCount, params->MultiSampleType, params->MultiSampleQuality,
+          params->SwapEffect, params->hDeviceWindow, params->Windowed,
+          params->EnableAutoDepthStencil, d3dfmt_to_str(params->AutoDepthStencilFormat),
+          params->Flags, params->FullScreen_RefreshRateInHz, params->PresentationInterval);
+
+    *schain = nullptr;
+
+    if(params->BackBufferCount > 1)
+    {
+        WARN("Too many backbuffers requested (%u)\n", params->BackBufferCount);
+        params->BackBufferCount = 1;
+        return D3DERR_INVALIDCALL;
+    }
+    params->BackBufferCount = 1;
+
+    if((params->Flags&D3DPRESENTFLAG_LOCKABLE_BACKBUFFER))
+    {
+        FIXME("Lockable backbuffer not currently supported\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(!(mAdapter.getUsage(D3DRTYPE_SURFACE, params->BackBufferFormat)&D3DUSAGE_RENDERTARGET))
+    {
+        WARN("Format %s is not a valid rendertarget format\n", d3dfmt_to_str(params->BackBufferFormat));
+        return D3DERR_INVALIDCALL;
+    }
+
+    if(params->EnableAutoDepthStencil)
+    {
+        if(!(mAdapter.getUsage(D3DRTYPE_SURFACE, params->AutoDepthStencilFormat)&D3DUSAGE_DEPTHSTENCIL))
+        {
+            WARN("Format %s is not a valid depthstencil format\n", d3dfmt_to_str(params->AutoDepthStencilFormat));
+            return D3DERR_INVALIDCALL;
+        }
+    }
+
     return E_NOTIMPL;
 }
 
@@ -1705,6 +1759,7 @@ HRESULT D3DGLDevice::GetSwapChain(UINT swapchain, IDirect3DSwapChain9 **schain)
 {
     TRACE("iface %p, swapchain %u, schain %p\n", this, swapchain, schain);
 
+    *schain = nullptr;
     if(swapchain >= mSwapchains.size())
     {
         FIXME("Out of range swapchain (%u >= %u)\n", swapchain, mSwapchains.size());
@@ -1753,6 +1808,7 @@ HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
         params->BackBufferCount = 1;
         return D3DERR_INVALIDCALL;
     }
+    params->BackBufferCount = 1;
 
     if((params->Flags&D3DPRESENTFLAG_LOCKABLE_BACKBUFFER))
     {
