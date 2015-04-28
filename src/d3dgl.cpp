@@ -229,8 +229,38 @@ HRESULT Direct3DGL::GetAdapterDisplayMode(UINT adapter, D3DDISPLAYMODE *displayM
 
 HRESULT Direct3DGL::CheckDeviceType(UINT adapter, D3DDEVTYPE devType, D3DFORMAT displayFormat, D3DFORMAT backBufferFormat, WINBOOL windowed)
 {
-    FIXME("iface %p, adapter %u, devType 0x%x, displayFormat 0x%x, backBufferFormat 0x%x, windowed %u stub!\n", this, adapter, devType, displayFormat, backBufferFormat, windowed);
-    return E_NOTIMPL;
+    TRACE("iface %p, adapter %u, devType 0x%x, displayFormat %s, backBufferFormat %s, windowed %u\n", this, adapter, devType, d3dfmt_to_str(displayFormat), d3dfmt_to_str(backBufferFormat), windowed);
+
+    if(adapter >= gAdapterList.size())
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, gAdapterList.size());
+    if(devType != D3DDEVTYPE_HAL)
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Non-HAL type 0x%x not supported\n", devType);
+
+    /* Check that there's at least one mode for the given format. */
+    if(gAdapterList[adapter].getModeCount(displayFormat) == 0)
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter format %s not supported\n", d3dfmt_to_str(displayFormat));
+
+    if(!windowed)
+    {
+        // FIXME: This should also match if the backbuffer format contains alpha bits for the
+        // display format's padding bits (e.g. A8R8G8B8 and X8R8G8B8)
+        if(displayFormat == backBufferFormat)
+            return D3D_OK;
+        FIXME("Mismatched display and backbuffer formats, %s / %s\n", d3dfmt_to_str(displayFormat), d3dfmt_to_str(backBufferFormat));
+        return D3DERR_NOTAVAILABLE;
+    }
+
+    if(backBufferFormat != D3DFMT_UNKNOWN)
+    {
+        DWORD rtusage = gAdapterList[adapter].getUsage(D3DRTYPE_SURFACE, backBufferFormat);
+        if(!(rtusage&D3DUSAGE_RENDERTARGET))
+        {
+            FIXME("%s not usable as a RenderTarget\n", d3dfmt_to_str(backBufferFormat));
+            return D3DERR_NOTAVAILABLE;
+        }
+    }
+
+    return D3D_OK;
 }
 
 HRESULT Direct3DGL::CheckDeviceFormat(UINT adapter, D3DDEVTYPE devType, D3DFORMAT adapterFormat, DWORD usage, D3DRESOURCETYPE resType, D3DFORMAT checkFormat)
@@ -332,8 +362,40 @@ HRESULT Direct3DGL::CheckDepthStencilMatch(UINT adapter, D3DDEVTYPE devType, D3D
 
 HRESULT Direct3DGL::CheckDeviceFormatConversion(UINT adapter, D3DDEVTYPE devType, D3DFORMAT srcFormat, D3DFORMAT dstFormat)
 {
-    FIXME("iface %p, adapter %u, devType 0x%x, srcFormat 0x%x, dstFormat 0x%x stub!\n", this, adapter, devType, srcFormat, dstFormat);
-    return E_NOTIMPL;
+    TRACE("iface %p, adapter %u, devType 0x%x, srcFormat %s, dstFormat %s\n", this, adapter, devType, d3dfmt_to_str(srcFormat), d3dfmt_to_str(dstFormat));
+
+    if(adapter >= gAdapterList.size())
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Adapter %u out of range (count=%u)\n", adapter, gAdapterList.size());
+    if(devType != D3DDEVTYPE_HAL)
+        WARN_AND_RETURN(D3DERR_INVALIDCALL, "Non-HAL type 0x%x not supported\n", devType);
+
+    if(dstFormat != D3DFMT_X1R5G5B5 && dstFormat != D3DFMT_A1R5G5B5 && dstFormat != D3DFMT_R5G6B5 &&
+       dstFormat != D3DFMT_X8R8G8B8 && dstFormat != D3DFMT_A8R8G8B8 &&
+       dstFormat != D3DFMT_X8B8G8R8 && dstFormat != D3DFMT_A8B8G8R8 &&
+       dstFormat != D3DFMT_A2R10G10B10 && dstFormat != D3DFMT_A2B10G10R10 &&
+       dstFormat != D3DFMT_A16B16G16R16 &&
+       dstFormat != D3DFMT_A16B16G16R16F && dstFormat != D3DFMT_A32B32G32R32F)
+    {
+        FIXME("Invalid target format %s\n", d3dfmt_to_str(dstFormat));
+        return D3DERR_NOTAVAILABLE;
+    }
+
+    DWORD usage1 = gAdapterList[adapter].getUsage(D3DRTYPE_SURFACE, srcFormat);
+    DWORD usage2 = gAdapterList[adapter].getUsage(D3DRTYPE_SURFACE, dstFormat);
+
+    HRESULT hr = D3D_OK;
+    if(!(usage1&D3DUSAGE_RENDERTARGET))
+    {
+        FIXME("%s not usable as a RenderTarget\n", d3dfmt_to_str(srcFormat));
+        hr = D3DERR_NOTAVAILABLE;
+    }
+    if(!(usage2&D3DUSAGE_RENDERTARGET))
+    {
+        FIXME("%s not usable as a RenderTarget\n", d3dfmt_to_str(dstFormat));
+        hr = D3DERR_NOTAVAILABLE;
+    }
+
+    return hr;
 }
 
 HRESULT Direct3DGL::GetDeviceCaps(UINT adapter, D3DDEVTYPE devType, D3DCAPS9 *caps)
@@ -374,7 +436,14 @@ HRESULT Direct3DGL::CreateDevice(UINT adapter, D3DDEVTYPE devType, HWND window, 
     }
 
     if(params->BackBufferFormat == D3DFMT_UNKNOWN && params->Windowed)
-        params->BackBufferFormat = D3DFMT_X8R8G8B8; // FIXME
+    {
+        DEVMODEW m;
+        memset(&m, 0, sizeof(m));
+        m.dmSize = sizeof(m);
+        EnumDisplaySettingsExW(gAdapterList[adapter].getDeviceName().c_str(), ENUM_CURRENT_SETTINGS, &m, 0);
+
+        params->BackBufferFormat = pixelformat_for_depth(m.dmBitsPerPel);
+    }
     if(params->BackBufferFormat == D3DFMT_UNKNOWN)
     {
         WARN("No format specified\n");
