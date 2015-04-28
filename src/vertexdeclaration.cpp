@@ -270,14 +270,21 @@ HRESULT D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems, bool isauto
                 elem.mGLCount = 4;
                 elem.mNormalize = GL_TRUE;
                 break;
-
-            /* FIXME: Handle these */
-#if 0
             case D3DDECLTYPE_DEC3N:
+                FIXME("D3DDECLTYPE_DEC3N does not ignore alpha value like it should\n");
+                elem.mGLType = GL_INT_2_10_10_10_REV;
+                elem.mGLCount = 4;
+                elem.mNormalize = GL_TRUE;
+                break;
             case D3DDECLTYPE_UDEC3:
-#endif
+                FIXME("D3DDECLTYPE_UDEC3 does not ignore alpha value like it should\n");
+                elem.mGLType = GL_UNSIGNED_INT_2_10_10_10_REV;
+                elem.mGLCount = 4;
+                elem.mNormalize = GL_FALSE;
+                break;
+
             default:
-                ERR("Unhandled element type: 0x%x\n", (UINT)elem.Type);
+                FIXME("Unhandled element type: 0x%x\n", (UINT)elem.Type);
                 return E_FAIL;
         }
 
