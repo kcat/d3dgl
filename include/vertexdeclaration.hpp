@@ -21,17 +21,22 @@ class D3DGLVertexDeclaration : public IDirect3DVertexDeclaration9 {
     std::atomic<ULONG> mIfaceCount;
 
     D3DGLDevice *mParent;
+    bool mIsAuto;
 
     std::vector<D3DGLVERTEXELEMENT> mElements;
+    DWORD mFvf;
 
 public:
     D3DGLVertexDeclaration(D3DGLDevice *parent);
     virtual ~D3DGLVertexDeclaration();
 
-    bool init(const D3DVERTEXELEMENT9 *elems);
+    bool init(DWORD fvf, bool isauto=false);
+    bool init(const D3DVERTEXELEMENT9 *elems, bool isauto=false);
 
     ULONG addIface() { return ++mIfaceCount; }
     ULONG releaseIface();
+
+    DWORD getFvf() const { return mFvf; }
 
     const std::vector<D3DGLVERTEXELEMENT> &getVtxElements() const
     { return mElements; }

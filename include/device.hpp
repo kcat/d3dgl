@@ -146,6 +146,9 @@ class D3DGLDevice : public IDirect3DDevice9 {
     std::array<StreamSource,MAX_STREAMS> mStreams;
     std::atomic<D3DGLBufferObject*> mIndexBuffer;
 
+    // FVF to VertexDeclaration map
+    std::map<DWORD,D3DGLVertexDeclaration*> mVtxDeclMap;
+
     D3DGLBufferObject *mPrimitiveUserData;
 
     /* Bit-depth of the current depth-stencil buffer */

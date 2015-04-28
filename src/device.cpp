@@ -1379,6 +1379,9 @@ D3DGLDevice::~D3DGLDevice()
     D3DGLVertexDeclaration *vtxdecl = mVertexDecl.exchange(nullptr);
     if(vtxdecl) vtxdecl->releaseIface();
 
+    for(auto &fvfdecl : mVtxDeclMap)
+        delete fvfdecl.second;
+
     for(auto &schain : mSwapchains)
     {
         delete schain;
@@ -3537,14 +3540,50 @@ HRESULT D3DGLDevice::GetVertexDeclaration(IDirect3DVertexDeclaration9 **decl)
 
 HRESULT D3DGLDevice::SetFVF(DWORD fvf)
 {
-    FIXME("iface %p, fvf 0x%lx : stub!\n", this, fvf);
-    return E_NOTIMPL;
+    TRACE("iface %p, fvf 0x%lx\n", this, fvf);
+
+    if(!fvf)
+    {
+        WARN("Ignoring FVF 0x%lx\n", fvf);
+        return D3D_OK;
+    }
+
+    D3DGLVertexDeclaration *vtxdecl;
+
+    mQueue.lock();
+    auto fvfdecl = mVtxDeclMap.find(fvf);
+    if(fvfdecl != mVtxDeclMap.end())
+        vtxdecl = fvfdecl->second;
+    else
+    {
+        vtxdecl = new D3DGLVertexDeclaration(this);
+        if(!vtxdecl->init(fvf, true))
+        {
+            delete vtxdecl;
+            mQueue.unlock();
+            return D3DERR_INVALIDCALL;
+        }
+        mVtxDeclMap.insert(std::make_pair(fvf, vtxdecl));
+    }
+    vtxdecl->addIface();
+    vtxdecl = mVertexDecl.exchange(vtxdecl);
+    mQueue.unlock();
+
+    if(vtxdecl) vtxdecl->releaseIface();
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::GetFVF(DWORD *fvf)
 {
-    FIXME("iface %p, fvf %p : stub!\n", this, fvf);
-    return E_NOTIMPL;
+    TRACE("iface %p, fvf %p\n", this, fvf);
+
+    if(D3DGLVertexDeclaration *vtxdecl = mVertexDecl)
+        *fvf = vtxdecl->getFvf();
+    else
+        *fvf = 0;
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::CreateVertexShader(const DWORD *function, IDirect3DVertexShader9 **shader)

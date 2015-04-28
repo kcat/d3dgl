@@ -6,10 +6,41 @@
 #include "private_iids.hpp"
 
 
+namespace
+{
+
+static const struct {
+    unsigned int component_count;
+    unsigned int component_size;
+} d3d_dtype_lookup[] = {
+    /* D3DDECLTYPE_FLOAT1    */ {1, sizeof(float)},
+    /* D3DDECLTYPE_FLOAT2    */ {2, sizeof(float)},
+    /* D3DDECLTYPE_FLOAT3    */ {3, sizeof(float)},
+    /* D3DDECLTYPE_FLOAT4    */ {4, sizeof(float)},
+    /* D3DDECLTYPE_D3DCOLOR  */ {4, sizeof(BYTE)},
+    /* D3DDECLTYPE_UBYTE4    */ {4, sizeof(BYTE)},
+    /* D3DDECLTYPE_SHORT2    */ {2, sizeof(short int)},
+    /* D3DDECLTYPE_SHORT4    */ {4, sizeof(short int)},
+    /* D3DDECLTYPE_UBYTE4N   */ {4, sizeof(BYTE)},
+    /* D3DDECLTYPE_SHORT2N   */ {2, sizeof(short int)},
+    /* D3DDECLTYPE_SHORT4N   */ {4, sizeof(short int)},
+    /* D3DDECLTYPE_USHORT2N  */ {2, sizeof(short int)},
+    /* D3DDECLTYPE_USHORT4N  */ {4, sizeof(short int)},
+    /* D3DDECLTYPE_UDEC3     */ {3, sizeof(short int)},
+    /* D3DDECLTYPE_DEC3N     */ {3, sizeof(short int)},
+    /* D3DDECLTYPE_FLOAT16_2 */ {2, sizeof(short int)},
+    /* D3DDECLTYPE_FLOAT16_4 */ {4, sizeof(short int)}
+};
+
+} // namespace
+
+
 D3DGLVertexDeclaration::D3DGLVertexDeclaration(D3DGLDevice *parent)
   : mRefCount(0)
   , mIfaceCount(0)
   , mParent(parent)
+  , mIsAuto(false)
+  , mFvf(0)
 {
 }
 
@@ -17,8 +48,102 @@ D3DGLVertexDeclaration::~D3DGLVertexDeclaration()
 {
 }
 
-bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems)
+bool D3DGLVertexDeclaration::init(DWORD fvf, bool isauto)
 {
+    bool has_pos = (fvf&D3DFVF_POSITION_MASK) != 0;
+    bool has_blend = (fvf&D3DFVF_XYZB5) > D3DFVF_XYZRHW;
+    bool has_blend_idx = has_blend &&
+        ((fvf&D3DFVF_XYZB5) == D3DFVF_XYZB5 ||
+         (fvf&D3DFVF_LASTBETA_D3DCOLOR) ||
+         (fvf&D3DFVF_LASTBETA_UBYTE4));
+    bool has_normal = (fvf&D3DFVF_NORMAL) != 0;
+    bool has_psize = (fvf&D3DFVF_PSIZE) != 0;
+
+    bool has_diffuse = (fvf&D3DFVF_DIFFUSE) != 0;
+    bool has_specular = (fvf&D3DFVF_SPECULAR) !=0;
+
+    DWORD num_textures = (fvf&D3DFVF_TEXCOUNT_MASK) >> D3DFVF_TEXCOUNT_SHIFT;
+    DWORD texcoords = (fvf&0xFFFF0000) >> 16;
+    DWORD num_blends = 1 + (((fvf&D3DFVF_XYZB5) - D3DFVF_XYZB1) >> 1);
+    if (has_blend_idx) num_blends--;
+
+    std::vector<D3DVERTEXELEMENT9> elems;
+    elems.reserve(has_pos + (has_blend && num_blends > 0) + has_blend_idx + has_normal +
+                  has_psize + has_diffuse + has_specular + num_textures + 1);
+
+    if(has_pos)
+    {
+        if(!has_blend && (fvf&D3DFVF_XYZRHW))
+            elems.push_back({0, 0, D3DDECLTYPE_FLOAT4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITIONT, 0});
+        else
+        {
+            if(!has_blend && (fvf&D3DFVF_XYZW) == D3DFVF_XYZW)
+                elems.push_back({0, 0, D3DDECLTYPE_FLOAT4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0});
+            else
+                elems.push_back({0, 0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0});
+        }
+    }
+    if(has_blend && num_blends > 0)
+    {
+        BYTE type = D3DDECLTYPE_D3DCOLOR;
+        if((fvf&D3DFVF_XYZB5) != D3DFVF_XYZB2 || !(fvf&D3DFVF_LASTBETA_D3DCOLOR))
+        {
+            switch(num_blends)
+            {
+                case 1: type = D3DDECLTYPE_FLOAT1; break;
+                case 2: type = D3DDECLTYPE_FLOAT2; break;
+                case 3: type = D3DDECLTYPE_FLOAT3; break;
+                case 4: type = D3DDECLTYPE_FLOAT4; break;
+                default:
+                    ERR("Unexpected amount of blend values: %lu\n", num_blends);
+            }
+        }
+        elems.push_back({0, 0, type, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_BLENDWEIGHT, 0});
+    }
+    if(has_blend_idx)
+    {
+        if((fvf&D3DFVF_LASTBETA_UBYTE4) || ((fvf&D3DFVF_XYZB5) == D3DFVF_XYZB2 &&
+                                            (fvf&D3DFVF_LASTBETA_D3DCOLOR)))
+            elems.push_back({0, 0, D3DDECLTYPE_UBYTE4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_BLENDINDICES, 0});
+        else if((fvf&D3DFVF_LASTBETA_D3DCOLOR))
+            elems.push_back({0, 0, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_BLENDINDICES, 0});
+        else
+            elems.push_back({0, 0, D3DDECLTYPE_FLOAT1, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_BLENDINDICES, 0});
+    }
+    if(has_normal) elems.push_back({0, 0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_NORMAL, 0});
+    if(has_psize) elems.push_back({0, 0, D3DDECLTYPE_FLOAT1, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_PSIZE, 0});
+    if(has_diffuse) elems.push_back({0, 0, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 0});
+    if(has_specular) elems.push_back({0, 0, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 1});
+    for(DWORD i = 0;i < num_textures;++i)
+    {
+        BYTE type = D3DDECLTYPE_FLOAT1;
+        unsigned int numcoords = (texcoords>>(i*2)) & 0x03;
+        switch(numcoords)
+        {
+            case D3DFVF_TEXTUREFORMAT1: type = D3DDECLTYPE_FLOAT1; break;
+            case D3DFVF_TEXTUREFORMAT2: type = D3DDECLTYPE_FLOAT2; break;
+            case D3DFVF_TEXTUREFORMAT3: type = D3DDECLTYPE_FLOAT3; break;
+            case D3DFVF_TEXTUREFORMAT4: type = D3DDECLTYPE_FLOAT4; break;
+        }
+        elems.push_back({0, 0, type, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, (BYTE)i});
+    }
+
+    DWORD offset = 0;
+    for(auto &elem : elems)
+    {
+        elem.Offset = offset;
+        offset += d3d_dtype_lookup[elem.Type].component_count *
+                  d3d_dtype_lookup[elem.Type].component_size;
+    }
+
+    elems.push_back(D3DDECL_END());
+    return init(elems.data(), isauto);
+}
+
+bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems, bool isauto)
+{
+    mIsAuto = isauto;
+
     bool haspos=false, haspost=false;
     size_t size = 0;
     while(!isEnd(elems[size]))
@@ -155,7 +280,9 @@ bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems)
     }
 
     // FIXME: If the declaration resembles an FVF, an FVF code should reflect it
-    //mFvf = 0;
+    //if(!mFvf)
+    //{
+    //}
 
     return true;
 }
@@ -163,7 +290,8 @@ bool D3DGLVertexDeclaration::init(const D3DVERTEXELEMENT9 *elems)
 ULONG D3DGLVertexDeclaration::releaseIface()
 {
     ULONG ret = --mIfaceCount;
-    if(ret == 0) delete this;
+    if(ret == 0 && !mIsAuto)
+        delete this;
     return ret;
 }
 
