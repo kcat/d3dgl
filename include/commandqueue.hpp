@@ -58,7 +58,7 @@ public:
 
 
 class CommandQueue {
-    static const size_t sQueueBits = 20;
+    static const size_t sQueueBits = 21;
     static const size_t sQueueSize = 1<<sQueueBits;
     static const size_t sQueueMask = sQueueSize-1;
 
