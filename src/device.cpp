@@ -1492,12 +1492,11 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
 HRESULT D3DGLDevice::sendVtxData(INT startvtx, const StreamSource *sources, UINT num_sources)
 {
     D3DGLVertexShader *vshader = mVertexShader;
-    // Wait for the vertex shader to finish updating (it's building a usage map
-    // that's needed to get GL attribute indices for usage:index pairs). Since
-    // the queue is unlocked while sleeping (to ensure the background thread
-    // doesn't get stuck trying to wake up), watch for the vertex shader
-    // changing.
-    while(vshader && vshader->getPendingUpdates() > 0)
+
+    /* Wait for the vertex shader to finish building if it's in the process of
+     * doing so. We need its UsageMap to set the proper vertex attributes.
+     */
+    while(vshader && (vshader->checkShadowSamplers(mShadowSamplers),vshader->getPendingUpdates()) > 0)
     {
         mQueue.unlock();
         Sleep(1);
@@ -1510,7 +1509,6 @@ HRESULT D3DGLDevice::sendVtxData(INT startvtx, const StreamSource *sources, UINT
         return D3D_OK;
     }
 
-    vshader->checkShadowSamplers(mShadowSamplers);
     if(D3DGLPixelShader *pshader = mPixelShader)
         pshader->checkShadowSamplers(mShadowSamplers);
 
@@ -3876,8 +3874,9 @@ HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9 *shader)
             mQueue.sendAndUnlock<SetPShaderCmd>(mGLState.pipeline, program);
         else
         {
-            pshader->addPendingUpdate();
-            mQueue.sendAndUnlock<CompileAndSetPShaderCmd>(pshader, mGLState.pipeline);
+            /* Don't build the fragment program yet. We'll do it when it draws
+             * and we have the proper shadow sampler setup. */
+            mQueue.unlock();
         }
     }
     else if(oldshader)

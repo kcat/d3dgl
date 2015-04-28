@@ -187,12 +187,17 @@ bool D3DGLVertexShader::init(const DWORD *data)
 
 void D3DGLVertexShader::checkShadowSamplers(UINT mask)
 {
-    if(mShadowSamplers == (mask&mSamplerMask))
-        return;
+    if(mPendingUpdates > 0 || mProgram)
+    {
+        if(mShadowSamplers == (mask&mSamplerMask))
+            return;
 
-    WARN("Rebuilding vertex shader %p because of shadow mismatch: %u / %u\n", this, mShadowSamplers, (mask&mSamplerMask));
+        WARN("Rebuilding vertex shader %p because of shadow mismatch: 0x%x / 0x%x\n",
+             this, mShadowSamplers, (mask&mSamplerMask));
+    }
+
     mShadowSamplers = (mask&mSamplerMask);
-    addPendingUpdate();
+    ++mPendingUpdates;
     mParent->getQueue().doSend<CompileAndSetVShaderCmd>(this, mParent->getShaderPipeline(), mShadowSamplers);
 }
 

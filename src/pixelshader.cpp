@@ -175,12 +175,17 @@ bool D3DGLPixelShader::init(const DWORD *data)
 
 void D3DGLPixelShader::checkShadowSamplers(UINT mask)
 {
-    if(mShadowSamplers == (mask&mSamplerMask))
-        return;
+    if(mPendingUpdates > 0 || mProgram)
+    {
+        if(mShadowSamplers == (mask&mSamplerMask))
+            return;
 
-    WARN("Rebuilding shader %p because of shadow mismatch: %u / %u\n", this, mShadowSamplers, (mask&mSamplerMask));
+        WARN("Rebuilding shader %p because of shadow mismatch: 0x%04x / 0x%04x\n",
+             this, mShadowSamplers, (mask&mSamplerMask));
+    }
+
     mShadowSamplers = (mask&mSamplerMask);
-    addPendingUpdate();
+    ++mPendingUpdates;
     mParent->getQueue().doSend<CompileAndSetPShaderCmd>(this, mParent->getShaderPipeline(), mShadowSamplers);
 }
 
