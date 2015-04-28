@@ -2,6 +2,7 @@
 #define ALLOCATORS_HPP
 
 #include <new>
+#include <limits>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -52,7 +53,7 @@ public:
     AlignedAllocator(const AlignedAllocator<U, Align>&) noexcept { }
 
     size_type max_size() const noexcept
-    { return (size_type(~0) - size_type(Align)) / sizeof(T); }
+    { return (std::numeric_limits<size_type>::max() - size_type(Align)) / sizeof(T); }
 
     pointer address(reference x) const noexcept
     { return std::addressof(x); }
@@ -104,7 +105,7 @@ public:
     AlignedAllocator(const AlignedAllocator<U, Align>&) noexcept { }
 
     size_type max_size() const noexcept
-    { return (size_type(~0) - size_type(Align)) / sizeof(T); }
+    { return (std::numeric_limits<size_type>::max() - size_type(Align)) / sizeof(T); }
 
     const_pointer address(const_reference x) const noexcept
     { return std::addressof(x); }
