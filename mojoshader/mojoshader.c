@@ -1128,7 +1128,6 @@ static void emit_GLSL_end(Context *ctx)
         // NOTE: Fixup the vertex position (offset X, flip+offset Y, scale+offset Z)
         output_line(ctx, "gl_Position.xy = gl_Position.xy*vec2(1.0,-1.0) + POS_FIXUP.xy*gl_Position.ww;");
         output_line(ctx, "gl_Position.z = gl_Position.z*2.0 - gl_Position.w;");
-        output_line(ctx, "gl_Position.w = gl_Position.w;");
     }
     // force a RET opcode if we're at the end of the stream without one.
     if(ctx->previous_opcode != OPCODE_RET)
