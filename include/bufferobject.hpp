@@ -12,17 +12,6 @@
 
 class D3DGLDevice;
 
-class BufferDataAlloc {
-public:
-    GLubyte *operator()(size_t len)
-    { return AlignedAllocator<GLubyte>().allocate(len); }
-};
-class BufferDataFree {
-public:
-    void operator()(GLubyte *ptr)
-    { AlignedAllocator<GLubyte>().deallocate(ptr, 0); }
-};
-
 class D3DGLBufferObject : public IDirect3DVertexBuffer9, public IDirect3DIndexBuffer9 {
     std::atomic<ULONG> mRefCount;
     std::atomic<ULONG> mIfaceCount;

@@ -133,8 +133,22 @@ template<typename T, Alignment TAlign, typename U, Alignment UAlign>
 inline bool operator==(const AlignedAllocator<T,TAlign>&, const AlignedAllocator<U, UAlign>&) noexcept
 { return TAlign == UAlign; }
 
-template <typename T, Alignment TAlign, typename U, Alignment UAlign>
+template<typename T, Alignment TAlign, typename U, Alignment UAlign>
 inline bool operator!=(const AlignedAllocator<T,TAlign>&, const AlignedAllocator<U, UAlign>&) noexcept
 { return TAlign != UAlign; }
+
+
+template<typename T>
+class DataAllocator {
+public:
+    T *operator()(size_t len)
+    { return AlignedAllocator<T>().allocate(len); }
+};
+template<typename T>
+class DataDeallocator {
+public:
+    void operator()(T *ptr)
+    { AlignedAllocator<T>().deallocate(ptr, 0); }
+};
 
 #endif /* ALLOCATORS_HPP */

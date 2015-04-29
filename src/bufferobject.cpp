@@ -136,7 +136,7 @@ bool D3DGLBufferObject::init_common(UINT length, DWORD usage, D3DPOOL pool)
     }
 
     UINT data_len = (mLength+15) & ~15;
-    mBufData.reset(BufferDataAlloc()(data_len), BufferDataFree());
+    mBufData.reset(DataAllocator<GLubyte>()(data_len), DataDeallocator<GLubyte>());
     memset(mBufData.get(), 0, data_len);
 
     mUpdateInProgress = 1;
@@ -211,7 +211,7 @@ void D3DGLBufferObject::resetBufferData(const GLubyte *data, GLuint length)
     if(length > mLength || mUpdateInProgress > 1)
     {
         UINT data_len = (length+15) & ~15;
-        mBufData.reset(BufferDataAlloc()(data_len), BufferDataFree());
+        mBufData.reset(DataAllocator<GLubyte>()(data_len), DataDeallocator<GLubyte>());
         mParent->getQueue().doSend<ResizeBufferCmd>(this);
     }
     mLength = length;
@@ -381,7 +381,7 @@ HRESULT D3DGLBufferObject::Lock(UINT offset, UINT length, void **data, DWORD fla
         if(mUpdateInProgress > 0)
         {
             UINT data_len = (mLength+15) & ~15;
-            mBufData.reset(BufferDataAlloc()(data_len), BufferDataFree());
+            mBufData.reset(DataAllocator<GLubyte>()(data_len), DataDeallocator<GLubyte>());
         }
     }
     else if(!(flags&D3DLOCK_NOOVERWRITE) && !(flags&D3DLOCK_READONLY))
