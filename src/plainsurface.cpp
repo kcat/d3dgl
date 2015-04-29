@@ -51,13 +51,14 @@ bool D3DGLPlainSurface::init(const D3DSURFACE_DESC *desc)
 
     mIsCompressed = (mDesc.Format == D3DFMT_DXT1 || mDesc.Format == D3DFMT_DXT2 ||
                      mDesc.Format == D3DFMT_DXT3 || mDesc.Format == D3DFMT_DXT4 ||
-                     mDesc.Format == D3DFMT_DXT5);
+                     mDesc.Format == D3DFMT_DXT5 || mDesc.Format == D3DFMT_ATI1 ||
+                     mDesc.Format == D3DFMT_ATI2);
 
     UINT data_len;
-    if(!mIsCompressed)
-        data_len = calc_pitch(mDesc.Width, mGLFormat->bytesperpixel) * mDesc.Height;
+    if(mIsCompressed)
+        data_len = calc_blocked_pitch(mDesc.Width, mGLFormat->bytesperblock) * ((mDesc.Height+3)/4);
     else
-        data_len = calc_blocked_pitch(mDesc.Width, mGLFormat->bytesperpixel) * ((mDesc.Height+3)/4);
+        data_len = calc_pitch(mDesc.Width, mGLFormat->bytesperpixel) * mDesc.Height;
     data_len = (data_len+15) & ~15;
     mBufData.reset(DataAllocator<GLubyte>()(data_len), DataDeallocator<GLubyte>());
 
@@ -205,10 +206,10 @@ HRESULT D3DGLPlainSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *rect
 
     GLubyte *memPtr = mBufData.get();
     mLockRegion = *rect;
-    if(mIsCompressed)
+    if(mIsCompressed && !(mGLFormat->flags&GLFormatInfo::BadPitch))
     {
-        int pitch = calc_blocked_pitch(mDesc.Width, mGLFormat->bytesperpixel);
-        memPtr += (rect->top/4*pitch) + (rect->left/4*mGLFormat->bytesperpixel);
+        int pitch = calc_blocked_pitch(mDesc.Width, mGLFormat->bytesperblock);
+        memPtr += (rect->top/4*pitch) + (rect->left/4*mGLFormat->bytesperblock);
         lockedRect->Pitch = pitch;
     }
     else

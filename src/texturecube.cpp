@@ -51,9 +51,10 @@ void D3DGLCubeTexture::initGL()
             UINT level_size;
             if(mDesc.Format == D3DFMT_DXT1 || mDesc.Format == D3DFMT_DXT2 ||
                mDesc.Format == D3DFMT_DXT3 || mDesc.Format == D3DFMT_DXT4 ||
-               mDesc.Format == D3DFMT_DXT5)
+               mDesc.Format == D3DFMT_DXT5 || mDesc.Format == D3DFMT_ATI1 ||
+               mDesc.Format == D3DFMT_ATI2)
             {
-                level_size  = calc_blocked_pitch(w, mGLFormat->bytesperpixel);
+                level_size  = calc_blocked_pitch(w, mGLFormat->bytesperblock);
                 level_size *= ((h+3)/4);
             }
             else
@@ -145,10 +146,11 @@ void D3DGLCubeTexture::loadTexLevelGL(DWORD level, GLint facenum, const RECT &re
         GLsizei len = -1;
         if(mDesc.Format == D3DFMT_DXT1 || mDesc.Format == D3DFMT_DXT2 ||
            mDesc.Format == D3DFMT_DXT3 || mDesc.Format == D3DFMT_DXT4 ||
-           mDesc.Format == D3DFMT_DXT5)
+           mDesc.Format == D3DFMT_DXT5 || mDesc.Format == D3DFMT_ATI1 ||
+           mDesc.Format == D3DFMT_ATI2)
         {
-            int pitch = calc_blocked_pitch(w, mGLFormat->bytesperpixel);
-            int offset = (rect.top/4*pitch) + (rect.left/4*mGLFormat->bytesperpixel);
+            int pitch = calc_blocked_pitch(w, mGLFormat->bytesperblock);
+            int offset = (rect.top/4*pitch) + (rect.left/4*mGLFormat->bytesperblock);
             len = surface->getDataLength() - offset;
             dataPtr += offset;
         }
@@ -299,7 +301,8 @@ bool D3DGLCubeTexture::init(const D3DSURFACE_DESC *desc, UINT levels)
 
     mIsCompressed = (mDesc.Format == D3DFMT_DXT1 || mDesc.Format == D3DFMT_DXT2 ||
                      mDesc.Format == D3DFMT_DXT3 || mDesc.Format == D3DFMT_DXT4 ||
-                     mDesc.Format == D3DFMT_DXT5);
+                     mDesc.Format == D3DFMT_DXT5 || mDesc.Format == D3DFMT_ATI1 ||
+                     mDesc.Format == D3DFMT_ATI2);
     if(mDesc.Format == D3DFMT_DXT2 || mDesc.Format == D3DFMT_DXT4)
         WARN("Pre-mulitplied alpha textures not supported; loading anyway.");
 
@@ -719,10 +722,10 @@ HRESULT D3DGLCubeSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *rect,
 
     GLubyte *memPtr = &mParent->mSysMem[mDataOffset];
     mLockRegion = *rect;
-    if(mParent->mIsCompressed)
+    if(mParent->mIsCompressed && !(mParent->mGLFormat->flags&GLFormatInfo::BadPitch))
     {
-        int pitch = calc_blocked_pitch(w, mParent->mGLFormat->bytesperpixel);
-        memPtr += (rect->top/4*pitch) + (rect->left/4*mParent->mGLFormat->bytesperpixel);
+        int pitch = calc_blocked_pitch(w, mParent->mGLFormat->bytesperblock);
+        memPtr += (rect->top/4*pitch) + (rect->left/4*mParent->mGLFormat->bytesperblock);
         lockedRect->Pitch = pitch;
     }
     else
