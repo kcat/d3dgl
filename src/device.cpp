@@ -16,6 +16,7 @@
 #include "texture.hpp"
 #include "texturecube.hpp"
 #include "bufferobject.hpp"
+#include "plainsurface.hpp"
 #include "vertexshader.hpp"
 #include "pixelshader.hpp"
 #include "vertexdeclaration.hpp"
@@ -2436,7 +2437,39 @@ HRESULT D3DGLDevice::ColorFill(IDirect3DSurface9 *surface, const RECT *rect, D3D
 HRESULT D3DGLDevice::CreateOffscreenPlainSurface(UINT width, UINT height, D3DFORMAT format, D3DPOOL pool, IDirect3DSurface9 **surface, HANDLE *handle)
 {
     FIXME("iface %p, width %u, height %u, format %s, pool 0x%x, surface %p, handle %p : stub!\n", this, width, height, d3dfmt_to_str(format), pool, surface, handle);
-    return E_NOTIMPL;
+
+    if(handle)
+    {
+        WARN("Non-NULL handle specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+    if(!surface)
+    {
+        WARN("NULL surface storage specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    D3DSURFACE_DESC desc;
+    desc.Format = format;
+    desc.Type = D3DRTYPE_SURFACE;
+    desc.Usage = 0;
+    desc.Pool = pool;
+    desc.MultiSampleType = D3DMULTISAMPLE_NONE;
+    desc.MultiSampleQuality = 0;
+    desc.Width = width;
+    desc.Height = height;
+
+    D3DGLPlainSurface *psurf = new D3DGLPlainSurface(this);
+    if(!psurf->init(&desc))
+    {
+        delete psurf;
+        return D3DERR_INVALIDCALL;
+    }
+
+    *surface = psurf;
+    (*surface)->AddRef();
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)

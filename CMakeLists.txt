@@ -71,6 +71,7 @@ set(HDRS  include/query.hpp
           include/swapchain.hpp
           include/rendertarget.hpp
           include/bufferobject.hpp
+          include/plainsurface.hpp
           include/vertexshader.hpp
           include/pixelshader.hpp
           include/vertexdeclaration.hpp
@@ -91,6 +92,7 @@ set(SRCS  src/query.cpp
           src/swapchain.cpp
           src/rendertarget.cpp
           src/bufferobject.cpp
+          src/plainsurface.cpp
           src/vertexshader.cpp
           src/pixelshader.cpp
           src/vertexdeclaration.cpp
