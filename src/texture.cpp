@@ -517,8 +517,7 @@ HRESULT D3DGLTexture::AddDirtyRect(const RECT *rect)
 
 
 D3DGLTextureSurface::D3DGLTextureSurface(D3DGLTexture *parent, UINT level)
-  : mRefCount(0)
-  , mParent(parent)
+  : mParent(parent)
   , mLevel(level)
   , mLock(LT_Unlocked)
   , mDataOffset(0)
@@ -552,18 +551,14 @@ HRESULT D3DGLTextureSurface::QueryInterface(REFIID riid, void **obj)
 
 ULONG D3DGLTextureSurface::AddRef()
 {
-    ULONG ret = ++mRefCount;
-    TRACE("%p New refcount: %lu\n", this, ret);
-    if(ret == 1) mParent->addIface();
-    return ret;
+    TRACE("iface %p\n", this);
+    return mParent->AddRef();
 }
 
 ULONG D3DGLTextureSurface::Release()
 {
-    ULONG ret = --mRefCount;
-    TRACE("%p New refcount: %lu\n", this, ret);
-    if(ret == 0) mParent->releaseIface();
-    return ret;
+    TRACE("iface %p\n", this);
+    return mParent->Release();
 }
 
 

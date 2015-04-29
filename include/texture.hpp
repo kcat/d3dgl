@@ -82,8 +82,6 @@ public:
 
 
 class D3DGLTextureSurface : public IDirect3DSurface9 {
-    std::atomic<ULONG> mRefCount;
-
     D3DGLTexture *mParent;
     UINT mLevel;
 

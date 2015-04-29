@@ -83,8 +83,6 @@ public:
 
 
 class D3DGLCubeSurface : public IDirect3DSurface9 {
-    std::atomic<ULONG> mRefCount;
-
     D3DGLCubeTexture *mParent;
     UINT mLevel;
     GLint mFaceNum;
