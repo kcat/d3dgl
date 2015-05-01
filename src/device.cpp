@@ -1280,6 +1280,11 @@ void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
         glBindFramebuffer(GL_FRAMEBUFFER, mGLState.main_framebuffer);
         mGLState.current_framebuffer[0] = mGLState.main_framebuffer;
         mGLState.current_framebuffer[1] = mGLState.main_framebuffer;
+        std::array<GLenum,4> buffers{
+            GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1,
+            GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3
+        };
+        glDrawBuffers(buffers.size(), buffers.data());
     }
 
     glFrontFace(GL_CCW);
