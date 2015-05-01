@@ -427,7 +427,7 @@ HRESULT D3DGLBufferObject::Unlock()
         if((mLockedFlags&D3DLOCK_DISCARD))
             flags |= GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_WRITE_BIT;
         else if((mLockedFlags&D3DLOCK_NOOVERWRITE))
-            flags |= GL_MAP_UNSYNCHRONIZED_BIT | GL_MAP_WRITE_BIT;
+            flags |= GL_MAP_UNSYNCHRONIZED_BIT | GL_MAP_INVALIDATE_RANGE_BIT | GL_MAP_WRITE_BIT;
         mParent->getQueue().send<LoadBufferDataCmd>(this,
             mLockedOffset, mLockedLength, mBufData, flags
         );
