@@ -47,21 +47,22 @@ public:
     }
 };
 
-void D3DGLBufferObject::resizeBufferGL()
+void D3DGLBufferObject::resizeBufferGL(UINT length)
 {
-    UINT data_len = (mLength+15) & ~15;
+    UINT data_len = (length+15) & ~15;
     glNamedBufferDataEXT(mBufferId, data_len, nullptr, GL_STREAM_DRAW);
     checkGLError();
 }
 class ResizeBufferCmd : public Command {
     D3DGLBufferObject *mTarget;
+    UINT mLength;
 
 public:
-    ResizeBufferCmd(D3DGLBufferObject *target) : mTarget(target) { }
+    ResizeBufferCmd(D3DGLBufferObject *target, UINT length) : mTarget(target), mLength(length) { }
 
     virtual ULONG execute()
     {
-        mTarget->resizeBufferGL();
+        mTarget->resizeBufferGL(mLength);
         return sizeof(*this);
     }
 };
@@ -216,14 +217,17 @@ void D3DGLBufferObject::resetBufferData(const GLubyte *data, GLuint length)
 {
     ++mUpdateInProgress;
     mParent->getQueue().lock();
-    if(length > mLength || mUpdateInProgress > 1)
+    if(length > mLength)
     {
-        UINT data_len = (length+15) & ~15;
-        mBufData.reset(DataAllocator<GLubyte>()(data_len), DataDeallocator<GLubyte>());
-        mParent->getQueue().doSend<ResizeBufferCmd>(this);
+        mLength = length;
+        mParent->getQueue().doSend<ResizeBufferCmd>(this, length);
     }
-    mLength = length;
-    memcpy(mBufData.get(), data, mLength);
+    if(mUpdateInProgress > 1)
+    {
+        UINT data_len = (mLength+15) & ~15;
+        mBufData.reset(DataAllocator<GLubyte>()(data_len), DataDeallocator<GLubyte>());
+    }
+    memcpy(mBufData.get(), data, length);
 
     mParent->getQueue().sendAndUnlock<LoadBufferDataCmd>(this, 0, mLength, mBufData, 0);
 }

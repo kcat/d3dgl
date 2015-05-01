@@ -54,7 +54,7 @@ public:
 
     void initGL(const GLubyte *data);
     void loadBufferDataGL(UINT offset, UINT length, const GLubyte *data, GLbitfield flags);
-    void resizeBufferGL();
+    void resizeBufferGL(UINT length);
 
     D3DFORMAT getFormat() const { return mFormat; }
 
