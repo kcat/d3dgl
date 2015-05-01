@@ -35,6 +35,7 @@ class D3DGLBufferObject : public IDirect3DVertexBuffer9, public IDirect3DIndexBu
     std::atomic<LockType> mLock;
     UINT mLockedOffset;
     UINT mLockedLength;
+    UINT mLockedFlags;
 
     std::atomic<ULONG> mUpdateInProgress;
 
@@ -52,7 +53,7 @@ public:
     void resetBufferData(const GLubyte *data, GLuint length);
 
     void initGL(const GLubyte *data);
-    void loadBufferDataGL(UINT offset, UINT length, const GLubyte *data);
+    void loadBufferDataGL(UINT offset, UINT length, const GLubyte *data, GLbitfield flags);
     void resizeBufferGL();
 
     D3DFORMAT getFormat() const { return mFormat; }

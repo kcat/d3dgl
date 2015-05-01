@@ -66,9 +66,16 @@ public:
     }
 };
 
-void D3DGLBufferObject::loadBufferDataGL(UINT offset, UINT length, const GLubyte *data)
+void D3DGLBufferObject::loadBufferDataGL(UINT offset, UINT length, const GLubyte *data, GLbitfield flags)
 {
-    glNamedBufferSubDataEXT(mBufferId, offset, length, &data[offset]);
+    if(!flags)
+        glNamedBufferSubDataEXT(mBufferId, offset, length, &data[offset]);
+    else
+    {
+        void *ptr = glMapNamedBufferRangeEXT(mBufferId, offset, length, flags);
+        memcpy(ptr, &data[offset], length);
+        glUnmapNamedBufferEXT(mBufferId);
+    }
     checkGLError();
 
     --mUpdateInProgress;
@@ -78,15 +85,16 @@ class LoadBufferDataCmd : public Command {
     UINT mOffset;
     UINT mLength;
     std::shared_ptr<GLubyte> mData;
+    GLbitfield mFlags;
 
 public:
-    LoadBufferDataCmd(D3DGLBufferObject *target, UINT offset, UINT length, std::shared_ptr<GLubyte> data)
-      : mTarget(target), mOffset(offset), mLength(length), mData(data)
+    LoadBufferDataCmd(D3DGLBufferObject *target, UINT offset, UINT length, std::shared_ptr<GLubyte> data, GLbitfield flags)
+      : mTarget(target), mOffset(offset), mLength(length), mData(data), mFlags(flags)
     { }
 
     virtual ULONG execute()
     {
-        mTarget->loadBufferDataGL(mOffset, mLength, mData.get());
+        mTarget->loadBufferDataGL(mOffset, mLength, mData.get(), mFlags);
         return sizeof(*this);
     }
 };
@@ -217,7 +225,7 @@ void D3DGLBufferObject::resetBufferData(const GLubyte *data, GLuint length)
     mLength = length;
     memcpy(mBufData.get(), data, mLength);
 
-    mParent->getQueue().sendAndUnlock<LoadBufferDataCmd>(this, 0, mLength, mBufData);
+    mParent->getQueue().sendAndUnlock<LoadBufferDataCmd>(this, 0, mLength, mBufData, 0);
 }
 
 ULONG D3DGLBufferObject::releaseIface()
@@ -392,6 +400,7 @@ HRESULT D3DGLBufferObject::Lock(UINT offset, UINT length, void **data, DWORD fla
 
     mLockedOffset = offset;
     mLockedLength = length;
+    mLockedFlags  = flags;
 
     *data = mBufData.get()+mLockedOffset;
     return D3D_OK;
@@ -410,8 +419,13 @@ HRESULT D3DGLBufferObject::Unlock()
     if(mLock != LT_ReadOnly)
     {
         ++mUpdateInProgress;
+        GLbitfield flags = 0;
+        if((mLockedFlags&D3DLOCK_DISCARD))
+            flags |= GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_WRITE_BIT;
+        else if((mLockedFlags&D3DLOCK_NOOVERWRITE))
+            flags |= GL_MAP_UNSYNCHRONIZED_BIT | GL_MAP_WRITE_BIT;
         mParent->getQueue().send<LoadBufferDataCmd>(this,
-            mLockedOffset, mLockedLength, mBufData
+            mLockedOffset, mLockedLength, mBufData, flags
         );
     }
 
