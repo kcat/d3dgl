@@ -22,6 +22,19 @@ public:
 };
 
 
+ULONG CommandEvent::execute()
+{
+    mCommand->execute();
+    delete mCommand;
+
+    mQueue.prepareSignal();
+    mFlag = 1;
+    mQueue.sendSignal();
+
+    return sizeof(*this);
+}
+
+
 CommandQueue::CommandQueue()
   : mHead(0)
   , mTail(0)

@@ -18,9 +18,9 @@ void D3DGLSwapChain::swapBuffersGL(size_t backbuffer)
     if(!SwapBuffers(mDevCtx))
         ERR("Failed to swap buffers, error: 0x%lx\n", GetLastError());
 
-    mSwapWaiter.prepareSignal();
+    mParent->getQueue().prepareSignal();
     --mPendingSwaps;
-    mSwapWaiter.sendSignal();
+    mParent->getQueue().sendSignal();
 }
 class SwapchainSwapBuffers : public Command {
     D3DGLSwapChain *mTarget;
@@ -50,6 +50,14 @@ D3DGLSwapChain::D3DGLSwapChain(D3DGLDevice *parent)
 
 D3DGLSwapChain::~D3DGLSwapChain()
 {
+    if(mPendingSwaps > 0)
+    {
+        mParent->getQueue().beginWait();
+        while(mPendingSwaps > 0)
+            mParent->getQueue().wait();
+        mParent->getQueue().endWait();
+    }
+
     for(auto surface : mBackbuffers)
         delete surface;
     mBackbuffers.clear();
@@ -184,10 +192,10 @@ HRESULT D3DGLSwapChain::Present(const RECT *srcRect, const RECT *dstRect, HWND d
         FIXME("Ignoring flags 0x%lx\n", flags);
 
     // Wait for the last swap to complete before doing the next one
-    mSwapWaiter.beginWait();
+    mParent->getQueue().beginWait();
     while(mPendingSwaps > 0)
-        mSwapWaiter.wait();
-    mSwapWaiter.endWait();
+        mParent->getQueue().wait();
+    mParent->getQueue().endWait();
 
     ++mPendingSwaps;
     mParent->getQueue().send<SwapchainSwapBuffers>(this, 0);

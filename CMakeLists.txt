@@ -84,7 +84,6 @@ set(HDRS  include/query.hpp
           include/trace.hpp
           include/commandqueue.hpp
           include/private_iids.hpp
-          include/condwait.hpp
           include/allocators.hpp
 )
 

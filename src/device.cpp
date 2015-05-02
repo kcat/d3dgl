@@ -28,23 +28,6 @@ namespace
 {
 
 template<typename T>
-struct ref_holder {
-    typedef T value_type;
-    value_type &mValue;
-
-    ref_holder(ref_holder<T> &rhs) : mValue(rhs.mValue) { }
-    ref_holder(value_type &value) : mValue(value) { }
-
-    ref_holder<T>& operator=(ref_holder<T>&) = delete;
-
-    operator value_type&() { return mValue; }
-    operator const value_type&() const { return mValue; }
-};
-template<typename T>
-ref_holder<T> make_ref(T &value) { return ref_holder<T>(value); };
-
-
-template<typename T>
 bool fmt_to_glattrs(D3DFORMAT fmt, T inserter)
 {
     switch(fmt)

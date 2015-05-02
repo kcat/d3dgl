@@ -10,6 +10,26 @@
 #include "trace.hpp"
 
 
+class CommandQueue;
+
+
+template<typename T>
+struct ref_holder {
+    typedef T value_type;
+    value_type &mValue;
+
+    ref_holder(ref_holder<T> &rhs) : mValue(rhs.mValue) { }
+    ref_holder(value_type &value) : mValue(value) { }
+
+    ref_holder<T>& operator=(ref_holder<T>&) = delete;
+
+    operator value_type&() { return mValue; }
+    operator const value_type&() const { return mValue; }
+};
+template<typename T>
+ref_holder<T> make_ref(T &value) { return ref_holder<T>(value); };
+
+
 class Command {
 protected:
     virtual ~Command() { }
@@ -40,20 +60,15 @@ public:
 
 private:
     Command *mCommand;
-    FlagType *mFlag;
+    CommandQueue &mQueue;
+    FlagType &mFlag;
 
 public:
-    CommandEvent(Command *command, FlagType *flag)
-      : mCommand(command), mFlag(flag)
+    CommandEvent(Command *command, CommandQueue &queue, FlagType &flag)
+      : mCommand(command), mQueue(queue), mFlag(flag)
     { }
 
-    virtual ULONG execute()
-    {
-        mCommand->execute();
-        delete mCommand;
-        mFlag->store(1);
-        return sizeof(*this);
-    }
+    virtual ULONG execute();
 };
 
 
@@ -114,6 +129,9 @@ class CommandQueue {
         wake();
     }
 
+    CommandQueue(const CommandQueue&) = delete;
+    CommandQueue& operator=(const CommandQueue&) = delete;
+
 public:
     CommandQueue();
     ~CommandQueue();
@@ -121,6 +139,23 @@ public:
     bool init();
     void deinit();
     bool isActive() const { return mThreadHdl != nullptr; }
+
+
+    void beginWait() { EnterCriticalSection(&mLock); }
+    void endWait() { LeaveCriticalSection(&mLock); }
+    void wait(DWORD time_ms=INFINITE)
+    {
+        wake();
+        SleepConditionVariableCS(&mCondVar, &mLock, time_ms);
+    }
+
+    void prepareSignal() { EnterCriticalSection(&mLock); }
+    void sendSignal()
+    {
+        LeaveCriticalSection(&mLock);
+        WakeAllConditionVariable(&mCondVar);
+    }
+
 
     void lock()
     {
@@ -165,8 +200,11 @@ public:
     void sendSync(Args...args)
     {
         CommandEvent::FlagType flag(0);
-        send<CommandEvent>(new T(args...), &flag);
-        while(!flag.load()) wakeAndWait();
+        send<CommandEvent>(new T(args...), make_ref(*this), make_ref(flag));
+
+        beginWait();
+        while(!flag) wait();
+        endWait();
     }
 };
 
