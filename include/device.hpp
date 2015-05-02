@@ -129,7 +129,7 @@ class D3DGLDevice : public IDirect3DDevice9 {
     std::atomic<bool> mInScene;
 
     std::array<Vector4f,256> mVSConstantsF;
-    std::array<Vector4f,256> mPSConstantsF;
+    std::array<Vector4f,224> mPSConstantsF;
 
     std::atomic<D3DGLVertexShader*> mVertexShader;
     std::atomic<D3DGLPixelShader*> mPixelShader;

@@ -4853,14 +4853,17 @@ static void process_definitions(Context *ctx)
             default: break;
         }
     }
-    if(ctx->have_relative_const_registers && ctx->uniform_float4_count > 0)
+    if(ctx->uniform_float4_count > 0)
     {
-        // If using relative constant arrays, define them all.
         if(shader_is_vertex(ctx))
             ctx->uniform_float4_count = Max(ctx->uniform_float4_count, 256);
         else if(shader_is_pixel(ctx))
             ctx->uniform_float4_count = Max(ctx->uniform_float4_count, 224);
     }
+    if(ctx->uniform_int4_count > 0)
+        ctx->uniform_int4_count = Max(ctx->uniform_int4_count, 16);
+    if(ctx->uniform_bool_count > 0)
+        ctx->uniform_bool_count = Max(ctx->uniform_bool_count, 16);
 
     // ...and samplers...
     for(item = ctx->samplers.next; item != NULL; item = item->next)
