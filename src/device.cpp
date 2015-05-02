@@ -715,9 +715,8 @@ public:
 
     virtual ULONG execute()
     {
-        if((mParameter != GL_TEXTURE_MAX_ANISOTROPY_EXT && mParameter != GL_TEXTURE_SRGB_DECODE_EXT) ||
-           (mParameter == GL_TEXTURE_MAX_ANISOTROPY_EXT && GLEW_EXT_texture_filter_anisotropic) ||
-           (mParameter == GL_TEXTURE_SRGB_DECODE_EXT && GLEW_EXT_texture_sRGB_decode))
+        if(mParameter != GL_TEXTURE_MAX_ANISOTROPY_EXT ||
+           (mParameter == GL_TEXTURE_MAX_ANISOTROPY_EXT && GLEW_EXT_texture_filter_anisotropic))
         {
             glSamplerParameteri(mSampler, mParameter, mValue);
             checkGLError();
@@ -1228,10 +1227,9 @@ void D3DGLDevice::initGL(HDC dc, HGLRC glcontext)
         glSamplerParameteriv(sampler, GL_TEXTURE_BORDER_COLOR, color);
         glSamplerParameteri(sampler, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glSamplerParameteri(sampler, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glSamplerParameteri(sampler, GL_TEXTURE_SRGB_DECODE_EXT, GL_SKIP_DECODE_EXT);
         if(GLEW_EXT_texture_filter_anisotropic)
             glSamplerParameteri(sampler, GL_TEXTURE_MAX_ANISOTROPY_EXT, 1);
-        if(GLEW_EXT_texture_sRGB_decode)
-            glSamplerParameteri(sampler, GL_TEXTURE_SRGB_DECODE_EXT, GL_SKIP_DECODE_EXT);
         checkGLError();
     }
 

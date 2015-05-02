@@ -1271,6 +1271,8 @@ bool D3DAdapter::init()
         ERR("Required GL_EXT_direct_state_access not supported!\n");
     else if(!GLEW_ARB_separate_shader_objects)
         ERR("Required GL_ARB_separate_shader_objects not supported!\n");
+    else if(!GLEW_EXT_texture_sRGB_decode)
+        ERR("Required GL_EXT_texture_sRGB_decode not supported!\n");
     else
     {
         init_limits();

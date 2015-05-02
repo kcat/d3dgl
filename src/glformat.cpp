@@ -7,17 +7,10 @@
 #define DEPTH_STENCIL_BUFFER_BITS (GL_DEPTH_BUFFER_BIT|GL_STENCIL_BUFFER_BIT)
 
 const std::map<DWORD,GLFormatInfo> gFormatList{
-    /* FIXME: OpenGL reports GL_SRGB_READ/GL_SRGB_DECODE_ARB as false for
-     * GL_RGB(A)8. This is because EXT_texture_sRGB_decode requires an sRGB
-     * internalformat to be eligible for toggling sRGB decoding (GL_SRGB8 and
-     * others). The problem is that EXT_texture_sRGB_decode is not guaranteed
-     * to be available, and we don't want sRGB decoding to be stuck on in that
-     * case.
-     */
-    { D3DFMT_A8R8G8B8, { GL_RGBA8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, 4, 4, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
-    { D3DFMT_A8B8G8R8, { GL_RGBA8, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, 4, 4, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
-    { D3DFMT_X8R8G8B8, { GL_RGB8,  GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, 4, 4, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
-    { D3DFMT_X8B8G8R8, { GL_RGB8,  GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, 4, 4, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
+    { D3DFMT_A8R8G8B8, { GL_SRGB8_ALPHA8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, 4, 4, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
+    { D3DFMT_A8B8G8R8, { GL_SRGB8_ALPHA8, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, 4, 4, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
+    { D3DFMT_X8R8G8B8, { GL_SRGB8,        GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, 4, 4, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
+    { D3DFMT_X8B8G8R8, { GL_SRGB8,        GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, 4, 4, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
 
     { D3DFMT_R5G6B5,   { GL_RGB5,        GL_RGB,  GL_UNSIGNED_SHORT_5_6_5,       2, 2, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
     { D3DFMT_A1R5G5B5, { GL_RGB5_A1,     GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV, 2, 2, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
@@ -57,14 +50,14 @@ const std::map<DWORD,GLFormatInfo> gFormatList{
     { D3DFMT_X8L8V8U8, { GL_DSDT8_MAG8_INTENSITY8_NV, GL_DSDT_MAG_VIB_NV, GL_UNSIGNED_INT_8_8_S8_S8_REV_NV, 4, 4, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
     { D3DFMT_Q8W8V8U8, { GL_SIGNED_RGBA8_NV,          GL_RGBA,            GL_BYTE, 4, 4, GL_COLOR_BUFFER_BIT,                          GLFormatInfo::Normal } },
 
-    { D3DFMT_DXT1, { GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, GL_RGBA, GL_UNSIGNED_BYTE, 1,  8, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
-    { D3DFMT_DXT3, { GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, GL_RGBA, GL_UNSIGNED_BYTE, 1, 16, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
-    { D3DFMT_DXT5, { GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_RGBA, GL_UNSIGNED_BYTE, 1, 16, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
+    { D3DFMT_DXT1, { GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT, GL_RGBA, GL_UNSIGNED_BYTE, 1,  8, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
+    { D3DFMT_DXT3, { GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT, GL_RGBA, GL_UNSIGNED_BYTE, 1, 16, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
+    { D3DFMT_DXT5, { GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT, GL_RGBA, GL_UNSIGNED_BYTE, 1, 16, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
     // NOTE: These are premultiplied-alpha versions of DXT formats. We don't
     // support the premultiplication (yet), but there shouldn't be any other
     // issue other than slightly darkened textures.
-    { D3DFMT_DXT2, { GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, GL_RGBA, GL_UNSIGNED_BYTE, 1, 16, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
-    { D3DFMT_DXT4, { GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, GL_RGBA, GL_UNSIGNED_BYTE, 1, 16, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
+    { D3DFMT_DXT2, { GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT, GL_RGBA, GL_UNSIGNED_BYTE, 1, 16, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
+    { D3DFMT_DXT4, { GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT, GL_RGBA, GL_UNSIGNED_BYTE, 1, 16, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
 
     { D3DFMT_ATI1, { GL_COMPRESSED_RED_RGTC1, GL_RED, GL_UNSIGNED_BYTE, 1,  8, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
     { D3DFMT_ATI2, { GL_COMPRESSED_RG_RGTC2,  GL_RG,  GL_UNSIGNED_BYTE, 1, 16, GL_COLOR_BUFFER_BIT, GLFormatInfo::Normal } },
