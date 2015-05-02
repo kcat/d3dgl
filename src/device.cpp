@@ -1515,12 +1515,7 @@ HRESULT D3DGLDevice::sendVtxData(INT startvtx, const StreamSource *sources, UINT
      * doing so. We need its UsageMap to set the proper vertex attributes.
      */
     while(vshader && (vshader->checkShadowSamplers(mShadowSamplers),vshader->getPendingUpdates()) > 0)
-    {
-        mQueue.unlock();
-        Sleep(1);
-        mQueue.lock();
-        vshader = mVertexShader;
-    }
+        mQueue.wakeAndWait();
     if(!vshader)
     {
         FIXME("Cannot draw without a vertex shader\n");
@@ -3764,11 +3759,7 @@ HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
     mQueue.lock();
     // Wait for pending updates to finish, in case we need to rebuild with new parameters.
     while(vshader && vshader->getPendingUpdates() > 0)
-    {
-        mQueue.unlock();
-        Sleep(1);
-        mQueue.lock();
-    }
+        mQueue.wakeAndWait();
     D3DGLVertexShader *oldshader = mVertexShader.exchange(vshader);
     if(vshader)
     {
@@ -4052,11 +4043,7 @@ HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9 *shader)
     mQueue.lock();
     // Wait for pending updates to finish, in case we need to rebuild with new parameters.
     while(pshader && pshader->getPendingUpdates() > 0)
-    {
-        mQueue.unlock();
-        Sleep(1);
-        mQueue.lock();
-    }
+        mQueue.wakeAndWait();
     D3DGLPixelShader *oldshader = mPixelShader.exchange(pshader);
     if(pshader)
     {

@@ -121,10 +121,12 @@ D3DGLBufferObject::D3DGLBufferObject(D3DGLDevice *parent)
 D3DGLBufferObject::~D3DGLBufferObject()
 {
     if(mBufferId)
+    {
         mParent->getQueue().send<DestroyBufferCmd>(mBufferId);
-    while(mUpdateInProgress)
-        Sleep(1);
-    mBufferId = 0;
+        while(mUpdateInProgress)
+            mParent->getQueue().wakeAndWait();
+        mBufferId = 0;
+    }
 }
 
 bool D3DGLBufferObject::init_common(UINT length, DWORD usage, D3DPOOL pool)
@@ -399,7 +401,7 @@ HRESULT D3DGLBufferObject::Lock(UINT offset, UINT length, void **data, DWORD fla
     else if(!(flags&D3DLOCK_NOOVERWRITE) && !(flags&D3DLOCK_READONLY))
     {
         while(mUpdateInProgress)
-            Sleep(1);
+            mParent->getQueue().wakeAndWait();
     }
 
     mLockedOffset = offset;

@@ -140,11 +140,12 @@ D3DGLVertexShader::D3DGLVertexShader(D3DGLDevice *parent)
 
 D3DGLVertexShader::~D3DGLVertexShader()
 {
-    if(mPendingUpdates > 0)
-        Sleep(1);
-
     if(GLuint program = mProgram.exchange(0))
+    {
         mParent->getQueue().send<DeinitVShaderCmd>(program);
+        if(mPendingUpdates > 0)
+            mParent->getQueue().wakeAndWait();
+    }
     mParent->Release();
 }
 

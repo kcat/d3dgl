@@ -66,6 +66,7 @@ class CommandQueue {
     char mQueueData[sQueueSize];
     CRITICAL_SECTION mLock;
     CONDITION_VARIABLE mCondVar;
+    std::atomic<ULONG> mSpinLock;
 
     HANDLE mThreadHdl;
     DWORD mThreadId;
@@ -98,8 +99,10 @@ class CommandQueue {
             if(((mTail-head-1)&sQueueMask) >= size)
                 break;
 
-            ERR("CommandQueue is full!\n");
+            EnterCriticalSection(&mLock);
+            WakeAllConditionVariable(&mCondVar);
             SleepConditionVariableCS(&mCondVar, &mLock, INFINITE);
+            LeaveCriticalSection(&mLock);
             head = mHead.load();
         }
 
@@ -108,6 +111,7 @@ class CommandQueue {
 
         head += size;
         mHead.store(head&sQueueMask);
+        wake();
     }
 
 public:
@@ -118,8 +122,19 @@ public:
     void deinit();
     bool isActive() const { return mThreadHdl != nullptr; }
 
-    void lock() { EnterCriticalSection(&mLock); }
-    void unlock() { LeaveCriticalSection(&mLock); }
+    void lock()
+    {
+        while(mSpinLock.exchange(true) == true)
+            SwitchToThread();
+    }
+    void unlock() { mSpinLock = false; }
+    void wake() { WakeAllConditionVariable(&mCondVar); }
+
+    void wakeAndWait()
+    {
+        wake();
+        Sleep(1);
+    }
 
     template<typename T, typename ...Args>
     void doSend(Args...args)
@@ -136,14 +151,14 @@ public:
     {
         doSend<T,Args...>(args...);
         unlock();
-        WakeAllConditionVariable(&mCondVar);
     }
 
     template<typename T, typename ...Args>
     void send(Args...args)
     {
         lock();
-        sendAndUnlock<T,Args...>(args...);
+        doSend<T,Args...>(args...);
+        unlock();
     }
 
     template<typename T, typename ...Args>
@@ -151,15 +166,7 @@ public:
     {
         CommandEvent::FlagType flag(0);
         send<CommandEvent>(new T(args...), &flag);
-        while(!flag.load()) Sleep(1);
-    }
-
-    template<typename T, typename ...Args>
-    void sendAndUnlockSync(Args...args)
-    {
-        CommandEvent::FlagType flag(0);
-        sendAndUnlock<CommandEvent>(new T(args...), &flag);
-        while(!flag.load()) Sleep(1);
+        while(!flag.load()) wakeAndWait();
     }
 };
 

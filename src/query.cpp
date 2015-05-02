@@ -114,9 +114,9 @@ D3DGLQuery::~D3DGLQuery()
 {
     if(mQueryId)
     {
-        while(mPendingQueries)
-            Sleep(1);
         mParent->getQueue().send<QueryDeinitCmd>(mQueryId);
+        while(mPendingQueries)
+            mParent->getQueue().wakeAndWait();
         mQueryId = 0;
     }
 
@@ -214,7 +214,7 @@ HRESULT D3DGLQuery::Issue(DWORD flags)
     {
         // Need to wait for any data queries to finish first
         while(mPendingQueries)
-            Sleep(1);
+            mParent->getQueue().wakeAndWait();
         mState = Building;
         mParent->getQueue().send<BeginQueryCmd>(this);
     }
@@ -231,6 +231,8 @@ HRESULT D3DGLQuery::GetData(void *data, DWORD size, DWORD flags)
         ULONG zero = 0;
         if(mPendingQueries.compare_exchange_strong(zero, 1))
             mParent->getQueue().send<QueryDataCmd>(this);
+        else
+            mParent->getQueue().wake();
         return S_FALSE;
     }
 

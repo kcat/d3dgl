@@ -214,10 +214,12 @@ D3DGLCubeTexture::D3DGLCubeTexture(D3DGLDevice *parent)
 D3DGLCubeTexture::~D3DGLCubeTexture()
 {
     if(mTexId)
+    {
         mParent->getQueue().send<CubeTextureDeinitCmd>(mTexId);
-    while(mUpdateInProgress)
-        Sleep(1);
-    mTexId = 0;
+        while(mUpdateInProgress)
+            mParent->getQueue().wakeAndWait();
+        mTexId = 0;
+    }
 
     for(auto &surfaces : mSurfaces)
     {
@@ -717,7 +719,7 @@ HRESULT D3DGLCubeSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *rect,
     if(!(flags&D3DLOCK_NOOVERWRITE) && !(flags&D3DLOCK_READONLY))
     {
         while(mParent->mUpdateInProgress)
-            Sleep(1);
+            mParent->mParent->getQueue().wakeAndWait();
     }
 
     GLubyte *memPtr = &mParent->mSysMem[mDataOffset];

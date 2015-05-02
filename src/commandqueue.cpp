@@ -25,6 +25,7 @@ public:
 CommandQueue::CommandQueue()
   : mHead(0)
   , mTail(0)
+  , mSpinLock(false)
   , mThreadHdl(nullptr)
   , mThreadId(0)
 {

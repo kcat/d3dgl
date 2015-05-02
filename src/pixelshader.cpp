@@ -128,11 +128,12 @@ D3DGLPixelShader::D3DGLPixelShader(D3DGLDevice *parent)
 
 D3DGLPixelShader::~D3DGLPixelShader()
 {
-    if(mPendingUpdates > 0)
-        Sleep(1);
-
     if(GLuint program = mProgram.exchange(0))
+    {
         mParent->getQueue().send<DeinitPShaderCmd>(program);
+        if(mPendingUpdates > 0)
+            mParent->getQueue().wakeAndWait();
+    }
     mParent->Release();
 }
 

@@ -202,10 +202,12 @@ D3DGLTexture::D3DGLTexture(D3DGLDevice *parent)
 D3DGLTexture::~D3DGLTexture()
 {
     if(mTexId)
+    {
         mParent->getQueue().send<TextureDeinitCmd>(mTexId);
-    while(mUpdateInProgress)
-        Sleep(1);
-    mTexId = 0;
+        while(mUpdateInProgress)
+            mParent->getQueue().wakeAndWait();
+        mTexId = 0;
+    }
 
     for(auto surface : mSurfaces)
         delete surface;
@@ -685,7 +687,7 @@ HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *re
     if(!(flags&D3DLOCK_NOOVERWRITE) && !(flags&D3DLOCK_READONLY))
     {
         while(mParent->mUpdateInProgress)
-            Sleep(1);
+            mParent->mParent->getQueue().wakeAndWait();
     }
 
     GLubyte *memPtr = &mParent->mSysMem[mDataOffset];
