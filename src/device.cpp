@@ -1323,6 +1323,7 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   : mRefCount(0)
   , mParent(parent)
   , mAdapter(adapter)
+  , mGLDeviceCtx(nullptr)
   , mGLContext(nullptr)
   , mWindow(window)
   , mFlags(flags)
@@ -1396,6 +1397,10 @@ D3DGLDevice::~D3DGLDevice()
         wglDeleteContext(mGLContext);
     mGLContext = nullptr;
 
+    if(mGLDeviceCtx)
+        ReleaseDC(WindowFromDC(mGLDeviceCtx), mGLDeviceCtx);
+    mGLDeviceCtx = nullptr;
+
     mParent->Release();
     mParent = nullptr;
 }
@@ -1445,28 +1450,25 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
     glattrs.push_back({0, 0});
 
     HWND win = ((params->Windowed && !params->hDeviceWindow) ? mWindow : params->hDeviceWindow);
-    HDC hdc = GetDC(win);
+    mGLDeviceCtx = GetDC(win);
 
     int pixelFormat;
     UINT numFormats;
-    if(!wglChoosePixelFormatARB(hdc, &glattrs[0][0], NULL, 1, &pixelFormat, &numFormats))
+    if(!wglChoosePixelFormatARB(mGLDeviceCtx, &glattrs[0][0], NULL, 1, &pixelFormat, &numFormats))
     {
         ERR("Failed to choose a pixel format\n");
-        ReleaseDC(win, hdc);
         return false;
     }
     if(numFormats < 1)
     {
         ERR("No suitable pixel formats found\n");
-        ReleaseDC(win, hdc);
         return false;
     }
 
     PIXELFORMATDESCRIPTOR pfd;
-    if(SetPixelFormat(hdc, pixelFormat, &pfd) == 0)
+    if(SetPixelFormat(mGLDeviceCtx, pixelFormat, &pfd) == 0)
     {
         ERR("Failed to set a pixel format, error %lu\n", GetLastError());
-        ReleaseDC(win, hdc);
         return false;
     }
 
@@ -1475,16 +1477,14 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
     if(GLDebugLevel > NONE_)
         glattrs.push_back({WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_DEBUG_BIT_ARB});
     glattrs.push_back({0, 0});
-    mGLContext = wglCreateContextAttribsARB(hdc, nullptr, &glattrs[0][0]);
+    mGLContext = wglCreateContextAttribsARB(mGLDeviceCtx, nullptr, &glattrs[0][0]);
     if(!mGLContext)
     {
         ERR("Failed to create OpenGL context, error %lu\n", GetLastError());
-        ReleaseDC(win, hdc);
         return false;
     }
 
-    mQueue.sendSync<InitGLDeviceCmd>(this, hdc, mGLContext);
-    ReleaseDC(win, hdc);
+    mQueue.sendSync<InitGLDeviceCmd>(this, mGLDeviceCtx, mGLContext);
 
     return SUCCEEDED(Reset(params));
 }

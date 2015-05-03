@@ -1,6 +1,8 @@
 
 #include "swapchain.hpp"
 
+#include "glew.h"
+#include "wglew.h"
 #include "trace.hpp"
 #include "device.hpp"
 #include "rendertarget.hpp"
@@ -32,6 +34,23 @@ public:
     virtual ULONG execute()
     {
         mTarget->swapBuffersGL(mBackbuffer);
+        return sizeof(*this);
+    }
+};
+
+class SetSwapIntervalCmd : public Command {
+    int mInterval;
+
+public:
+    SetSwapIntervalCmd(int interval) : mInterval(interval) { }
+
+    virtual ULONG execute()
+    {
+        if(WGLEW_EXT_swap_control)
+        {
+            if(!wglSwapIntervalEXT(mInterval))
+                ERR("Failed to set swap interval %d, error 0x%lx\n", mInterval, GetLastError());
+        }
         return sizeof(*this);
     }
 };
@@ -119,6 +138,34 @@ bool D3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window, bool
         if(!mBackbuffers.back()->init(&desc, true))
             return false;
     }
+
+    int interval = -1;
+    switch(mParams.PresentationInterval)
+    {
+        case D3DPRESENT_INTERVAL_DEFAULT:
+            interval = -1;
+            break;
+        case D3DPRESENT_INTERVAL_IMMEDIATE:
+            interval = 0;
+            break;
+        case D3DPRESENT_INTERVAL_ONE:
+            interval = 1;
+            break;
+        case D3DPRESENT_INTERVAL_TWO:
+            interval = 2;
+            break;
+        case D3DPRESENT_INTERVAL_THREE:
+            interval = 3;
+            break;
+        case D3DPRESENT_INTERVAL_FOUR:
+            interval = 4;
+            break;
+        default:
+            FIXME("Unknown swap interval: 0x%x\n", mParams.PresentationInterval);
+            break;
+    }
+    if(interval >= 0)
+        mParent->getQueue().send<SetSwapIntervalCmd>(interval);
 
     return true;
 }

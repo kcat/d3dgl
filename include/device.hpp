@@ -100,6 +100,7 @@ class D3DGLDevice : public IDirect3DDevice9 {
 
     const D3DAdapter &mAdapter;
 
+    HDC mGLDeviceCtx;
     HGLRC mGLContext;
     GLState mGLState;
 
