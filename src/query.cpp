@@ -231,8 +231,8 @@ HRESULT D3DGLQuery::GetData(void *data, DWORD size, DWORD flags)
         ULONG zero = 0;
         if(mPendingQueries.compare_exchange_strong(zero, 1))
             mParent->getQueue().send<QueryDataCmd>(this);
-        else
-            mParent->getQueue().wake();
+        if((flags&D3DGETDATA_FLUSH))
+            mParent->getQueue().flush();
         return S_FALSE;
     }
 

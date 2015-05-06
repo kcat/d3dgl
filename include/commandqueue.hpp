@@ -71,6 +71,15 @@ public:
     virtual ULONG execute();
 };
 
+class FlushGLCmd : public Command {
+private:
+
+public:
+    FlushGLCmd() { }
+
+    virtual ULONG execute();
+};
+
 
 class CommandQueue {
     static const size_t sQueueBits = 21;
@@ -126,7 +135,6 @@ class CommandQueue {
 
         head += size;
         mHead.store(head&sQueueMask);
-        wake();
     }
 
     CommandQueue(const CommandQueue&) = delete;
@@ -205,6 +213,16 @@ public:
         beginWait();
         while(!flag) wait();
         endWait();
+    }
+
+    void flush()
+    {
+        // FIXME: On Wine, a glFlush may cause a repaint of the window from the
+        // GL's front buffer, which is fine except for the added processing.
+        // However, it would be nice to ensure OpenGL is processing all the
+        // commands that got sent to it up to this point.
+        //send<FlushGLCmd>();
+        wake();
     }
 };
 

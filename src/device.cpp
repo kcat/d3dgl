@@ -2714,7 +2714,7 @@ HRESULT D3DGLDevice::GetDepthStencilSurface(IDirect3DSurface9 **depthstencil)
 
 HRESULT D3DGLDevice::BeginScene()
 {
-    TRACE("iface %p : semi-stub\n", this);
+    TRACE("iface %p\n", this);
 
     if(mInScene.exchange(true))
     {
@@ -2730,14 +2730,14 @@ HRESULT D3DGLDevice::BeginScene()
 
 HRESULT D3DGLDevice::EndScene()
 {
-    TRACE("iface %p : semi-stub\n", this);
+    TRACE("iface %p\n", this);
 
+    mQueue.flush();
     if(!mInScene.exchange(false))
     {
         ERR("Not in scene\n");
         return D3DERR_INVALIDCALL;
     }
-    // TODO: Flush GL?
 
     return D3D_OK;
 }

@@ -3,6 +3,7 @@
 
 #include <exception>
 
+#include "glew.h"
 #include "trace.hpp"
 
 
@@ -31,6 +32,13 @@ ULONG CommandEvent::execute()
     mFlag = 1;
     mQueue.sendSignal();
 
+    return sizeof(*this);
+}
+
+
+ULONG FlushGLCmd::execute()
+{
+    glFlush();
     return sizeof(*this);
 }
 

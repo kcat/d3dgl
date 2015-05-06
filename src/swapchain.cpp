@@ -117,7 +117,7 @@ bool D3DGLSwapChain::init(const D3DPRESENT_PARAMETERS *params, HWND window, bool
     else
     {
         SetWindowPos(mWindow, HWND_TOPMOST, 0, 0, mParams.BackBufferWidth, mParams.BackBufferHeight,
-                     SWP_NOMOVE | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+                     SWP_NOMOVE | SWP_NOACTIVATE);
     }
 
     D3DSURFACE_DESC desc;
@@ -239,13 +239,22 @@ HRESULT D3DGLSwapChain::Present(const RECT *srcRect, const RECT *dstRect, HWND d
         FIXME("Ignoring flags 0x%lx\n", flags);
 
     // Wait for the last swap to complete before doing the next one
-    mParent->getQueue().beginWait();
+    CommandQueue &cmdqueue = mParent->getQueue();
+    cmdqueue.beginWait();
     while(mPendingSwaps > 0)
-        mParent->getQueue().wait();
-    mParent->getQueue().endWait();
+        cmdqueue.wait();
 
+    // Send a swap command while under the wait lock (critical section) to
+    // ensure the background thread will see it. There would be a race
+    // condition otherwise, with the command being sent and the wake() call
+    // occuring in between the buffer check and the SleepConditionVariableCS
+    // call.
     ++mPendingSwaps;
-    mParent->getQueue().send<SwapchainSwapBuffers>(this, 0);
+    cmdqueue.send<SwapchainSwapBuffers>(this, 0);
+    cmdqueue.endWait();
+
+    cmdqueue.wake();
+
     return D3D_OK;
 }
 

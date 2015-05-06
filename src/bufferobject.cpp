@@ -137,12 +137,12 @@ bool D3DGLBufferObject::init_common(UINT length, DWORD usage, D3DPOOL pool)
 
     if(mPool == D3DPOOL_SCRATCH)
     {
-        WARN("Buffer objects not allowed in scratch mem\n");
+        FIXME("Buffer objects not allowed in scratch mem\n");
         return false;
     }
     if(mPool == D3DPOOL_MANAGED && (mUsage&D3DUSAGE_DYNAMIC))
     {
-        WARN("Managed dynamic buffers aren't allowed\n");
+        FIXME("Managed dynamic buffers aren't allowed\n");
         return false;
     }
 
@@ -350,7 +350,7 @@ HRESULT D3DGLBufferObject::Lock(UINT offset, UINT length, void **data, DWORD fla
     {
         if(offset > 0)
         {
-            WARN("Locking whole buffer with offset %u\n", offset);
+            FIXME("Locking whole buffer with offset %u\n", offset);
             return D3DERR_INVALIDCALL;
         }
         length = mLength;
@@ -358,7 +358,7 @@ HRESULT D3DGLBufferObject::Lock(UINT offset, UINT length, void **data, DWORD fla
 
     if(offset >= mLength || length > mLength-offset)
     {
-        WARN("Locking size larger than available (%u + %u > %u)\n", offset, length, mLength);
+        FIXME("Locking size larger than available (%u + %u > %u)\n", offset, length, mLength);
         return D3DERR_INVALIDCALL;
     }
 
@@ -367,9 +367,14 @@ HRESULT D3DGLBufferObject::Lock(UINT offset, UINT length, void **data, DWORD fla
 
     if((flags&D3DLOCK_READONLY))
     {
+        if((flags&D3DLOCK_DISCARD))
+        {
+            FIXME("Read-only lock requested with DISCARD flag\n");
+            return D3DERR_INVALIDCALL;
+        }
         if((mUsage&D3DUSAGE_WRITEONLY))
         {
-            WARN("Read-only lock requested for write-only buffer\n");
+            FIXME("Read-only lock requested for write-only buffer\n");
             return D3DERR_INVALIDCALL;
         }
     }
@@ -408,7 +413,7 @@ HRESULT D3DGLBufferObject::Lock(UINT offset, UINT length, void **data, DWORD fla
     mLockedLength = length;
     mLockedFlags  = flags;
 
-    *data = mBufData.get()+mLockedOffset;
+    *data = mBufData.get() + mLockedOffset;
     return D3D_OK;
 }
 
@@ -437,6 +442,7 @@ HRESULT D3DGLBufferObject::Unlock()
 
     mLockedOffset = 0;
     mLockedLength = 0;
+    mLockedFlags = 0;
     mLock = LT_Unlocked;
 
     return D3D_OK;
