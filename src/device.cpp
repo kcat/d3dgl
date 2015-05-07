@@ -1930,9 +1930,10 @@ HRESULT D3DGLDevice::Reset(D3DPRESENT_PARAMETERS *params)
             mAutoDepthStencil->getFormat().getDepthStencilAttachment(),
             GL_RENDERBUFFER, mAutoDepthStencil->getId(), 0
         );
-    mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
+    mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState),
         GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, schain->getBackbuffer()->getId(), 0
     );
+    mQueue.unlock();
 
     return D3D_OK;
 }
@@ -2473,9 +2474,10 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
 
         mQueue.lock();
         rtarget = mRenderTargets[index].exchange(rtarget);
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
-            GL_COLOR_ATTACHMENT0+index, GL_RENDERBUFFER, 0, 0
+        mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState), GL_COLOR_ATTACHMENT0+index,
+            GL_RENDERBUFFER, 0, 0
         );
+        mQueue.unlock();
         if(rtarget) rtarget->Release();
         return D3D_OK;
     }
@@ -2498,10 +2500,10 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
 
         mQueue.lock();
         rtarget = mRenderTargets[index].exchange(tex2dsurface);
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
-            GL_COLOR_ATTACHMENT0+index, GL_TEXTURE_2D, tex2d->getTextureId(),
-            tex2dsurface->getLevel()
+        mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState), GL_COLOR_ATTACHMENT0+index,
+            GL_TEXTURE_2D, tex2d->getTextureId(), tex2dsurface->getLevel()
         );
+        mQueue.unlock();
     }
     else if(SUCCEEDED(rtarget->QueryInterface(IID_D3DGLRenderTarget, &pointer)))
     {
@@ -2514,9 +2516,10 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
 
         mQueue.lock();
         rtarget = mRenderTargets[index].exchange(surface);
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
-            GL_COLOR_ATTACHMENT0+index, GL_RENDERBUFFER, surface->getId(), 0
+        mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState), GL_COLOR_ATTACHMENT0+index,
+            GL_RENDERBUFFER, surface->getId(), 0
         );
+        mQueue.unlock();
     }
     else if(SUCCEEDED(rtarget->QueryInterface(IID_D3DGLCubeSurface, &pointer)))
     {
@@ -2530,10 +2533,10 @@ HRESULT D3DGLDevice::SetRenderTarget(DWORD index, IDirect3DSurface9 *rtarget)
 
         mQueue.lock();
         rtarget = mRenderTargets[index].exchange(cubesurface);
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
-            GL_COLOR_ATTACHMENT0+index, cubesurface->getTarget(), cubetex->getTextureId(),
-            cubesurface->getLevel()
+        mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState), GL_COLOR_ATTACHMENT0+index,
+            cubesurface->getTarget(), cubetex->getTextureId(), cubesurface->getLevel()
         );
+        mQueue.unlock();
     }
     else
     {
@@ -2575,9 +2578,9 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
             dword_to_float(mRenderState[D3DRS_SLOPESCALEDEPTHBIAS]),
             dword_to_float(mRenderState[D3DRS_DEPTHBIAS]) * (float)((1u<<mDepthBits) - 1u)
         );
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
-            GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0, 0
-        );
+        mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState), GL_DEPTH_STENCIL_ATTACHMENT,
+                                          GL_RENDERBUFFER, 0, 0);
+        mQueue.unlock();
         if(depthstencil) depthstencil->Release();
 
         return D3D_OK;
@@ -2622,13 +2625,13 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
             // If the previous attachment was GL_DEPTH_STENCIL_ATTACHMENT, and
             // this is GL_DEPTH_ATTACHMENT, the previous attachment would
             // remain as the stencil buffer.
-            mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState),
-                GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0, 0
-            );
+            mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState), GL_STENCIL_ATTACHMENT,
+                                              GL_RENDERBUFFER, 0, 0);
         }
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
-            attachment, GL_TEXTURE_2D, tex2d->getTextureId(), tex2dsurface->getLevel()
+        mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState), attachment,
+            GL_TEXTURE_2D, tex2d->getTextureId(), tex2dsurface->getLevel()
         );
+        mQueue.unlock();
     }
     else if(SUCCEEDED(depthstencil->QueryInterface(IID_D3DGLRenderTarget, &pointer)))
     {
@@ -2653,12 +2656,12 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
             );
         }
         if(attachment == GL_DEPTH_ATTACHMENT)
-            mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState),
-                GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0, 0
-            );
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
-            attachment, GL_RENDERBUFFER, surface->getId(), 0
+            mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState), GL_STENCIL_ATTACHMENT,
+                                              GL_RENDERBUFFER, 0, 0);
+        mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState), attachment,
+            GL_RENDERBUFFER, surface->getId(), 0
         );
+        mQueue.unlock();
     }
     else if(SUCCEEDED(depthstencil->QueryInterface(IID_D3DGLCubeSurface, &pointer)))
     {
@@ -2684,13 +2687,12 @@ HRESULT D3DGLDevice::SetDepthStencilSurface(IDirect3DSurface9 *depthstencil)
             );
         }
         if(attachment == GL_DEPTH_ATTACHMENT)
-            mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState),
-                GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0, 0
-            );
-        mQueue.sendAndUnlock<SetFBAttachmentCmd>(make_ref(mGLState),
-            attachment, cubesurface->getTarget(), cubetex->getTextureId(),
-            cubesurface->getLevel()
+            mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState), GL_STENCIL_ATTACHMENT,
+                                              GL_RENDERBUFFER, 0, 0);
+        mQueue.doSend<SetFBAttachmentCmd>(make_ref(mGLState), attachment,
+            cubesurface->getTarget(), cubetex->getTextureId(), cubesurface->getLevel()
         );
+        mQueue.unlock();
     }
     else
     {
@@ -2780,13 +2782,13 @@ HRESULT D3DGLDevice::Clear(DWORD count, const D3DRECT *rects, DWORD flags, D3DCO
         main_rect.top = mViewport.Y;
         main_rect.right = main_rect.left + mViewport.Width;
         main_rect.bottom = main_rect.top + mViewport.Height;
-        mQueue.sendAndUnlock<ClearCmd>(make_ref(mGLState), mask, color, depth, stencil, main_rect);
+        mQueue.doSend<ClearCmd>(make_ref(mGLState), mask, color, depth, stencil, main_rect);
     }
     else
     {
-        mQueue.unlock();
         FIXME("Rectangles not yet handled\n");
     }
+    mQueue.unlock();
 
     return D3D_OK;
 }
@@ -2823,10 +2825,11 @@ HRESULT D3DGLDevice::SetViewport(const D3DVIEWPORT9 *viewport)
     mQueue.lock();
     mViewport = *viewport;
     resetProjectionFixup(mViewport.Width, mViewport.Height);
-    mQueue.sendAndUnlock<ViewportSet>(mViewport.X, mViewport.Y,
+    mQueue.doSend<ViewportSet>(mViewport.X, mViewport.Y,
         std::min(mViewport.Width, 0x7ffffffful), std::min(mViewport.Height, 0x7ffffffful),
         mViewport.MinZ, mViewport.MaxZ
     );
+    mQueue.unlock();
 
     return D3D_OK;
 }
@@ -2845,7 +2848,8 @@ HRESULT D3DGLDevice::SetMaterial(const D3DMATERIAL9 *material)
     TRACE("iface %p, material %p\n", this, material);
     mQueue.lock();
     mMaterial = *material;
-    mQueue.sendAndUnlock<MaterialSet>(mMaterial);
+    mQueue.doSend<MaterialSet>(mMaterial);
+    mQueue.unlock();
     return D3D_OK;
 }
 
@@ -2897,9 +2901,10 @@ HRESULT D3DGLDevice::SetClipPlane(DWORD index, const float *plane)
     memcpy(mClipPlane[index].ptr(), plane, sizeof(mClipPlane[index]));
     // FIXME: Clip plane needs to be set using the view matrix when no vertex
     // shader is set.
-    mQueue.sendAndUnlock<SetBufferValue4f>(mGLState.vtx_state_uniform_buffer,
+    mQueue.doSend<SetBufferValue4f>(mGLState.vtx_state_uniform_buffer,
         offsetof(GLVertexState, ClipPlane[index]), mClipPlane[index].ptr()
     );
+    mQueue.unlock();
 
     return D3D_OK;
 }
@@ -2926,6 +2931,7 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
 {
     TRACE("iface %p, state %s, value 0x%lx\n", this, d3drs_to_str(state), value);
 
+    mQueue.lock();
     auto glstate = RSStateEnableMap.find(state);
     if(glstate != RSStateEnableMap.end())
     {
@@ -2934,9 +2940,8 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
             FIXME("W-buffer not handled\n");
             return D3DERR_INVALIDCALL;
         }
-        mQueue.lock();
         mRenderState[state] = value;
-        mQueue.sendAndUnlock<StateEnable>(glstate->second, value!=0);
+        mQueue.doSend<StateEnable>(glstate->second, value!=0);
     }
     else switch(state)
     {
@@ -2950,9 +2955,8 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
             else if(value != D3DFILL_SOLID)
                 WARN("Invalid fill mode: 0x%lx\n", value);
 
-            mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<PolygonModeSet>(mode);
+            mQueue.doSend<PolygonModeSet>(mode);
             break;
         }
 
@@ -2966,9 +2970,8 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
             else if(value != D3DCULL_NONE)
                 WARN("Unhandled cull mode: 0x%lx\n", value);
 
-            mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<CullFaceSet>(face);
+            mQueue.doSend<CullFaceSet>(face);
             break;
         }
 
@@ -2976,28 +2979,24 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
         case D3DRS_COLORWRITEENABLE1:
         case D3DRS_COLORWRITEENABLE2:
         case D3DRS_COLORWRITEENABLE3:
-            mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<ColorMaskSet>(state-D3DRS_COLORWRITEENABLE, value);
+            mQueue.doSend<ColorMaskSet>(state-D3DRS_COLORWRITEENABLE, value);
             break;
 
         case D3DRS_ZWRITEENABLE:
-            mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<DepthMaskSet>(value);
+            mQueue.doSend<DepthMaskSet>(value);
             break;
 
         case D3DRS_ZFUNC:
-            mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<DepthFuncSet>(GetGLCompFunc(value));
+            mQueue.doSend<DepthFuncSet>(GetGLCompFunc(value));
             break;
 
         case D3DRS_SLOPESCALEDEPTHBIAS:
         case D3DRS_DEPTHBIAS:
-            mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<DepthBiasSet>(
+            mQueue.doSend<DepthBiasSet>(
                 dword_to_float(mRenderState[D3DRS_SLOPESCALEDEPTHBIAS]),
                 dword_to_float(mRenderState[D3DRS_DEPTHBIAS]) * (float)((1u<<mDepthBits) - 1u)
             );
@@ -3005,46 +3004,40 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
 
         case D3DRS_ALPHAFUNC:
         case D3DRS_ALPHAREF:
-            mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<AlphaFuncSet>(GetGLCompFunc(mRenderState[D3DRS_ALPHAFUNC]),
-                                               mRenderState[D3DRS_ALPHAREF] / 255.0f);
+            mQueue.doSend<AlphaFuncSet>(GetGLCompFunc(mRenderState[D3DRS_ALPHAFUNC]),
+                                        mRenderState[D3DRS_ALPHAREF] / 255.0f);
             break;
 
         // FIXME: Handle D3DRS_SEPARATEALPHABLENDENABLE
         case D3DRS_SRCBLEND:
         case D3DRS_DESTBLEND:
-            mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<BlendFuncSet>(GetGLBlendFunc(mRenderState[D3DRS_SRCBLEND]),
-                                               GetGLBlendFunc(mRenderState[D3DRS_DESTBLEND]));
+            mQueue.doSend<BlendFuncSet>(GetGLBlendFunc(mRenderState[D3DRS_SRCBLEND]),
+                                        GetGLBlendFunc(mRenderState[D3DRS_DESTBLEND]));
             break;
         case D3DRS_BLENDOP:
-            mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<BlendOpSet>(GetGLBlendOp(value));
+            mQueue.doSend<BlendOpSet>(GetGLBlendOp(value));
             break;
 
         case D3DRS_CLIPPLANEENABLE:
-            mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<ClipPlaneEnableCmd>(make_ref(mGLState), value);
+            mQueue.doSend<ClipPlaneEnableCmd>(make_ref(mGLState), value);
             break;
 
         case D3DRS_STENCILWRITEMASK:
-            mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<StencilMaskSet>(value);
+            mQueue.doSend<StencilMaskSet>(value);
             break;
 
         case D3DRS_STENCILFUNC:
         case D3DRS_STENCILREF:
         case D3DRS_STENCILMASK:
             {
-                mQueue.lock();
                 GLenum face = mRenderState[D3DRS_TWOSIDEDSTENCILMODE] ? GL_FRONT : GL_FRONT_AND_BACK;
                 mRenderState[state] = value;
-                mQueue.sendAndUnlock<StencilFuncSet>(face,
+                mQueue.doSend<StencilFuncSet>(face,
                     GetGLCompFunc(mRenderState[D3DRS_STENCILFUNC]),
                     mRenderState[D3DRS_STENCILREF].load(),
                     mRenderState[D3DRS_STENCILMASK].load()
@@ -3056,10 +3049,9 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
         case D3DRS_STENCILZFAIL:
         case D3DRS_STENCILPASS:
             {
-                mQueue.lock();
                 GLenum face = mRenderState[D3DRS_TWOSIDEDSTENCILMODE] ? GL_FRONT : GL_FRONT_AND_BACK;
                 mRenderState[state] = value;
-                mQueue.sendAndUnlock<StencilOpSet>(face,
+                mQueue.doSend<StencilOpSet>(face,
                     GetGLStencilOp(mRenderState[D3DRS_STENCILFAIL]),
                     GetGLStencilOp(mRenderState[D3DRS_STENCILZFAIL]),
                     GetGLStencilOp(mRenderState[D3DRS_STENCILPASS])
@@ -3070,9 +3062,8 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
         // FIXME: These probably shouldn't set OpenGL state while
         // D3DRS_TWOSIDEDSTENCILMODE is false.
         case D3DRS_CCW_STENCILFUNC:
-            mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<StencilFuncSet>(GL_BACK,
+            mQueue.doSend<StencilFuncSet>(GL_BACK,
                 GetGLCompFunc(mRenderState[D3DRS_CCW_STENCILFUNC]),
                 mRenderState[D3DRS_STENCILREF].load(),
                 mRenderState[D3DRS_STENCILMASK].load()
@@ -3082,9 +3073,8 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
         case D3DRS_CCW_STENCILFAIL:
         case D3DRS_CCW_STENCILZFAIL:
         case D3DRS_CCW_STENCILPASS:
-            mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<StencilOpSet>(GL_BACK,
+            mQueue.doSend<StencilOpSet>(GL_BACK,
                 GetGLStencilOp(mRenderState[D3DRS_CCW_STENCILFAIL]),
                 GetGLStencilOp(mRenderState[D3DRS_CCW_STENCILZFAIL]),
                 GetGLStencilOp(mRenderState[D3DRS_CCW_STENCILPASS])
@@ -3099,9 +3089,8 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
             break;
 
         case D3DRS_FOGCOLOR:
-            mQueue.lock();
             mRenderState[state] = value;
-            mQueue.sendAndUnlock<FogValuefSet>(GL_FOG_COLOR,
+            mQueue.doSend<FogValuefSet>(GL_FOG_COLOR,
                 D3DCOLOR_R(value)/255.0f, D3DCOLOR_G(value)/255.0f,
                 D3DCOLOR_B(value)/255.0f, D3DCOLOR_A(value)/255.0f
             );
@@ -3113,6 +3102,7 @@ HRESULT D3DGLDevice::SetRenderState(D3DRENDERSTATETYPE state, DWORD value)
                 mRenderState[state] = value;
             break;
     }
+    mQueue.unlock();
 
     return D3D_OK;
 }
@@ -3196,7 +3186,8 @@ HRESULT D3DGLDevice::SetTexture(DWORD stage, IDirect3DBaseTexture9 *texture)
     {
         mQueue.lock();
         texture = mTextures[stage].exchange(texture);
-        mQueue.sendAndUnlock<SetTextureCmd>(make_ref(mGLState), stage, GL_TEXTURE_2D, 0);
+        mQueue.doSend<SetTextureCmd>(make_ref(mGLState), stage, GL_TEXTURE_2D, 0);
+        mQueue.unlock();
         if(texture) texture->Release();
         return D3D_OK;
     }
@@ -3250,7 +3241,8 @@ HRESULT D3DGLDevice::SetTexture(DWORD stage, IDirect3DBaseTexture9 *texture)
             );
         }
     }
-    mQueue.sendAndUnlock<SetTextureCmd>(make_ref(mGLState), stage, type, binding);
+    mQueue.doSend<SetTextureCmd>(make_ref(mGLState), stage, type, binding);
+    mQueue.unlock();
     if(texture) texture->Release();
 
     return D3D_OK;
@@ -3335,28 +3327,28 @@ HRESULT D3DGLDevice::SetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DW
     switch(type)
     {
         case D3DSAMP_ADDRESSU:
-            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+            mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[sampler],
                 GL_TEXTURE_WRAP_S, GetGLWrapMode(value)
             );
             break;
         case D3DSAMP_ADDRESSV:
-            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+            mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[sampler],
                 GL_TEXTURE_WRAP_T, GetGLWrapMode(value)
             );
             break;
         case D3DSAMP_ADDRESSW:
-            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+            mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[sampler],
                 GL_TEXTURE_WRAP_R, GetGLWrapMode(value)
             );
             break;
         case D3DSAMP_BORDERCOLOR:
-            mQueue.sendAndUnlock<SetSamplerParameter4f>(mGLState.samplers[sampler],
+            mQueue.doSend<SetSamplerParameter4f>(mGLState.samplers[sampler],
                 GL_TEXTURE_BORDER_COLOR, D3DCOLOR_R(value)/255.0f, D3DCOLOR_G(value)/255.0f,
                 D3DCOLOR_B(value)/255.0f, D3DCOLOR_A(value)/255.0f
             );
             break;
         case D3DSAMP_MAGFILTER:
-            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+            mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[sampler],
                 GL_TEXTURE_MAG_FILTER, GetGLFilterMode(value, D3DTEXF_NONE)
             );
             break;
@@ -3367,39 +3359,37 @@ HRESULT D3DGLDevice::SetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DW
                                                    mSamplerState[sampler][D3DSAMP_MAXANISOTROPY].load() :
                                                    1ul
                 );
-            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+            mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[sampler],
                 GL_TEXTURE_MIN_FILTER, GetGLFilterMode(value,
                     mSamplerState[sampler][D3DSAMP_MIPFILTER]
                 )
             );
             break;
         case D3DSAMP_MIPFILTER:
-            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+            mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[sampler],
                 GL_TEXTURE_MIN_FILTER, GetGLFilterMode(
                     mSamplerState[sampler][D3DSAMP_MINFILTER], value
                 )
             );
             break;
         case D3DSAMP_MIPMAPLODBIAS:
-            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+            mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[sampler],
                 GL_TEXTURE_LOD_BIAS, value
             );
             break;
         case D3DSAMP_MAXMIPLEVEL:
-            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+            mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[sampler],
                 GL_TEXTURE_MAX_LOD, value
             );
             break;
         case D3DSAMP_MAXANISOTROPY:
             if(mSamplerState[sampler][D3DSAMP_MIPFILTER] == D3DTEXF_ANISOTROPIC)
-                mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+                mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[sampler],
                     GL_TEXTURE_MAX_ANISOTROPY_EXT, value
                 );
-            else
-                mQueue.unlock();
             break;
         case D3DSAMP_SRGBTEXTURE:
-            mQueue.sendAndUnlock<SetSamplerParameteri>(mGLState.samplers[sampler],
+            mQueue.doSend<SetSamplerParameteri>(mGLState.samplers[sampler],
                 GL_TEXTURE_SRGB_DECODE_EXT, value ? GL_DECODE_EXT : GL_SKIP_DECODE_EXT
             );
             break;
@@ -3407,9 +3397,9 @@ HRESULT D3DGLDevice::SetSamplerState(DWORD sampler, D3DSAMPLERSTATETYPE type, DW
         case D3DSAMP_DMAPOFFSET:
         default:
             FIXME("Unhandled sampler state: %s\n", d3dsamp_to_str(type));
-            mQueue.unlock();
             break;
     }
+    mQueue.unlock();
 
     return D3D_OK;
 }
@@ -3456,7 +3446,8 @@ HRESULT D3DGLDevice::SetScissorRect(const RECT *rect)
 
     mQueue.lock();
     mScissorRect = *rect;
-    mQueue.sendAndUnlock<ScissorRectSet>(*rect);
+    mQueue.doSend<ScissorRectSet>(*rect);
+    mQueue.unlock();
 
     return D3D_OK;
 }
@@ -3502,13 +3493,12 @@ HRESULT D3DGLDevice::DrawPrimitive(D3DPRIMITIVETYPE type, UINT startvtx, UINT co
 
     mQueue.lock();
     HRESULT hr = sendVtxData(startvtx, mStreams.data(), mStreams.size());
-    if(FAILED(hr))
-        mQueue.unlock();
-    else
+    if(SUCCEEDED(hr))
     {
         GLenum mode = GetGLDrawMode(type, count);
-        mQueue.sendAndUnlock<DrawGLArraysCmd>(make_ref(mGLState), mode, count, 1/*num_instances*/);
+        mQueue.doSend<DrawGLArraysCmd>(make_ref(mGLState), mode, count, 1/*num_instances*/);
     }
+    mQueue.unlock();
 
     return hr;
 }
@@ -3527,27 +3517,28 @@ HRESULT D3DGLDevice::DrawIndexedPrimitive(D3DPRIMITIVETYPE type, INT startvtx, U
 
     mQueue.lock();
     HRESULT hr = sendVtxData(startvtx, mStreams.data(), mStreams.size());
-    if(FAILED(hr))
-        mQueue.unlock();
-    else if(!(idxbuffer=mIndexBuffer))
+    if(SUCCEEDED(hr))
     {
-        WARN("No index buffer set\n");
-        mQueue.unlock();
-        hr = D3DERR_INVALIDCALL;
-    }
-    else
-    {
-        GLsizei num_instances = 1;
-        if((mStreams[0].mFreq&D3DSTREAMSOURCE_INDEXEDDATA))
-            num_instances = (mStreams[0].mFreq&0x3fffffff);
+        if(!(idxbuffer=mIndexBuffer))
+        {
+            WARN("No index buffer set\n");
+            hr = D3DERR_INVALIDCALL;
+        }
+        else
+        {
+            GLsizei num_instances = 1;
+            if((mStreams[0].mFreq&D3DSTREAMSOURCE_INDEXEDDATA))
+                num_instances = (mStreams[0].mFreq&0x3fffffff);
 
-        GLenum mode = GetGLDrawMode(type, count);
-        GLenum type = GetGLIndexType(idxbuffer->getFormat(), startidx);
-        GLubyte *pointer = ((GLubyte*)nullptr) + startidx;
-        mQueue.sendAndUnlock<DrawGLElementsCmd>(make_ref(mGLState),
-            mode, count, type, pointer, num_instances, minvtx
-        );
+            GLenum mode = GetGLDrawMode(type, count);
+            GLenum type = GetGLIndexType(idxbuffer->getFormat(), startidx);
+            GLubyte *pointer = ((GLubyte*)nullptr) + startidx;
+            mQueue.doSend<DrawGLElementsCmd>(make_ref(mGLState),
+                mode, count, type, pointer, num_instances, minvtx
+            );
+        }
     }
+    mQueue.unlock();
     return hr;
 }
 
@@ -3577,9 +3568,7 @@ HRESULT D3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE type, UINT count, const vo
     stream.mFreq = mStreams[0].mFreq;
 
     HRESULT hr = sendVtxData(0, &stream, 1);
-    if(FAILED(hr))
-        mQueue.unlock();
-    else
+    if(SUCCEEDED(hr))
     {
         if(mStreams[0].mBuffer)
             mStreams[0].mBuffer->releaseIface();
@@ -3587,8 +3576,9 @@ HRESULT D3DGLDevice::DrawPrimitiveUP(D3DPRIMITIVETYPE type, UINT count, const vo
         mStreams[0].mOffset = 0;
         mStreams[0].mStride = 0;
 
-        mQueue.sendAndUnlock<DrawGLArraysCmd>(make_ref(mGLState), mode, count, 1/*num_instances*/);
+        mQueue.doSend<DrawGLArraysCmd>(make_ref(mGLState), mode, count, 1/*num_instances*/);
     }
+    mQueue.unlock();
 
     return hr;
 }
@@ -3637,17 +3627,14 @@ HRESULT D3DGLDevice::SetVertexDeclaration(IDirect3DVertexDeclaration9 *decl)
     }
 
     mQueue.lock();
-    if(!vtxdecl)
-    {
+    if(vtxdecl)
         vtxdecl = mVertexDecl.exchange(vtxdecl);
-        // FIXME: Set according to FVF?
-        mQueue.unlock();
-    }
     else
     {
         vtxdecl = mVertexDecl.exchange(vtxdecl);
-        mQueue.unlock();
+        // FIXME: Set according to FVF?
     }
+    mQueue.unlock();
     if(vtxdecl) vtxdecl->releaseIface();
 
     return D3D_OK;
@@ -3751,20 +3738,18 @@ HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
         // should be filled with what the shader defined.
 
         if(GLuint program = vshader->getProgram())
-            mQueue.sendAndUnlock<SetVShaderCmd>(mGLState.pipeline, program);
+            mQueue.doSend<SetVShaderCmd>(mGLState.pipeline, program);
         else
         {
             vshader->addPendingUpdate();
-            mQueue.sendAndUnlock<CompileAndSetVShaderCmd>(vshader, mGLState.pipeline);
+            mQueue.doSend<CompileAndSetVShaderCmd>(vshader, mGLState.pipeline);
         }
     }
     else if(oldshader)
     {
         // FIXME: Set according to fixed-function emulation shader
-        mQueue.unlock();
     }
-    else
-        mQueue.unlock();
+    mQueue.unlock();
     if(oldshader) oldshader->Release();
 
     return D3D_OK;
@@ -3794,23 +3779,23 @@ HRESULT D3DGLDevice::SetVertexShaderConstantF(UINT start, const float *values, U
     {
     set_more:
         if(count == 1)
-            mQueue.sendAndUnlock<SetBufferValue4f>(mGLState.vs_uniform_bufferf,
+            mQueue.doSend<SetBufferValue4f>(mGLState.vs_uniform_bufferf,
                 start*sizeof(Vector4f), values
             );
         else if(count <= 4)
-            mQueue.sendAndUnlock<SetBufferValue4fv<4>>(mGLState.vs_uniform_bufferf,
+            mQueue.doSend<SetBufferValue4fv<4>>(mGLState.vs_uniform_bufferf,
                 start*sizeof(Vector4f), values, count
             );
         else if(count <= 32)
-            mQueue.sendAndUnlock<SetBufferValue4fv<32>>(mGLState.vs_uniform_bufferf,
+            mQueue.doSend<SetBufferValue4fv<32>>(mGLState.vs_uniform_bufferf,
                 start*sizeof(Vector4f), values, count
             );
         else if(count <= 64)
-            mQueue.sendAndUnlock<SetBufferValue4fv<64>>(mGLState.vs_uniform_bufferf,
+            mQueue.doSend<SetBufferValue4fv<64>>(mGLState.vs_uniform_bufferf,
                 start*sizeof(Vector4f), values, count
             );
         else if(count <= 128)
-            mQueue.sendAndUnlock<SetBufferValue4fv<128>>(mGLState.vs_uniform_bufferf,
+            mQueue.doSend<SetBufferValue4fv<128>>(mGLState.vs_uniform_bufferf,
                 start*sizeof(Vector4f), values, count
             );
         else
@@ -3824,6 +3809,7 @@ HRESULT D3DGLDevice::SetVertexShaderConstantF(UINT start, const float *values, U
             goto set_more;
         }
     }
+    mQueue.unlock();
 
     return D3D_OK;
 }
@@ -3979,7 +3965,8 @@ HRESULT D3DGLDevice::SetIndices(IDirect3DIndexBuffer9 *index)
 
     mQueue.lock();
     D3DGLBufferObject *oldbuffer = mIndexBuffer.exchange(buffer);
-    mQueue.sendAndUnlock<ElementArraySet>(buffer ? buffer->getBufferId() : 0);
+    mQueue.doSend<ElementArraySet>(buffer ? buffer->getBufferId() : 0);
+    mQueue.unlock();
     if(oldbuffer) oldbuffer->releaseIface();
 
     return D3D_OK;
@@ -4035,18 +4022,19 @@ HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9 *shader)
         // should be filled with what the shader defined.
 
         if(GLuint program = pshader->getProgram())
-            mQueue.sendAndUnlock<SetPShaderCmd>(mGLState.pipeline, program);
+            mQueue.doSend<SetPShaderCmd>(mGLState.pipeline, program);
         else
         {
             /* Don't build the fragment program yet. We'll do it when it draws
-             * and we have the proper shadow sampler setup. */
-            mQueue.unlock();
+             * and we have the proper shadow sampler setup.
+             */
         }
     }
     else if(oldshader)
-        mQueue.unlock();
-    else
-        mQueue.unlock();
+    {
+        // FIXME: Set according to fixed-function emulation shader
+    }
+    mQueue.unlock();
     if(oldshader) oldshader->Release();
 
     return D3D_OK;
@@ -4076,23 +4064,23 @@ HRESULT D3DGLDevice::SetPixelShaderConstantF(UINT start, const float *values, UI
     {
     set_more:
         if(count == 1)
-            mQueue.sendAndUnlock<SetBufferValue4f>(mGLState.ps_uniform_bufferf,
+            mQueue.doSend<SetBufferValue4f>(mGLState.ps_uniform_bufferf,
                 start*sizeof(Vector4f), values
             );
         else if(count <= 4)
-            mQueue.sendAndUnlock<SetBufferValue4fv<4>>(mGLState.ps_uniform_bufferf,
+            mQueue.doSend<SetBufferValue4fv<4>>(mGLState.ps_uniform_bufferf,
                 start*sizeof(Vector4f), values, count
             );
         else if(count <= 32)
-            mQueue.sendAndUnlock<SetBufferValue4fv<32>>(mGLState.ps_uniform_bufferf,
+            mQueue.doSend<SetBufferValue4fv<32>>(mGLState.ps_uniform_bufferf,
                 start*sizeof(Vector4f), values, count
             );
         else if(count <= 64)
-            mQueue.sendAndUnlock<SetBufferValue4fv<64>>(mGLState.ps_uniform_bufferf,
+            mQueue.doSend<SetBufferValue4fv<64>>(mGLState.ps_uniform_bufferf,
                 start*sizeof(Vector4f), values, count
             );
         else if(count <= 128)
-            mQueue.sendAndUnlock<SetBufferValue4fv<128>>(mGLState.ps_uniform_bufferf,
+            mQueue.doSend<SetBufferValue4fv<128>>(mGLState.ps_uniform_bufferf,
                 start*sizeof(Vector4f), values, count
             );
         else
@@ -4106,6 +4094,7 @@ HRESULT D3DGLDevice::SetPixelShaderConstantF(UINT start, const float *values, UI
             goto set_more;
         }
     }
+    mQueue.unlock();
 
     return D3D_OK;
 }

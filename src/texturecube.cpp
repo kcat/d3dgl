@@ -322,7 +322,8 @@ void D3DGLCubeTexture::updateTexture(DWORD level, GLint facenum, const RECT &rec
     CommandQueue &queue = mParent->getQueue();
     queue.lock();
     ++mUpdateInProgress;
-    queue.sendAndUnlock<CubeTextureLoadLevelCmd>(this, level, facenum, rect, dataPtr);
+    queue.doSend<CubeTextureLoadLevelCmd>(this, level, facenum, rect, dataPtr);
+    queue.unlock();
 }
 
 void D3DGLCubeTexture::addIface()

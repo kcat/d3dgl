@@ -28,9 +28,9 @@ ULONG CommandEvent::execute()
     mCommand->execute();
     delete mCommand;
 
-    mQueue.prepareSignal();
+    mQueue.beginWait();
     mFlag = 1;
-    mQueue.sendSignal();
+    mQueue.endWait();
 
     return sizeof(*this);
 }

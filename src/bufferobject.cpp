@@ -231,7 +231,8 @@ void D3DGLBufferObject::resetBufferData(const GLubyte *data, GLuint length)
     }
     memcpy(mBufData.get(), data, length);
 
-    mParent->getQueue().sendAndUnlock<LoadBufferDataCmd>(this, 0, mLength, mBufData, 0);
+    mParent->getQueue().doSend<LoadBufferDataCmd>(this, 0, mLength, mBufData, 0);
+    mParent->getQueue().unlock();
 }
 
 ULONG D3DGLBufferObject::releaseIface()

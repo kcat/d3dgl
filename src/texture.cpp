@@ -303,7 +303,8 @@ void D3DGLTexture::updateTexture(DWORD level, const RECT &rect, const GLubyte *d
     CommandQueue &queue = mParent->getQueue();
     queue.lock();
     ++mUpdateInProgress;
-    queue.sendAndUnlock<TextureLoadLevelCmd>(this, level, rect, dataPtr);
+    queue.doSend<TextureLoadLevelCmd>(this, level, rect, dataPtr);
+    queue.unlock();
 }
 
 void D3DGLTexture::addIface()

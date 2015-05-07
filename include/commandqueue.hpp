@@ -157,13 +157,6 @@ public:
         SleepConditionVariableCS(&mCondVar, &mLock, time_ms);
     }
 
-    void prepareSignal() { EnterCriticalSection(&mLock); }
-    void sendSignal()
-    {
-        LeaveCriticalSection(&mLock);
-        WakeAllConditionVariable(&mCondVar);
-    }
-
 
     void lock()
     {
@@ -187,13 +180,6 @@ public:
         static_assert(sizeof(T) < sQueueSize, "Type size is way too large!");
 
         doSizedSend<T,Args...>(sizeof(T), args...);
-    }
-
-    template<typename T, typename ...Args>
-    void sendAndUnlock(Args...args)
-    {
-        doSend<T,Args...>(args...);
-        unlock();
     }
 
     template<typename T, typename ...Args>
