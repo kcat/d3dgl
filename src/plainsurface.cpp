@@ -152,7 +152,7 @@ HRESULT D3DGLPlainSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *rect
 {
     TRACE("iface %p, lockedRect %p, rect %p, flags 0x%lx\n", this, lockedRect, rect, flags);
 
-    if(mDesc.Format == D3DFMT4CC('N','U','L','L'))
+    if(mDesc.Format == D3DFMT_NULL)
     {
         FIXME("Attempting to lock NULL format texture\n");
         return D3DERR_INVALIDCALL;
