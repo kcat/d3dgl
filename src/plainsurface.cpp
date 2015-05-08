@@ -8,23 +8,6 @@
 #include "allocators.hpp"
 
 
-namespace
-{
-
-inline int calc_pitch(int w, int bpp)
-{
-    int ret = w * bpp;
-    return (ret+3) & ~3;
-}
-
-inline int calc_blocked_pitch(int w, int bpp)
-{
-    int ret = (w+3)/4 * bpp;
-    return (ret+3) & ~3;
-}
-
-}
-
 D3DGLPlainSurface::D3DGLPlainSurface(D3DGLDevice *parent)
   : mRefCount(0)
   , mParent(parent)
@@ -56,9 +39,9 @@ bool D3DGLPlainSurface::init(const D3DSURFACE_DESC *desc)
 
     UINT data_len;
     if(mIsCompressed)
-        data_len = calc_blocked_pitch(mDesc.Width, mGLFormat->bytesperblock) * ((mDesc.Height+3)/4);
+        data_len = mGLFormat->calcBlockPitch(mDesc.Width, mGLFormat->bytesperblock) * ((mDesc.Height+3)/4);
     else
-        data_len = calc_pitch(mDesc.Width, mGLFormat->bytesperpixel) * mDesc.Height;
+        data_len = mGLFormat->calcPitch(mDesc.Width, mGLFormat->bytesperpixel) * mDesc.Height;
     data_len = (data_len+15) & ~15;
     mBufData.reset(DataAllocator<GLubyte>()(data_len), DataDeallocator<GLubyte>());
 
@@ -209,13 +192,13 @@ HRESULT D3DGLPlainSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *rect
     mLockRegion = *rect;
     if(mIsCompressed && !(mGLFormat->flags&GLFormatInfo::BadPitch))
     {
-        int pitch = calc_blocked_pitch(mDesc.Width, mGLFormat->bytesperblock);
+        int pitch = mGLFormat->calcBlockPitch(mDesc.Width, mGLFormat->bytesperblock);
         memPtr += (rect->top/4*pitch) + (rect->left/4*mGLFormat->bytesperblock);
         lockedRect->Pitch = pitch;
     }
     else
     {
-        int pitch = calc_pitch(mDesc.Width, mGLFormat->bytesperpixel);
+        int pitch = mGLFormat->calcPitch(mDesc.Width, mGLFormat->bytesperpixel);
         memPtr += (rect->top*pitch) + (rect->left*mGLFormat->bytesperpixel);
         lockedRect->Pitch = pitch;
     }

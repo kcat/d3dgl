@@ -32,6 +32,17 @@ struct GLFormatInfo {
 
     GLenum getDepthStencilAttachment() const;
     GLuint getDepthBits() const;
+
+    static int calcPitch(int w, int bpp)
+    {
+        int ret = w * bpp;
+        return (ret+3) & ~3;
+    }
+    static int calcBlockPitch(int w, int bpp)
+    {
+        int ret = (w+3)/4 * bpp;
+        return (ret+3) & ~3;
+    }
 };
 extern const std::map<DWORD,GLFormatInfo> gFormatList;
 

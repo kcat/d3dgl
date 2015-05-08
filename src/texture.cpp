@@ -11,23 +11,6 @@
 #include "private_iids.hpp"
 
 
-namespace
-{
-
-inline int calc_pitch(int w, int bpp)
-{
-    int ret = w * bpp;
-    return (ret+3) & ~3;
-}
-
-inline int calc_blocked_pitch(int w, int bpp)
-{
-    int ret = (w+3)/4 * bpp;
-    return (ret+3) & ~3;
-}
-
-}
-
 void D3DGLTexture::initGL()
 {
     UINT total_size = 0;
@@ -44,12 +27,12 @@ void D3DGLTexture::initGL()
            mDesc.Format == D3DFMT_DXT5 || mDesc.Format == D3DFMT_ATI1 ||
            mDesc.Format == D3DFMT_ATI2)
         {
-            level_size  = calc_blocked_pitch(w, mGLFormat->bytesperblock);
+            level_size  = mGLFormat->calcBlockPitch(w, mGLFormat->bytesperblock);
             level_size *= ((h+3)/4);
         }
         else
         {
-            level_size  = calc_pitch(w, mGLFormat->bytesperpixel);
+            level_size  = mGLFormat->calcPitch(w, mGLFormat->bytesperpixel);
             level_size *= h;
         }
 
@@ -139,7 +122,7 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, const GLubyte *
            mDesc.Format == D3DFMT_DXT5 || mDesc.Format == D3DFMT_ATI1 ||
            mDesc.Format == D3DFMT_ATI2)
         {
-            int pitch = calc_blocked_pitch(w, mGLFormat->bytesperblock);
+            int pitch = mGLFormat->calcBlockPitch(w, mGLFormat->bytesperblock);
             int offset = (rect.top/4*pitch) + (rect.left/4*mGLFormat->bytesperblock);
             len = surface->getDataLength() - offset;
             dataPtr += offset;
@@ -151,7 +134,7 @@ void D3DGLTexture::loadTexLevelGL(DWORD level, const RECT &rect, const GLubyte *
     }
     else
     {
-        int pitch = calc_pitch(w, mGLFormat->bytesperpixel);
+        int pitch = mGLFormat->calcPitch(w, mGLFormat->bytesperpixel);
         dataPtr += (rect.top*pitch) + (rect.left*mGLFormat->bytesperpixel);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, w);
         glTextureSubImage2DEXT(mTexId, GL_TEXTURE_2D, level,
@@ -697,13 +680,13 @@ HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *re
     mLockRegion = *rect;
     if(mParent->mIsCompressed && !(mParent->mGLFormat->flags&GLFormatInfo::BadPitch))
     {
-        int pitch = calc_blocked_pitch(w, mParent->mGLFormat->bytesperblock);
+        int pitch = GLFormatInfo::calcBlockPitch(w, mParent->mGLFormat->bytesperblock);
         memPtr += (rect->top/4*pitch) + (rect->left/4*mParent->mGLFormat->bytesperblock);
         lockedRect->Pitch = pitch;
     }
     else
     {
-        int pitch = calc_pitch(w, mParent->mGLFormat->bytesperpixel);
+        int pitch = GLFormatInfo::calcPitch(w, mParent->mGLFormat->bytesperpixel);
         memPtr += (rect->top*pitch) + (rect->left*mParent->mGLFormat->bytesperpixel);
         lockedRect->Pitch = pitch;
     }
