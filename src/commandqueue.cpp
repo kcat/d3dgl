@@ -75,8 +75,12 @@ void CommandQueue::deinit()
 {
     if(mThreadHdl)
     {
-        send<CommandQuitThrd>();
-        WaitForSingleObject(mThreadHdl, 5000);
+        sendFlush<CommandQuitThrd>();
+        if(WaitForSingleObject(mThreadHdl, 10000) != WAIT_OBJECT_0)
+        {
+            ERR("Failed to stop background thread, error 0x%lx\n", GetLastError());
+            std::terminate();
+        }
         CloseHandle(mThreadHdl);
         mThreadHdl = nullptr;
         mThreadId = 0;
@@ -112,6 +116,7 @@ restart_loop:
 
         Command *cmd = reinterpret_cast<Command*>(&mQueueData[tail]);
         TRACE("Executing %p\n", cmd);
+
         ULONG size = cmd->execute();
         if(size < sizeof(Command))
         {

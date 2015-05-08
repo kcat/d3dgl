@@ -201,13 +201,25 @@ public:
         endWait();
     }
 
+    template<typename T, typename ...Args>
+    void sendFlush(Args...args)
+    {
+        EnterCriticalSection(&mLock);
+        send<T,Args...>(args...);
+        LeaveCriticalSection(&mLock);
+        wake();
+    }
+
+
     void flush()
     {
         // FIXME: On Wine, a glFlush may cause a repaint of the window from the
-        // GL's front buffer, which is fine except for the added processing.
-        // However, it would be nice to ensure OpenGL is processing all the
-        // commands that got sent to it up to this point.
-        //send<FlushGLCmd>();
+        // GL's front buffer, which is fine except for the added processing we
+        // don't want. However, it would be nice to ensure OpenGL is processing
+        // all the commands that got sent to it up to this point.
+        //sendFlush<FlushGLCmd>();
+        EnterCriticalSection(&mLock);
+        LeaveCriticalSection(&mLock);
         wake();
     }
 };
