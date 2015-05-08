@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <vector>
+#include <map>
 #include <d3d9.h>
 
 #include "glew.h"
@@ -17,7 +18,7 @@ class D3DGLPixelShader : public IDirect3DPixelShader9 {
     D3DGLDevice *mParent;
 
     std::atomic<ULONG> mPendingUpdates;
-    std::atomic<GLuint> mProgram;
+    std::map<UINT,GLuint> mPrograms;
     UINT mSamplerMask; // Bitmask of used samplers
     UINT mShadowSamplers; // Bitmask of samplers that have a shadow texture format
 
@@ -31,11 +32,9 @@ public:
 
     GLuint compileShaderGL(UINT shadowsamplers);
 
-    void addPendingUpdate() { ++mPendingUpdates; }
-    ULONG getPendingUpdates() { return mPendingUpdates; }
-    GLuint getProgram() const { return mProgram; }
+    ULONG getPendingUpdates() const { return mPendingUpdates; }
 
-    void checkShadowSamplers(UINT mask);
+    void setProgram(GLuint pipeline, UINT shadowmask, bool force);
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;

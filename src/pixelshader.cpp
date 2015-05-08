@@ -12,12 +12,7 @@
 GLuint D3DGLPixelShader::compileShaderGL(UINT shadowmask)
 {
     const MOJOSHADER_parseData *shader = nullptr;
-    GLuint program = mProgram.exchange(0);
-    if(program)
-    {
-        glDeleteProgram(program);
-        program = 0;
-    }
+    GLuint program = 0;
 
     shader = MOJOSHADER_parse(MOJOSHADER_PROFILE_GLSL330,
         reinterpret_cast<const unsigned char*>(mCode.data()),
@@ -64,7 +59,7 @@ GLuint D3DGLPixelShader::compileShaderGL(UINT shadowmask)
             goto done;
         }
 
-        mProgram = program;
+        mPrograms.insert(std::make_pair(shadowmask, program));
         TRACE("Created fragment shader program 0x%x\n", program);
 
         glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLen);
@@ -119,21 +114,17 @@ D3DGLPixelShader::D3DGLPixelShader(D3DGLDevice *parent)
   : mRefCount(0)
   , mParent(parent)
   , mPendingUpdates(0)
-  , mProgram(0)
   , mSamplerMask(0)
-  , mShadowSamplers(0)
 {
     mParent->AddRef();
 }
 
 D3DGLPixelShader::~D3DGLPixelShader()
 {
-    if(GLuint program = mProgram.exchange(0))
-    {
-        mParent->getQueue().send<DeinitPShaderCmd>(program);
-        if(mPendingUpdates > 0)
-            mParent->getQueue().wakeAndWait();
-    }
+    if(mPendingUpdates > 0)
+        mParent->getQueue().wakeAndWait();
+    for(auto &program : mPrograms)
+        mParent->getQueue().send<DeinitPShaderCmd>(program.second);
     mParent->Release();
 }
 
@@ -174,20 +165,30 @@ bool D3DGLPixelShader::init(const DWORD *data)
     return true;
 }
 
-void D3DGLPixelShader::checkShadowSamplers(UINT mask)
+void D3DGLPixelShader::setProgram(GLuint pipeline, UINT shadowmask, bool force)
 {
-    if(mPendingUpdates > 0 || mProgram)
+    CommandQueue &queue = mParent->getQueue();
+    while(mPendingUpdates > 0)
+        queue.wakeAndWait();
+
+    shadowmask &= mSamplerMask;
+    auto iter = mPrograms.find(shadowmask);
+    if(iter != mPrograms.end())
     {
-        if(mShadowSamplers == (mask&mSamplerMask))
-            return;
-
-        WARN("Rebuilding shader %p because of shadow mismatch: 0x%04x / 0x%04x\n",
-             this, mShadowSamplers, (mask&mSamplerMask));
+        if(force || mShadowSamplers != shadowmask)
+        {
+            mShadowSamplers = shadowmask;
+            queue.doSend<SetPShaderCmd>(pipeline, iter->second);
+        }
     }
+    else
+    {
+        TRACE("Building program for shadow sampler mask 0x%x\n", shadowmask);
 
-    mShadowSamplers = (mask&mSamplerMask);
-    ++mPendingUpdates;
-    mParent->getQueue().doSend<CompileAndSetPShaderCmd>(this, mParent->getShaderPipeline(), mShadowSamplers);
+        mShadowSamplers = shadowmask;
+        ++mPendingUpdates;
+        queue.doSend<CompileAndSetPShaderCmd>(this, pipeline, shadowmask);
+    }
 }
 
 

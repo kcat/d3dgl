@@ -158,6 +158,9 @@ class D3DGLDevice : public IDirect3DDevice9 {
     /* Bitmask of sampler stages that have a shadow texture format */
     UINT mShadowSamplers;
 
+    /* Specifies if the pixel shader is newly set for this draw. */
+    std::atomic<bool> mNewPixelShader;
+
     // Sends buffer values to update proj_fixup_uniform_buffer. Caller is
     // responsible for holding the mQueue lock.
     void resetProjectionFixup(UINT width, UINT height);

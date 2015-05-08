@@ -758,6 +758,7 @@ public:
 };
 typedef SetBufferValue4fv<1> SetBufferValue4f;
 
+
 class ElementArraySet : public Command {
     GLuint mBufferId;
 
@@ -1340,6 +1341,7 @@ D3DGLDevice::D3DGLDevice(Direct3DGL *parent, const D3DAdapter &adapter, HWND win
   , mPrimitiveUserData(nullptr)
   , mDepthBits(0)
   , mShadowSamplers(0)
+  , mNewPixelShader(false)
 {
     for(auto &rt : mRenderTargets) rt = nullptr;
     for(auto &tex : mTextures) tex = nullptr;
@@ -1506,7 +1508,7 @@ HRESULT D3DGLDevice::sendVtxData(INT startvtx, const StreamSource *sources, UINT
     }
 
     if(D3DGLPixelShader *pshader = mPixelShader)
-        pshader->checkShadowSamplers(mShadowSamplers);
+        pshader->setProgram(mGLState.pipeline, mShadowSamplers, mNewPixelShader.exchange(false));
 
     D3DGLVertexDeclaration *vtxdecl = mVertexDecl;
     if(!vtxdecl)
@@ -4021,14 +4023,10 @@ HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9 *shader)
         // appropriate global values, and the new shader's local constants
         // should be filled with what the shader defined.
 
-        if(GLuint program = pshader->getProgram())
-            mQueue.doSend<SetPShaderCmd>(mGLState.pipeline, program);
-        else
-        {
-            /* Don't build the fragment program yet. We'll do it when it draws
-             * and we have the proper shadow sampler setup.
-             */
-        }
+        /* Don't set the fragment program yet. We'll do it when it draws
+         * and we have the proper shadow sampler setup.
+         */
+        mNewPixelShader = true;
     }
     else if(oldshader)
     {
