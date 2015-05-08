@@ -289,7 +289,7 @@ bool D3DGLTexture::init(const D3DSURFACE_DESC *desc, UINT levels)
     for(UINT i = 0;i < levels;++i)
         mSurfaces.push_back(new D3DGLTextureSurface(this, i));
 
-    if(mDesc.Format != D3DFMT4CC('N','U','L','L'))
+    if(mDesc.Format != D3DFMT_NULL)
     {
         mUpdateInProgress = 1;
         mParent->getQueue().sendSync<TextureInitCmd>(this);
@@ -414,7 +414,7 @@ DWORD D3DGLTexture::SetLOD(DWORD lod)
 {
     TRACE("iface %p, lod %lu\n", this, lod);
 
-    if(mDesc.Pool != D3DPOOL_MANAGED || mDesc.Format == D3DFMT4CC('N','U','L','L'))
+    if(mDesc.Pool != D3DPOOL_MANAGED || mDesc.Format == D3DFMT_NULL)
         return 0;
 
     lod = std::min(lod, (DWORD)mSurfaces.size()-1);
@@ -452,7 +452,7 @@ D3DTEXTUREFILTERTYPE D3DGLTexture::GetAutoGenFilterType()
 void D3DGLTexture::GenerateMipSubLevels()
 {
     TRACE("iface %p\n", this);
-    if(mDesc.Format != D3DFMT4CC('N','U','L','L'))
+    if(mDesc.Format != D3DFMT_NULL)
         mParent->getQueue().send<TextureGenMipCmd>(this);
 }
 
@@ -642,7 +642,7 @@ HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *re
 {
     TRACE("iface %p, lockedRect %p, rect %p, flags 0x%lx\n", this, lockedRect, rect, flags);
 
-    if(mParent->mDesc.Format == D3DFMT4CC('N','U','L','L'))
+    if(mParent->mDesc.Format == D3DFMT_NULL)
     {
         FIXME("Attempting to lock NULL format texture\n");
         return D3DERR_INVALIDCALL;

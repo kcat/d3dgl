@@ -308,7 +308,7 @@ bool D3DGLCubeTexture::init(const D3DSURFACE_DESC *desc, UINT levels)
     if(mDesc.Format == D3DFMT_DXT2 || mDesc.Format == D3DFMT_DXT4)
         WARN("Pre-mulitplied alpha textures not supported; loading anyway.");
 
-    if(mDesc.Format != D3DFMT4CC('N','U','L','L'))
+    if(mDesc.Format != D3DFMT_NULL)
     {
         mUpdateInProgress = 1;
         mParent->getQueue().sendSync<CubeTextureInitCmd>(this);
@@ -433,7 +433,7 @@ DWORD D3DGLCubeTexture::SetLOD(DWORD lod)
 {
     TRACE("iface %p, lod %lu\n", this, lod);
 
-    if(mDesc.Pool != D3DPOOL_MANAGED || mDesc.Format == D3DFMT4CC('N','U','L','L'))
+    if(mDesc.Pool != D3DPOOL_MANAGED || mDesc.Format == D3DFMT_NULL)
         return 0;
 
     lod = std::min(lod, (DWORD)mSurfaces.size()-1);
@@ -471,7 +471,7 @@ D3DTEXTUREFILTERTYPE D3DGLCubeTexture::GetAutoGenFilterType()
 void D3DGLCubeTexture::GenerateMipSubLevels()
 {
     TRACE("iface %p\n", this);
-    if(mDesc.Format != D3DFMT4CC('N','U','L','L'))
+    if(mDesc.Format != D3DFMT_NULL)
         mParent->getQueue().send<CubeTextureGenMipCmd>(this);
 }
 
@@ -674,7 +674,7 @@ HRESULT D3DGLCubeSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *rect,
 {
     TRACE("iface %p, lockedRect %p, rect %p, flags 0x%lx\n", this, lockedRect, rect, flags);
 
-    if(mParent->mDesc.Format == D3DFMT4CC('N','U','L','L'))
+    if(mParent->mDesc.Format == D3DFMT_NULL)
     {
         FIXME("Attempting to lock NULL format cube texture\n");
         return D3DERR_INVALIDCALL;
