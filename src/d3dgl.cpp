@@ -125,6 +125,7 @@ HRESULT Direct3DGL::QueryInterface(REFIID riid, void **obj)
         return E_NOINTERFACE;
     }
 
+    FIXME("Unsupported interface %s\n", debugstr_guid(riid));
     return E_NOINTERFACE;
 }
 

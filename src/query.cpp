@@ -149,6 +149,7 @@ HRESULT D3DGLQuery::QueryInterface(REFIID riid, void **obj)
     RETURN_IF_IID_TYPE(obj, riid, IDirect3DQuery9);
     RETURN_IF_IID_TYPE(obj, riid, IUnknown);
 
+    FIXME("Unsupported interface %s\n", debugstr_guid(riid));
     return E_NOINTERFACE;
 }
 

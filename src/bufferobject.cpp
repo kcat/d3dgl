@@ -254,12 +254,16 @@ HRESULT D3DGLBufferObject::QueryInterface(REFIID riid, void **obj)
         RETURN_IF_IID_TYPE2(obj, riid, IDirect3DVertexBuffer9, IDirect3DVertexBuffer9);
         RETURN_IF_IID_TYPE2(obj, riid, IDirect3DVertexBuffer9, IDirect3DResource9);
         RETURN_IF_IID_TYPE2(obj, riid, IDirect3DVertexBuffer9, IUnknown);
+
+        FIXME("Unsupported vertex buffer interface %s\n", debugstr_guid(riid));
     }
     else
     {
         RETURN_IF_IID_TYPE2(obj, riid, IDirect3DIndexBuffer9, IDirect3DIndexBuffer9);
         RETURN_IF_IID_TYPE2(obj, riid, IDirect3DIndexBuffer9, IDirect3DResource9);
         RETURN_IF_IID_TYPE2(obj, riid, IDirect3DIndexBuffer9, IUnknown);
+
+        FIXME("Unsupported index buffer interface %s\n", debugstr_guid(riid));
     }
 
     return E_NOINTERFACE;

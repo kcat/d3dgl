@@ -201,6 +201,7 @@ HRESULT D3DGLSwapChain::QueryInterface(REFIID riid, void **obj)
     RETURN_IF_IID_TYPE(obj, riid, IDirect3DSwapChain9);
     RETURN_IF_IID_TYPE(obj, riid, IUnknown);
 
+    FIXME("Unsupported interface %s\n", debugstr_guid(riid));
     return E_NOINTERFACE;
 }
 
