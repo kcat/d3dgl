@@ -2421,7 +2421,7 @@ HRESULT D3DGLDevice::ColorFill(IDirect3DSurface9 *surface, const RECT *rect, D3D
 
 HRESULT D3DGLDevice::CreateOffscreenPlainSurface(UINT width, UINT height, D3DFORMAT format, D3DPOOL pool, IDirect3DSurface9 **surface, HANDLE *handle)
 {
-    FIXME("iface %p, width %u, height %u, format %s, pool 0x%x, surface %p, handle %p : stub!\n", this, width, height, d3dfmt_to_str(format), pool, surface, handle);
+    TRACE("iface %p, width %u, height %u, format %s, pool 0x%x, surface %p, handle %p\n", this, width, height, d3dfmt_to_str(format), pool, surface, handle);
 
     if(handle)
     {
