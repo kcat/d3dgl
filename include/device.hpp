@@ -190,6 +190,9 @@ public:
 
     void initGL(HDC dc, HGLRC glcontext);
     void deinitGL();
+    void readFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect,
+                           GLenum format, GLenum type, GLubyte *data,
+                           std::atomic<ULONG> &pendingupdates);
     void blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect,
                            GLenum dst_target, GLuint dst_binding, GLint dst_level, const RECT &dst_rect,
                            GLenum filter);

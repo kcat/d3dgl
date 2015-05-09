@@ -21,6 +21,7 @@ class D3DGLPlainSurface : public IDirect3DSurface9 {
     bool mIsCompressed;
 
     std::shared_ptr<GLubyte> mBufData;
+    std::atomic<ULONG> mPendingUpdates;
 
     enum LockType {
         LT_Unlocked,
@@ -38,6 +39,9 @@ public:
 
     const D3DSURFACE_DESC &getDesc() const { return mDesc; }
     const GLFormatInfo &getFormat() const { return *mGLFormat; }
+
+    std::atomic<ULONG> &getPendingUpdates() { return mPendingUpdates; };
+    std::shared_ptr<GLubyte> getBufData() const { return mBufData; }
 
     /*** IUnknown methods ***/
     virtual HRESULT WINAPI QueryInterface(REFIID riid, void **obj) final;

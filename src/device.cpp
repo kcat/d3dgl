@@ -1046,6 +1046,59 @@ public:
 } // namespace
 
 
+void D3DGLDevice::readFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect, GLenum format, GLenum type, GLubyte* data, std::atomic<ULONG> &pendingupdates)
+{
+    if(mGLState.current_framebuffer[0] != mGLState.copy_framebuffers[0])
+    {
+        mGLState.current_framebuffer[0] = mGLState.copy_framebuffers[0];
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, mGLState.current_framebuffer[0]);
+    }
+    if(src_target == GL_RENDERBUFFER)
+        glFramebufferRenderbuffer(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, src_binding);
+    else if(src_target == GL_TEXTURE_2D || src_target == GL_TEXTURE_CUBE_MAP_POSITIVE_X ||
+            src_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_X || src_target == GL_TEXTURE_CUBE_MAP_POSITIVE_Y ||
+            src_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Y || src_target == GL_TEXTURE_CUBE_MAP_POSITIVE_Z ||
+            src_target == GL_TEXTURE_CUBE_MAP_NEGATIVE_Z)
+        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, src_target, src_binding, src_level);
+    else
+    {
+        ERR("Unhandled source target: 0x%x\n", src_target);
+        goto done;
+    }
+
+    glReadPixels(src_rect.left, src_rect.top, src_rect.right-src_rect.left, src_rect.bottom-src_rect.top,
+                 format, type, data);
+
+done:
+    --pendingupdates;
+    checkGLError();
+}
+class ReadFramebufferCmd : public Command {
+    D3DGLDevice *mTarget;
+    GLenum mSrcTarget;
+    GLuint mSrcBinding;
+    GLint mSrcLevel;
+    RECT mSrcRect;
+    GLenum mFormat;
+    GLenum mType;
+    std::shared_ptr<GLubyte> mData;
+    std::atomic<ULONG> &mPendingUpdates;
+
+public:
+    ReadFramebufferCmd(D3DGLDevice *target, GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect, GLenum format, GLenum type, std::shared_ptr<GLubyte> data, std::atomic<ULONG> &pendingupdates)
+      : mTarget(target), mSrcTarget(src_target), mSrcBinding(src_binding), mSrcLevel(src_level), mSrcRect(src_rect)
+      , mFormat(format), mType(type), mData(data), mPendingUpdates(pendingupdates)
+    { }
+
+    virtual ULONG execute()
+    {
+        mTarget->readFramebufferGL(mSrcTarget, mSrcBinding, mSrcLevel, mSrcRect,
+                                   mFormat, mType, mData.get(), mPendingUpdates);
+        return sizeof(*this);
+    }
+};
+
+
 void D3DGLDevice::blitFramebufferGL(GLenum src_target, GLuint src_binding, GLint src_level, const RECT &src_rect, GLenum dst_target, GLuint dst_binding, GLint dst_level, const RECT &dst_rect, GLenum filter)
 {
     if(mGLState.current_framebuffer[0] != mGLState.copy_framebuffers[0])
@@ -2311,10 +2364,65 @@ HRESULT D3DGLDevice::UpdateTexture(IDirect3DBaseTexture9 *srctexture, IDirect3DB
     return E_NOTIMPL;
 }
 
-HRESULT D3DGLDevice::GetRenderTargetData(IDirect3DSurface9 *rtarget, IDirect3DSurface9 *dstsurface)
+HRESULT D3DGLDevice::GetRenderTargetData(IDirect3DSurface9 *rtsurface, IDirect3DSurface9 *dstsurface)
 {
-    FIXME("iface %p, rtarget %p, dstsurface %p : stub!\n", this, rtarget, dstsurface);
-    return E_NOTIMPL;
+    TRACE("iface %p, rtsurface %p, dstsurface %p : semi-stub\n", this, rtsurface, dstsurface);
+
+    GLenum src_target = GL_NONE;
+    GLuint src_binding = 0;
+    GLint src_level = 0;
+    D3DSURFACE_DESC srcdesc;
+
+    D3DGLRenderTarget *rtarget;
+    if(SUCCEEDED(rtsurface->QueryInterface(IID_D3DGLRenderTarget, (void**)&rtarget)))
+    {
+        srcdesc = rtarget->getDesc();
+        src_target = GL_RENDERBUFFER;
+        src_binding = rtarget->getId();
+        src_level = 0;
+        rtarget->Release();
+    }
+    else
+    {
+        FIXME("Unknown surface type with iface %p\n", rtsurface);
+        return D3DERR_INVALIDCALL;
+    }
+
+    D3DSURFACE_DESC dstdesc;
+    if(FAILED(dstsurface->GetDesc(&dstdesc)))
+        return D3DERR_INVALIDCALL;
+
+    if(srcdesc.Width != dstdesc.Width || srcdesc.Height != dstdesc.Height ||
+       srcdesc.MultiSampleType != dstdesc.MultiSampleType || srcdesc.Format != dstdesc.Format)
+    {
+        FIXME("Surface mismatch: src=%dx%d %s ms 0x%x, dst=%dx%d %s ms 0x%x\n",
+              srcdesc.Width, srcdesc.Height, d3dfmt_to_str(srcdesc.Format), srcdesc.MultiSampleType,
+              dstdesc.Width, dstdesc.Height, d3dfmt_to_str(dstdesc.Format), dstdesc.MultiSampleType);
+        return D3DERR_INVALIDCALL;
+    }
+
+    D3DGLPlainSurface *plainsurface;
+    if(SUCCEEDED(dstsurface->QueryInterface(IID_D3DGLPlainSurface, (void**)&plainsurface)))
+    {
+        std::atomic<ULONG> &pendingupdates = plainsurface->getPendingUpdates();
+        std::shared_ptr<GLubyte> data = plainsurface->getBufData();
+        GLFormatInfo format = plainsurface->getFormat();
+        RECT rect{ 0, 0, (LONG)srcdesc.Width, (LONG)srcdesc.Height };
+
+        ++pendingupdates;
+        mQueue.send<ReadFramebufferCmd>(this, src_target, src_binding, src_level, rect,
+            format.format, format.type, data, make_ref(pendingupdates)
+        );
+
+        plainsurface->Release();
+    }
+    else
+    {
+        FIXME("Unknown dstsurface type with iface %p\n", dstsurface);
+        return D3DERR_INVALIDCALL;
+    }
+
+    return D3D_OK;
 }
 
 HRESULT D3DGLDevice::GetFrontBufferData(UINT swapchain, IDirect3DSurface9 *dstsurface)
