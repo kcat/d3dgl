@@ -23,19 +23,6 @@ public:
 };
 
 
-ULONG CommandEvent::execute()
-{
-    mCommand->execute();
-    delete mCommand;
-
-    mQueue.beginWait();
-    mFlag = 1;
-    mQueue.endWait();
-
-    return sizeof(*this);
-}
-
-
 ULONG FlushGLCmd::execute()
 {
     glFlush();

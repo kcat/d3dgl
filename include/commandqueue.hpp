@@ -54,26 +54,26 @@ public:
     virtual ULONG execute() { return mSkipAmt; }
 };
 
-class CommandEvent : public Command {
+template<typename T>
+class CommandSync : public Command {
 public:
     typedef std::atomic<ULONG> FlagType;
 
 private:
-    Command *mCommand;
     CommandQueue &mQueue;
     FlagType &mFlag;
+    T mCommand;
 
 public:
-    CommandEvent(Command *command, CommandQueue &queue, FlagType &flag)
-      : mCommand(command), mQueue(queue), mFlag(flag)
+    template<typename ...Args>
+    CommandSync(CommandQueue &queue, FlagType &flag, Args...args)
+      : mQueue(queue), mFlag(flag), mCommand(args...)
     { }
 
     virtual ULONG execute();
 };
 
 class FlushGLCmd : public Command {
-private:
-
 public:
     FlushGLCmd() { }
 
@@ -193,8 +193,8 @@ public:
     template<typename T, typename ...Args>
     void sendSync(Args...args)
     {
-        CommandEvent::FlagType flag(0);
-        send<CommandEvent>(new T(args...), make_ref(*this), make_ref(flag));
+        typename CommandSync<T>::FlagType flag(0);
+        send<CommandSync<T>>(make_ref(*this), make_ref(flag), args...);
 
         beginWait();
         while(!flag) wait();
@@ -223,5 +223,18 @@ public:
         wake();
     }
 };
+
+
+template<typename T>
+inline ULONG CommandSync<T>::execute()
+{
+    mCommand.execute();
+
+    mQueue.beginWait();
+    mFlag = 1;
+    mQueue.endWait();
+
+    return sizeof(*this);
+}
 
 #endif /* COMMANDQUEUE_HPP */
