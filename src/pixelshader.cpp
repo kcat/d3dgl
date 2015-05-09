@@ -122,7 +122,7 @@ D3DGLPixelShader::D3DGLPixelShader(D3DGLDevice *parent)
 D3DGLPixelShader::~D3DGLPixelShader()
 {
     if(mPendingUpdates > 0)
-        mParent->getQueue().wakeAndWait();
+        mParent->getQueue().wakeAndSleep();
     for(auto &program : mPrograms)
         mParent->getQueue().send<DeinitPShaderCmd>(program.second);
     mParent->Release();
@@ -169,7 +169,7 @@ void D3DGLPixelShader::setProgram(GLuint pipeline, UINT shadowmask, bool force)
 {
     CommandQueue &queue = mParent->getQueue();
     while(mPendingUpdates > 0)
-        queue.wakeAndWait();
+        queue.wakeAndSleep();
 
     shadowmask &= mSamplerMask;
     auto iter = mPrograms.find(shadowmask);

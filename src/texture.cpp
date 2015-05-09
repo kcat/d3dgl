@@ -188,7 +188,7 @@ D3DGLTexture::~D3DGLTexture()
     {
         mParent->getQueue().send<TextureDeinitCmd>(mTexId);
         while(mUpdateInProgress)
-            mParent->getQueue().wakeAndWait();
+            mParent->getQueue().wakeAndSleep();
         mTexId = 0;
     }
 
@@ -673,7 +673,7 @@ HRESULT D3DGLTextureSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *re
     if(!(flags&D3DLOCK_NOOVERWRITE) && !(flags&D3DLOCK_READONLY))
     {
         while(mParent->mUpdateInProgress)
-            mParent->mParent->getQueue().wakeAndWait();
+            mParent->mParent->getQueue().wakeAndSleep();
     }
 
     GLubyte *memPtr = &mParent->mSysMem[mDataOffset];

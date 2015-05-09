@@ -166,7 +166,7 @@ public:
     void unlock() { mSpinLock = false; }
     void wake() { WakeAllConditionVariable(&mCondVar); }
 
-    void wakeAndWait()
+    void wakeAndSleep()
     {
         wake();
         Sleep(1);

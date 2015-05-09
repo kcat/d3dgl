@@ -1549,17 +1549,17 @@ bool D3DGLDevice::init(D3DPRESENT_PARAMETERS *params)
 HRESULT D3DGLDevice::sendVtxData(INT startvtx, const StreamSource *sources, UINT num_sources)
 {
     D3DGLVertexShader *vshader = mVertexShader;
-
-    /* Wait for the vertex shader to finish building if it's in the process of
-     * doing so. We need its UsageMap to set the proper vertex attributes.
-     */
-    while(vshader && (vshader->checkShadowSamplers(mShadowSamplers),vshader->getPendingUpdates()) > 0)
-        mQueue.wakeAndWait();
     if(!vshader)
     {
         FIXME("Cannot draw without a vertex shader\n");
         return D3D_OK;
     }
+
+    /* Wait for the vertex shader to finish building if it's in the process of
+     * doing so. We need its UsageMap to set the proper vertex attributes.
+     */
+    while(vshader->checkShadowSamplers(mShadowSamplers),vshader->getPendingUpdates() > 0)
+        mQueue.wakeAndSleep();
 
     if(D3DGLPixelShader *pshader = mPixelShader)
         pshader->setProgram(mGLState.pipeline, mShadowSamplers, mNewPixelShader.exchange(false));
@@ -3886,7 +3886,7 @@ HRESULT D3DGLDevice::SetVertexShader(IDirect3DVertexShader9 *shader)
     mQueue.lock();
     // Wait for pending updates to finish, in case we need to rebuild with new parameters.
     while(vshader && vshader->getPendingUpdates() > 0)
-        mQueue.wakeAndWait();
+        mQueue.wakeAndSleep();
     D3DGLVertexShader *oldshader = mVertexShader.exchange(vshader);
     if(vshader)
     {
@@ -4170,7 +4170,7 @@ HRESULT D3DGLDevice::SetPixelShader(IDirect3DPixelShader9 *shader)
     mQueue.lock();
     // Wait for pending updates to finish, in case we need to rebuild with new parameters.
     while(pshader && pshader->getPendingUpdates() > 0)
-        mQueue.wakeAndWait();
+        mQueue.wakeAndSleep();
     D3DGLPixelShader *oldshader = mPixelShader.exchange(pshader);
     if(pshader)
     {

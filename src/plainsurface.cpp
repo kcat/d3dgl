@@ -19,7 +19,7 @@ D3DGLPlainSurface::D3DGLPlainSurface(D3DGLDevice *parent)
 D3DGLPlainSurface::~D3DGLPlainSurface()
 {
     while(mPendingUpdates > 0)
-        mParent->getQueue().wakeAndWait();
+        mParent->getQueue().wakeAndSleep();
 }
 
 bool D3DGLPlainSurface::init(const D3DSURFACE_DESC *desc)
@@ -191,7 +191,7 @@ HRESULT D3DGLPlainSurface::LockRect(D3DLOCKED_RECT *lockedRect, const RECT *rect
     }
 
     while(mPendingUpdates > 0)
-        mParent->getQueue().wakeAndWait();
+        mParent->getQueue().wakeAndSleep();
 
     GLubyte *memPtr = mBufData.get();
     mLockRegion = *rect;

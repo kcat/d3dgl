@@ -197,7 +197,7 @@ D3DGLTexture3D::~D3DGLTexture3D()
     {
         mParent->getQueue().send<Texture3DDeinitCmd>(mTexId);
         while(mUpdateInProgress)
-            mParent->getQueue().wakeAndWait();
+            mParent->getQueue().wakeAndSleep();
         mTexId = 0;
     }
 
@@ -659,7 +659,7 @@ HRESULT D3DGLTextureVolume::LockBox(D3DLOCKED_BOX *lockedbox, const D3DBOX *box,
     if(!(flags&D3DLOCK_NOOVERWRITE) && !(flags&D3DLOCK_READONLY))
     {
         while(mParent->mUpdateInProgress)
-            mParent->mParent->getQueue().wakeAndWait();
+            mParent->mParent->getQueue().wakeAndSleep();
     }
 
     GLubyte *memPtr = &mParent->mSysMem[mDataOffset];

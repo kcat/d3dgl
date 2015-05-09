@@ -144,7 +144,7 @@ D3DGLVertexShader::~D3DGLVertexShader()
     {
         mParent->getQueue().send<DeinitVShaderCmd>(program);
         if(mPendingUpdates > 0)
-            mParent->getQueue().wakeAndWait();
+            mParent->getQueue().wakeAndSleep();
     }
     mParent->Release();
 }

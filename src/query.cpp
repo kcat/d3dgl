@@ -116,7 +116,7 @@ D3DGLQuery::~D3DGLQuery()
     {
         mParent->getQueue().send<QueryDeinitCmd>(mQueryId);
         while(mPendingQueries)
-            mParent->getQueue().wakeAndWait();
+            mParent->getQueue().wakeAndSleep();
         mQueryId = 0;
     }
 
@@ -215,7 +215,7 @@ HRESULT D3DGLQuery::Issue(DWORD flags)
     {
         // Need to wait for any data queries to finish first
         while(mPendingQueries)
-            mParent->getQueue().wakeAndWait();
+            mParent->getQueue().wakeAndSleep();
         mState = Building;
         mParent->getQueue().send<BeginQueryCmd>(this);
     }
