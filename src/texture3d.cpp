@@ -322,7 +322,7 @@ HRESULT D3DGLTexture3D::QueryInterface(REFIID riid, void **obj)
     RETURN_IF_IID_TYPE(obj, riid, IDirect3DResource9);
     RETURN_IF_IID_TYPE(obj, riid, IUnknown);
 
-    FIXME("Unsupported interface %s\n", debugstr_guid(riid));
+    TRACE("Unsupported interface %s\n", debugstr_guid(riid));
     return E_NOINTERFACE;
 }
 
@@ -546,7 +546,7 @@ HRESULT D3DGLTextureVolume::QueryInterface(REFIID riid, void **obj)
     RETURN_IF_IID_TYPE(obj, riid, IDirect3DVolume9);
     RETURN_IF_IID_TYPE(obj, riid, IUnknown);
 
-    FIXME("Unsupported interface %s\n", debugstr_guid(riid));
+    TRACE("Unsupported interface %s\n", debugstr_guid(riid));
     return E_NOINTERFACE;
 }
 
