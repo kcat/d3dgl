@@ -14,6 +14,7 @@
 #include "rendertarget.hpp"
 #include "adapter.hpp"
 #include "texture.hpp"
+#include "texture3d.hpp"
 #include "texturecube.hpp"
 #include "bufferobject.hpp"
 #include "plainsurface.hpp"
@@ -2045,8 +2046,53 @@ HRESULT D3DGLDevice::CreateTexture(UINT width, UINT height, UINT levels, DWORD u
 
 HRESULT D3DGLDevice::CreateVolumeTexture(UINT width, UINT height, UINT depth, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DVolumeTexture9 **texture, HANDLE *handle)
 {
-    FIXME("iface %p, width %u, height %u, depth %u, levels %u, usage 0x%lx, format %s, pool 0x%x, texture %p, handle %p : stub!\n", this, width, height, depth, levels, usage, d3dfmt_to_str(format), pool, texture, handle);
-    return E_NOTIMPL;
+    TRACE("iface %p, width %u, height %u, depth %u, levels %u, usage 0x%lx, format %s, pool 0x%x, texture %p, handle %p\n", this, width, height, depth, levels, usage, d3dfmt_to_str(format), pool, texture, handle);
+
+    if(handle)
+    {
+        WARN("Non-NULL handle specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+    if(!texture)
+    {
+        WARN("NULL texture storage specified\n");
+        return D3DERR_INVALIDCALL;
+    }
+
+    HRESULT hr = D3D_OK;
+    DWORD realusage = mAdapter.getUsage(D3DRTYPE_VOLUMETEXTURE, format);
+    if((usage&realusage) != usage)
+    {
+        usage &= ~D3DUSAGE_AUTOGENMIPMAP;
+        if((usage&realusage) != usage)
+        {
+            ERR("Invalid usage flags, 0x%lx / 0x%lx\n", usage, realusage);
+            return D3DERR_INVALIDCALL;
+        }
+        WARN("AUTOGENMIPMAP requested, but unavailable (usage: 0x%lx)\n", realusage);
+        hr = D3DOK_NOAUTOGEN;
+    }
+
+    D3DVOLUME_DESC desc;
+    desc.Format = format;
+    desc.Type = D3DRTYPE_VOLUMETEXTURE;
+    desc.Usage = usage;
+    desc.Pool = pool;
+    desc.Width = width;
+    desc.Height = height;
+    desc.Depth = depth;
+
+    D3DGLTexture3D *tex = new D3DGLTexture3D(this);
+    if(!tex->init(&desc, levels))
+    {
+        delete tex;
+        return D3DERR_INVALIDCALL;
+    }
+
+    *texture = tex;
+    (*texture)->AddRef();
+
+    return hr;
 }
 
 HRESULT D3DGLDevice::CreateCubeTexture(UINT edgeLength, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, IDirect3DCubeTexture9 **texture, HANDLE *handle)
